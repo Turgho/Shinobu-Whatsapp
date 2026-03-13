@@ -1,0 +1,14 @@
+bot:
+  name: YuukoBot
+  prefix: "$"
+  environment: "development"
+database:
+  driver: sqlite3
+  dsn: "file:storage/storage.db?_foreign_keys=on"
+log:
+  level: debug
+usersJID:
+  owner: "276807035179046@lid"
+apiUrls:
+  geocoding: "https://nominatim.openstreetmap.org/search"
+  weather: "https://api.open-meteo.com/v1/forecast"
