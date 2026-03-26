@@ -222,4 +222,4 @@ r.RegisterCommand("ping", public.PingCommand)
 
 ---
 
-Obrigado por visitar o **BarraTour**
+Obrigado por visitar o **Shinobu-Discord**
