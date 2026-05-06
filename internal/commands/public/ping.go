@@ -1,6 +1,7 @@
 package public
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -10,15 +11,8 @@ import (
 )
 
 // Responde com "Pong!" quando o comando "ping" for recebido
-func PingCommand(client *whatsmeow.Client, evt *events.Message, args []string) error {
-	start := time.Now()
+func PingCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+	latency := time.Since(evt.Info.Timestamp).Milliseconds()
 
-	err := utils.Reply(client, evt, "🏓 Pong!")
-	if err != nil {
-		return err
-	}
-
-	latency := time.Since(start).Milliseconds()
-
-	return utils.Reply(client, evt, fmt.Sprintf("📡 Latência : `%dms`", latency))
+	return utils.Reply(ctx, client, evt, fmt.Sprintf("🏓 Pong!\n📡 Latência: `%dms`", latency))
 }

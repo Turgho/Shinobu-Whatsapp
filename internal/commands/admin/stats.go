@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"time"
@@ -10,7 +11,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-func StatsCommand(client *whatsmeow.Client, evt *events.Message, args []string) error {
+func StatsCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	upTime := utils.SinceUptime()
 
 	var mem runtime.MemStats
@@ -34,5 +35,5 @@ func StatsCommand(client *whatsmeow.Client, evt *events.Message, args []string) 
 		runtime.NumCPU(),
 	)
 
-	return utils.Reply(client, evt, msg)
+	return utils.Reply(ctx, client, evt, msg)
 }

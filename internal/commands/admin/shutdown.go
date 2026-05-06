@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -11,9 +12,9 @@ import (
 )
 
 // ShutdownCommand desconecta o bot e encerra a aplicação
-func ShutdownCommand(client *whatsmeow.Client, evt *events.Message, args []string) error {
+func ShutdownCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	// Envia mensagem de despedida
-	if err := utils.Reply(client, evt, "A mimir patrão 😴..."); err != nil {
+	if err := utils.Reply(ctx, client, evt, "A mimir patrão 😴..."); err != nil {
 		return fmt.Errorf("falha ao enviar mensagem antes do shutdown: %w", err)
 	}
 
