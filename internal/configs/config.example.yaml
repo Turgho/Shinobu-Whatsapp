@@ -1,14 +1,19 @@
 bot:
   name: YuukoBot
-  prefix: "$"
+  prefix: "!"          # prefixo dos comandos
   environment: "development"
+
 database:
   driver: sqlite3
   dsn: "file:storage/storage.db?_foreign_keys=on"
+
 log:
-  level: debug
+  level: debug         # debug | info | warn | error
+
 usersJID:
-  owner: "276807035179046@lid"
+  owner: "seu_jid@lid" # JID do dono do bot (aparece no log ao iniciar)
+  admins: []           # JIDs adicionais com permissão de admin
+
 apiUrls:
   geocoding: "https://nominatim.openstreetmap.org/search"
   weather: "https://api.open-meteo.com/v1/forecast"
