@@ -1,32 +1,88 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
+# ─── Binários ────────────────────────────────────────────────────────────────
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+/YuukoBot
+/Shinobu
 
-# Test binary, built with `go test -c`
+# ─── Testes ──────────────────────────────────────────────────────────────────
 *.test
-
-# Code coverage profiles and other test artifacts
 *.out
 coverage.*
 *.coverprofile
 profile.cov
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# ─── Dependências ────────────────────────────────────────────────────────────
+vendor/
 
-# Go workspace file
+# ─── Go workspace ────────────────────────────────────────────────────────────
 go.work
 go.work.sum
 
-# env file
-.env
+# ─── Banco de dados ──────────────────────────────────────────────────────────
+# Gerado automaticamente na primeira execução — contém credenciais do WhatsApp
+storage/storage.db
+storage/storage.db-shm
+storage/storage.db-wal
 
-# Editor/IDE
-# .idea/
-# .vscode/
+# ─── Configuração ────────────────────────────────────────────────────────────
+# Nunca commitar credenciais ou configurações locais
+.env
+.env.*
+!.env.example
+
+# ─── Arquivos temporários do sticker ─────────────────────────────────────────
+/tmp/sticker-in-*
+/tmp/sticker-out-*
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Editores e IDEs ─────────────────────────────────────────────────────────
+
+# VSCode / VSCodium
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# JetBrains (GoLand, etc.)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim / Neovim
+*.swp
+*.swo
+*~
+.netrwhist
+
+# Emacs
+*#
+.#*
+
+# ─── Sistema operacional ─────────────────────────────────────────────────────
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+.fuse_hidden*
+.Trash-*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ─── Misc ────────────────────────────────────────────────────────────────────
+*.bak
+*.tmp
+*.orig
