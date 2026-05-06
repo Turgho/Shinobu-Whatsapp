@@ -1,6 +1,7 @@
 package public
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 )
 
 func WeatherCommand(
+	ctx context.Context,
 	client *whatsmeow.Client,
 	evt *events.Message,
 	args []string,
@@ -19,73 +21,56 @@ func WeatherCommand(
 	weatherClient *weather.WeatherClient,
 ) error {
 	if len(args) == 0 {
-		if err := utils.Reply(client, evt, "Por favor, informe o nome da cidade."); err != nil {
-			return err
-		}
-		return nil
+		return utils.Reply(ctx, client, evt, "Por favor, informe o nome da cidade.")
 	}
 
-	query := strings.Join(args, " ") // junta ["São", "Paulo"] → "São Paulo"
+	query := strings.Join(args, " ")
 
-	// Busca coordenadas
 	results, err := geo.Lookup(query, 1)
 	if err != nil || len(results) == 0 {
-		err = utils.Reply(client, evt, "Não consegui encontrar a cidade.")
-		if err != nil {
-			return err
+		if replyErr := utils.Reply(ctx, client, evt, "Não consegui encontrar a cidade."); replyErr != nil {
+			return replyErr
 		}
 		return err
 	}
+
 	loc := results[0]
 
-	// Busca clima horário
-	weatherResults, err := weatherClient.GetHourlyWeather(loc.Latitude, loc.Longitude)
-	if err != nil || len(weatherResults) == 0 {
-		err = utils.Reply(client, evt, "Não consegui pegar o clima.")
-		if err != nil {
-			return err
+	// Buscar clima
+	weatherData, err := weatherClient.GetCurrentWeather(loc.Latitude, loc.Longitude)
+	if err != nil {
+		if replyErr := utils.Reply(ctx, client, evt, "Não consegui pegar o clima."); replyErr != nil {
+			return replyErr
 		}
 		return err
 	}
-	w := weatherResults[0]
 
-	// Monta mensagem
-	msg := buildWeatherMessage(loc, w)
+	msg := buildWeatherMessage(loc, weatherData)
 
-	return utils.Reply(client, evt, msg)
+	return utils.Reply(ctx, client, evt, msg)
 }
 
-func buildWeatherMessage(loc geocoding.GeoResult, w weather.WeatherResult) string {
-	// Cidade, estado, país
+func buildWeatherMessage(loc geocoding.GeoResult, w *weather.WeatherResult) string {
 	cidade, _, pais := splitLocation(loc.DisplayName)
-
-	// Descrição e emoji
 	info := weather.WeatherCodeMap[w.WeatherCode]
 
-	// Monta a mensagem formatada
-	msg := fmt.Sprintf(
+	return fmt.Sprintf(
 		"*🌍 Local:* %s, %s\n"+
-			"*🌡️ Temperatura:* `%.1f°C`\n"+
+			"*🌡️ Temperatura atual:* `%.1f°C`\n"+
 			"*🤗 Sensação térmica:* `%.1f°C`\n"+
-			"*☔ Chuva:* `%.1fmm` (_%.0f%% chance_)\n"+
 			"*💨 Vento:* `%.1f km/h` _%.0f°_\n"+
 			"%s *%s*",
 		cidade,
 		pais,
 		w.Temperature,
 		w.ApparentTemperature,
-		w.Precipitation,
-		w.PrecipitationProb,
 		w.WindSpeed,
 		w.WindDirection,
 		info.Emoji,
 		info.Description,
 	)
-
-	return msg
 }
 
-// splitLocation separa cidade, estado e país do displayName
 func splitLocation(displayName string) (cidade, estado, pais string) {
 	parts := strings.Split(displayName, ",")
 	for i := range parts {
