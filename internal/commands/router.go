@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -10,7 +11,7 @@ import (
 )
 
 type Router struct {
-	commands    map[string]Command
+	commands    map[string]command
 	middlewares []Middleware
 	prefix      string
 	client      *whatsmeow.Client
@@ -19,35 +20,58 @@ type Router struct {
 
 func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger) *Router {
 	return &Router{
-		commands: make(map[string]Command),
+		commands: make(map[string]command),
 		prefix:   prefix,
 		client:   client,
 		log:      log,
 	}
 }
 
-func (r *Router) RegisterCommand(name string, cmd Command) {
-	r.commands[name] = cmd
-
-	r.log.Info(
-		"Comando registrado",
-		zap.String("command", name),
+// RegisterCommand registra um comando com seus metadados e handler.
+func (r *Router) RegisterCommand(meta CommandMeta, handler HandlerFunc) {
+	r.commands[meta.Name] = command{Meta: meta, Handler: handler}
+	r.log.Info("Comando registrado",
+		zap.String("command", meta.Name),
+		zap.Bool("private", meta.Private),
 	)
 }
 
+// Use adiciona um middleware ao pipeline.
 func (r *Router) Use(m Middleware) {
 	r.middlewares = append(r.middlewares, m)
 }
 
-func (r *Router) HandleMessage(evt *events.Message) {
-	r.log.Debug(
-		"Mensagem recebida",
-		zap.String("sender", evt.Info.Sender.User),
-		zap.String("chat", evt.Info.Chat.String()),
-	)
+// Commands retorna os metadados de todos os comandos registrados.
+func (r *Router) Commands() []CommandMeta {
+	metas := make([]CommandMeta, 0, len(r.commands))
+	for _, cmd := range r.commands {
+		metas = append(metas, cmd.Meta)
+	}
+	return metas
+}
 
+// HasCommand verifica se um comando está registrado.
+func (r *Router) HasCommand(name string) bool {
+	_, ok := r.commands[name]
+	return ok
+}
+
+// IsPrivate verifica se um comando registrado está marcado como privado.
+func (r *Router) IsPrivate(name string) bool {
+	cmd, ok := r.commands[name]
+	return ok && cmd.Meta.Private
+}
+
+// Prefix retorna o prefixo configurado no router.
+func (r *Router) Prefix() string {
+	return r.prefix
+}
+
+// HandleMessage é o ponto de entrada para eventos de mensagem do WhatsApp.
+func (r *Router) HandleMessage(evt *events.Message) {
 	msg := getTextMessage(evt)
 
+	// Descarta silenciosamente mensagens sem prefixo — a grande maioria
 	if msg == "" || !strings.HasPrefix(msg, r.prefix) {
 		return
 	}
@@ -60,37 +84,36 @@ func (r *Router) HandleMessage(evt *events.Message) {
 	cmdName := parts[0]
 	args := parts[1:]
 
-	// roda middlewares
+	// Middlewares rodam antes do log — mensagens antigas e do próprio bot
+	// são descartadas aqui sem aparecer no terminal
 	for _, m := range r.middlewares {
 		if !m(cmdName, evt) {
 			return
 		}
 	}
 
-	cmd, ok := r.commands[cmdName]
-	if !ok {
-		r.log.Warn("Comando não encontrado",
-			zap.String("command", cmdName),
-		)
-		return
-	}
-
-	start := time.Now()
-
-	r.log.Info(
-		"Executando comando",
+	// Só loga mensagens que passaram em todos os filtros
+	r.log.Info("Comando recebido",
 		zap.String("command", cmdName),
 		zap.String("user", evt.Info.Sender.User),
 		zap.Strings("args", args),
 	)
 
-	err := cmd(r.client, evt, args)
+	cmd, ok := r.commands[cmdName]
+	if !ok {
+		// Não deveria chegar aqui — CommandNotFoundMiddleware já tratou
+		return
+	}
 
-	duration := time.Since(start)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	if err != nil {
+	start := time.Now()
+
+	if err := cmd.Handler(ctx, r.client, evt, args); err != nil {
 		r.log.Error("Erro no comando",
 			zap.String("command", cmdName),
+			zap.String("user", evt.Info.Sender.User),
 			zap.Error(err),
 		)
 		return
@@ -98,34 +121,27 @@ func (r *Router) HandleMessage(evt *events.Message) {
 
 	r.log.Info("Comando executado",
 		zap.String("command", cmdName),
-		zap.Duration("duration", duration),
+		zap.Duration("duration", time.Since(start)),
 	)
 }
 
+// getTextMessage extrai o texto de uma mensagem, suportando vários tipos.
 func getTextMessage(evt *events.Message) string {
 	if evt.Message == nil {
 		return ""
 	}
 
-	// Mensagem simples de texto
 	msg := evt.Message.GetConversation()
 
-	// Mensagem extendida (como reply)
 	if msg == "" && evt.Message.GetExtendedTextMessage() != nil {
 		msg = evt.Message.GetExtendedTextMessage().GetText()
 	}
-
-	// Legenda de imagem
 	if msg == "" && evt.Message.GetImageMessage() != nil {
 		msg = evt.Message.GetImageMessage().GetCaption()
 	}
-
-	// Legenda de vídeo
 	if msg == "" && evt.Message.GetVideoMessage() != nil {
 		msg = evt.Message.GetVideoMessage().GetCaption()
 	}
-
-	// Legenda de documento
 	if msg == "" && evt.Message.GetDocumentMessage() != nil {
 		msg = evt.Message.GetDocumentMessage().GetCaption()
 	}
