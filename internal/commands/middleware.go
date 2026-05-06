@@ -1,7 +1,7 @@
 package commands
 
 import (
-	"fmt"
+	"context"
 	"slices"
 
 	"github.com/Turgho/YuukoWhatsapp/internal/utils"
@@ -9,53 +9,56 @@ import (
 	"go.uber.org/zap"
 )
 
-// PrivateCommandsMiddleware retorna um Middleware que bloqueia comandos privados
-// para usuários que não são donos ou admins
-func PrivateCommandsMiddleware(owner string, admins []string, privateCommands map[string]bool) Middleware {
-	return func(cmd string, evt *events.Message) bool {
-		if privateCommands[cmd] {
-			return PrivateOnlyMiddleware(evt, owner, admins)
-		}
-		return true // comandos públicos
-	}
-}
-
-// Middleware para feedback de comando não encontrado
-func CommandNotFoundMiddleware(r *Router) Middleware {
-	return func(cmd string, evt *events.Message) bool {
-		if _, ok := r.commands[cmd]; !ok {
-			// Envia mensagem de erro para o usuário
-			if err := utils.Reply(r.client, evt, "❌ Comando não encontrado"); err != nil {
-				r.log.Warn("Falha ao notificar usuário sobre comando não encontrado",
-					zap.String("command", cmd),
-					zap.String("user", evt.Info.Sender.User),
-					zap.Error(err),
-				)
-			}
-			return false // bloqueia execução do Router
-		}
-		return true
-	}
-}
-
-// Middlare que ignora mensagens do próprio BOT
+// IgnoreSelfMiddleware ignora mensagens enviadas pelo próprio bot.
 func IgnoreSelfMiddleware(cmd string, evt *events.Message) bool {
 	return !evt.Info.IsFromMe
 }
 
-// Middleware que ignora mensagens antigas
+// IgnoreOldMessagesMiddleware ignora mensagens anteriores ao início do bot.
+// Evita reagir a mensagens antigas ao reiniciar.
 func IgnoreOldMessagesMiddleware(cmd string, evt *events.Message) bool {
-	upTime := utils.SinceUptime()
-	return evt.Info.Timestamp.After(upTime) // compara com o tempo de início do bot
+	return evt.Info.Timestamp.After(utils.SinceUptime())
 }
 
-// Middleware que bloqueia comandos privados para quem não for dono/admin
-func PrivateOnlyMiddleware(evt *events.Message, owner string, admins []string) bool {
-	fmt.Println("OWNER_JID:", owner)
-
-	jid := evt.Info.Sender.String()
-	if jid == owner {
-		return true
+// CommandNotFoundMiddleware notifica o usuário quando o comando não existe.
+// Deve vir após IgnoreOldMessages para não responder a mensagens antigas.
+func CommandNotFoundMiddleware(r *Router) Middleware {
+	return func(cmd string, evt *events.Message) bool {
+		if r.HasCommand(cmd) {
+			return true
+		}
+		ctx := context.Background()
+		msg := "❌ Comando não encontrado. Use *" + r.Prefix() + "menu* para ver os disponíveis."
+		if err := utils.Reply(ctx, r.client, evt, msg); err != nil {
+			r.log.Warn("Falha ao notificar comando não encontrado",
+				zap.String("command", cmd),
+				zap.String("user", evt.Info.Sender.User),
+				zap.Error(err),
+			)
+		}
+		return false
 	}
-	return slices.Contains(admins, jid)
+}
+
+// PrivateCommandsMiddleware bloqueia comandos marcados como Private=true para
+// usuários sem permissão. Usa os metadados do Router — sem mapa manual externo.
+func PrivateCommandsMiddleware(r *Router, owner string, admins []string) Middleware {
+	return func(cmd string, evt *events.Message) bool {
+		if !r.IsPrivate(cmd) {
+			return true
+		}
+		jid := evt.Info.Sender.String()
+		if jid == owner || slices.Contains(admins, jid) {
+			return true
+		}
+		ctx := context.Background()
+		if err := utils.Reply(ctx, r.client, evt, "🔒 Você não tem permissão para usar este comando."); err != nil {
+			r.log.Warn("Falha ao notificar acesso negado",
+				zap.String("command", cmd),
+				zap.String("user", jid),
+				zap.Error(err),
+			)
+		}
+		return false
+	}
 }
