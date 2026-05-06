@@ -12,51 +12,48 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 
-	qrterminal "github.com/mdp/qrterminal/v3" // QR Code
+	qrterminal "github.com/mdp/qrterminal/v3"
 )
 
 type Client struct {
 	WAClient *whatsmeow.Client
 }
 
-// NewClient cria um novo client do WhatsApp usando SQLite
+// NewClient cria o client WhatsApp usando o banco de dados passado.
+// Tenta reutilizar um dispositivo existente; cria um novo apenas se não houver nenhum.
 func NewClient(ctx context.Context, db *sql.DB) (*Client, error) {
-	// Cria um logger para o banco de dados
 	dbLogger := logger.NewDatabaseLogger()
-
-	// Configura o armazenamento do dispositivo usando o banco de dados
 	container := sqlstore.NewWithDB(db, "sqlite3", dbLogger)
 
-	// Cria as tabelas se não existirem
 	if err := container.Upgrade(ctx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("falha ao atualizar schema do whatsmeow: %w", err)
 	}
 
-	// Tenta pegar o primeiro device do banco
 	deviceStore, err := container.GetFirstDevice(ctx)
 	if err != nil {
-		// Nenhum device existe ainda, cria um novo
-		deviceStore = container.NewDevice()
-
-		fmt.Println("Novo dispositivo criado. Escaneie o QR Code para autenticar!")
+		// Erro real de banco — não silenciar nem criar device em cima de uma falha
+		return nil, fmt.Errorf("erro ao buscar dispositivo no banco: %w", err)
 	}
 
-	// Cria um logger para o cliente WhatsApp
-	waLogger := logger.NewWhatsAppLogger()
+	// GetFirstDevice retorna nil quando não há nenhum dispositivo cadastrado
+	if deviceStore == nil {
+		deviceStore = container.NewDevice()
+		fmt.Println("Nenhum dispositivo encontrado. Escaneie o QR Code para autenticar.")
+	}
 
-	// Cria o client WhatsApp com o deviceStore
+	waLogger := logger.NewWhatsAppLogger()
 	client := whatsmeow.NewClient(deviceStore, waLogger)
 
-	return &Client{
-		WAClient: client,
-	}, nil
+	return &Client{WAClient: client}, nil
 }
 
-// Connect conecta o client ao WhatsApp e gera QR code se necessário
+// Connect conecta ao WhatsApp. Se não houver sessão salva, exibe o QR Code.
 func (c *Client) Connect(ctx context.Context) error {
 	if c.WAClient.Store.ID == nil {
-		// Gera um novo QR code para login caso não haja um ID armazenado
-		qrChan, _ := c.WAClient.GetQRChannel(ctx)
+		qrChan, err := c.WAClient.GetQRChannel(ctx)
+		if err != nil {
+			return fmt.Errorf("erro ao obter canal de QR Code: %w", err)
+		}
 
 		go func() {
 			for evt := range qrChan {
@@ -68,31 +65,27 @@ func (c *Client) Connect(ctx context.Context) error {
 		}()
 	}
 
-	// Conecta ao WhatsApp
-	err := c.WAClient.Connect()
-	if err != nil {
-		return err
+	if err := c.WAClient.Connect(); err != nil {
+		return fmt.Errorf("erro ao conectar no WhatsApp: %w", err)
 	}
 
 	return nil
 }
 
-// RegisterHandlers permite registrar um manipulador de eventos para o cliente WhatsApp
+// RegisterHandlers registra um handler de eventos no cliente WhatsApp.
 func (c *Client) RegisterHandlers(handler func(evt interface{})) {
 	c.WAClient.AddEventHandler(handler)
 }
 
-// Listen inicia o loop de escuta e aguarda sinais de interrupção
+// Listen bloqueia até receber SIGINT ou SIGTERM e desconecta o bot graciosamente.
 func (c *Client) Listen() {
 	fmt.Println("Bot rodando. Pressione CTRL+C para parar.")
 
-	// Cria um canal para capturar sinais do sistema
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	// Bloqueia até receber um sinal
 	sig := <-sigs
 	fmt.Println("\nRecebido sinal:", sig)
 	fmt.Println("Encerrando bot...")
-	c.WAClient.Disconnect() // desconecta do WhatsApp
+	c.WAClient.Disconnect()
 }
