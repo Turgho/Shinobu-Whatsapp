@@ -1,216 +1,164 @@
-# 🤖 Yuuko — WhatsApp Bot em Go
+# Shinobu — WhatsApp Bot
 
 [![Status](https://img.shields.io/badge/status-em%20desenvolvimento-red)](https://github.com/Turgho/YuukoWhatsapp)
-[![Linguagem](https://img.shields.io/badge/Linguagem-Go-blue)](https://go.dev/doc/)
-[![Último commit](https://img.shields.io/github/last-commit/Turgho/YuukoWhatsapp)](https://github.com/Turgho/YuukoWhatsapp/commits/main)
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
+[![Último commit](https://img.shields.io/github/last-commit/Turgho/YuukoWhatsapp)](https://github.com/Turgho/YuukoWhatsapp/commits/main)
 
-**Yuuko** é um bot de **WhatsApp desenvolvido em Go**, focado em automação de comandos, utilidades e integração com APIs externas.
-
-O bot utiliza a biblioteca **Whatsmeow** para conexão com o WhatsApp Web e possui uma arquitetura modular para facilitar a criação de novos comandos.
-
-> **Status atual**: desenvolvimento ativo — novas funcionalidades estão sendo adicionadas continuamente.
+Bot de WhatsApp escrito em Go, com arquitetura modular baseada em router de comandos, middlewares e injeção de dependências.
 
 ---
 
-## 🚀 Funcionalidades atuais
+## Requisitos
 
-O bot atualmente possui algumas funcionalidades básicas e estrutura para expansão:
-
-🔧 Utilidades
-
-- ✅ Ping — verifica se o bot está online
-- ✅ Weather — consulta clima de uma cidade usando geocoding + API de clima
-- ✅ Comandos com prefixo configurável
-
-⚙️ Sistema de comandos
-
-- ✅ Router de comandos
-- ✅ Middlewares
-- ✅ Comandos privados (admins / owner)
-- ✅ Tratamento de comandos inexistentes
-
-🛡️ Segurança
-
-- ✅ Filtro de mensagens antigas
-- ✅ Ignorar mensagens do próprio bot
-- ✅ Sistema de permissões para comandos privados
-
----
-
-## 🧱 Arquitetura do projeto
-
-A estrutura do projeto segue um modelo modular para facilitar manutenção e expansão:
-
-```text
-.
-├── cmd
-│   └── bot
-│       └── main.go          # Entry point da aplicação
-│
-├── internal                 # Código interno do bot
-│   ├── app
-│   │   └── app.go           # Inicialização da aplicação
-│   │
-│   ├── bot
-│   │   ├── client.go        # Cliente WhatsApp (Whatsmeow)
-│   │   └── handler.go       # Handler de eventos
-│   │
-│   ├── commands             # Sistema de comandos
-│   │   ├── admin            # Comandos administrativos
-│   │   │   ├── shutdown.go
-│   │   │   └── stats.go
-│   │   │
-│   │   ├── public           # Comandos públicos
-│   │   │   ├── ping.go
-│   │   │   └── weather.go
-│   │   │
-│   │   ├── middleware.go    # Middlewares do router
-│   │   ├── router.go        # Router de comandos
-│   │   └── types.go         # Tipos e interfaces
-│   │
-│   ├── configs
-│   │   ├── config.go        # Carregamento de configuração
-│   │   └── config.yaml      # Arquivo de configuração
-│   │
-│   ├── database
-│   │   └── database.go      # Conexão com banco
-│   │
-│   └── utils                # Funções utilitárias
-│       ├── message.go       # Envio de mensagens
-│       └── uptime.go        # Controle de uptime
-│
-├── pkg                      # Pacotes reutilizáveis
-│   ├── geocoding
-│   │   └── geocode.go       # Geocoding via OpenStreetMap
-│   │
-│   ├── logger
-│   │   └── logger.go        # Logger baseado em Zap
-│   │
-│   └── weather
-│       ├── weather.go       # Client da API de clima
-│       └── weather_code.go  # Mapeamento de weather codes
-│
-├── storage
-│   └── storage.db           # Banco SQLite local
-│
-├── go.mod
-├── go.sum
-├── LICENSE
-└── README.md
-```
-
----
-
-## 📦 Organização do código
-
-O projeto utiliza duas pastas principais:
-
-`internal/`
-
-Contém **toda a lógica do bot**, incluindo:
-
-- inicialização da aplicação
-- sistema de comandos
-- conexão com banco
-- utilitários
-- handlers do WhatsApp
-
-> Esses pacotes são privados ao projeto.
-
-`pkg/`
-
-Contém **bibliotecas reutilizáveis**, como:
-
-- integração com APIs externas
-- logger
-- serviços independentes do bot
-
-> Esses pacotes podem ser reutilizados em outros projetos.
-
----
-
-## 🌐 APIs utilizadas
-
-O bot utiliza algumas **APIs externas** para fornecer funcionalidades:
-
-- Geocoding: OpenStreetMap / Nominatim
-- Weather: Open-Meteo
-
-> APIs permitem converter **nome de cidade** → **coordenadas** e **buscar dados climáticos atualizados**.
-
-### 🧪 Exemplo de comando
+- Go 1.22+
+- [ffmpeg](https://ffmpeg.org/download.html) — necessário para o comando `!sticker`
 
 ```bash
-!weather São Paulo
-```
+# Ubuntu / Debian
+sudo apt install ffmpeg
 
-Resposta:
+# Fedora (requer RPM Fusion)
+sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
+sudo dnf install ffmpeg
 
-```bash
-🌍 Local: São Paulo, Brasil
-🌡️ Temperatura: 27°C
-🤗 Sensação térmica: 29°C
-☔ Chuva: 0mm (0%)
-💨 Vento: 10 km/h
-☀️ Céu limpo
+# Arch Linux / Manjaro
+sudo pacman -S ffmpeg
+
+# macOS
+brew install ffmpeg
 ```
 
 ---
 
-## 🛠️ Tecnologias
-
-- **Linguagem**: Go
-- **WhatsApp API**: Whatsmeow
-- **Logs**: Zap
-- **Banco de dados**: SQL (dependendo da configuração)
-- **Arquitetura**: Modular + Router de comandos
-
----
-
-## ⚙️ Como executar
-
-1️⃣ Clonar o repositório
+## Instalação
 
 ```bash
 git clone https://github.com/Turgho/YuukoWhatsapp.git
 cd YuukoWhatsapp
-```
-
-2️⃣ Instalar dependências
-
-```bash
 go mod tidy
 ```
 
-3️⃣ Rodar o bot
+Configure o arquivo `internal/configs/configs.yaml` com suas credenciais e preferências.
+
+```yaml
+bot:
+  name: YuukoBot
+  prefix: "!"          # prefixo dos comandos
+  environment: "development"
+
+database:
+  driver: sqlite3
+  dsn: "file:storage/storage.db?_foreign_keys=on"
+
+log:
+  level: debug         # debug | info | warn | error
+
+usersJID:
+  owner: "seu_jid@lid" # JID do dono do bot (aparece no log ao iniciar)
+  admins: []           # JIDs adicionais com permissão de admin
+
+apiUrls:
+  geocoding: "https://nominatim.openstreetmap.org/search"
+  weather: "https://api.open-meteo.com/v1/forecast"
+```
+
+> **Como encontrar seu JID:** inicie o bot uma vez, envie qualquer mensagem para ele e o JID do remetente aparecerá nos logs. Cole-o no campo `owner`.
+
+---
+
+## Execução
 
 ```bash
 go run cmd/bot/main.go
 ```
 
-> Na primeira execução será necessário escanejar o QR Code do WhatsApp para conectar o bot.
+Na primeira execução, escaneie o QR Code com o WhatsApp para autenticar. As credenciais são salvas localmente em `storage/storage.db` — nas próximas execuções a conexão é automática.
 
 ---
 
-## ✨ Criando novos comandos
+## Comandos disponíveis
 
-Novos comandos podem ser adicionados dentro da pasta:
+| Comando | Descrição | Permissão |
+|---------|-----------|-----------|
+| `!menu` | Lista todos os comandos disponíveis | Pública |
+| `!ping` | Verifica latência do bot | Pública |
+| `!weather <cidade>` | Clima atual de uma cidade | Pública |
+| `!sticker` | Converte imagem ou vídeo em figurinha | Pública |
+| `!stats` | Estatísticas de runtime do bot | Admin |
+| `!shutdown` | Desliga o bot | Admin |
 
-```bash
-internal/commands/public
+---
+
+## Estrutura do projeto
+
+```
+.
+├── cmd/bot/main.go              # Entry point
+│
+├── internal/
+│   ├── app/app.go               # Inicialização e injeção de dependências
+│   ├── bot/
+│   │   ├── client.go            # Conexão com WhatsApp via whatsmeow
+│   │   └── handler.go           # Dispatcher de eventos
+│   ├── commands/
+│   │   ├── admin/               # Comandos privados (owner / admins)
+│   │   ├── public/              # Comandos públicos
+│   │   ├── middleware.go        # IgnoreSelf, IgnoreOldMessages, permissões
+│   │   ├── router.go            # Roteamento e pipeline de middlewares
+│   │   └── types.go             # HandlerFunc, CommandMeta, ArgMeta
+│   ├── configs/                 # configs.toml e carregamento de configuração
+│   ├── database/                # Conexão com SQLite
+│   └── utils/                   # Reply, uptime
+│
+└── pkg/
+    ├── geocoding/               # Geocoding via Nominatim (OpenStreetMap)
+    ├── logger/                  # Logger baseado em Zap
+    ├── sticker/                 # Conversão de mídia para WebP via ffmpeg
+    └── weather/                 # Cliente Open-Meteo + mapeamento de códigos
 ```
 
-ou
+---
 
-```bash
-internal/commands/admin
+## Criando um novo comando
+
+**1.** Crie o arquivo em `internal/commands/public/` ou `internal/commands/admin/`:
+
+```go
+// internal/commands/public/hello.go
+package public
+
+import (
+    "context"
+
+    "github.com/Turgho/YuukoWhatsapp/internal/utils"
+    "go.mau.fi/whatsmeow"
+    "go.mau.fi/whatsmeow/types/events"
+)
+
+func HelloCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+    return utils.Reply(ctx, client, evt, "Olá! 👋")
+}
 ```
 
-Depois basta registrar o comando no router:
+**2.** Registre em `internal/app/app.go` dentro de `registerCommands()`:
 
-```bash
-r.RegisterCommand("ping", public.PingCommand)
+```go
+r.RegisterCommand(commands.CommandMeta{
+    Name:        "hello",
+    Description: "Responde com uma saudação",
+}, public.HelloCommand)
+```
+
+O comando aparece automaticamente no `!menu` — sem mais nenhuma alteração.
+
+Para comandos privados (apenas owner/admins), adicione `Private: true` nos metadados:
+
+```go
+r.RegisterCommand(commands.CommandMeta{
+    Name:    "hello",
+    Private: true,
+}, public.HelloCommand)
 ```
 
 ---
@@ -222,4 +170,4 @@ r.RegisterCommand("ping", public.PingCommand)
 
 ---
 
-Obrigado por visitar o **Shinobu-Discord**
+Obrigado por visitar o **BarraTour**
