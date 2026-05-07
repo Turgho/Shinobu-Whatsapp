@@ -129,6 +129,11 @@ func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logge
 		Args:        []commands.ArgMeta{{Name: "nome da música ou URL", Required: true}},
 	}, public.PlayCommand)
 
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "mambo",
+		Description: "M A M B O 🏇",
+	}, public.MamboCommand)
+
 	// ─── Privados (apenas owner/admins) ───────────────────────────────────
 
 	r.RegisterCommand(commands.CommandMeta{
@@ -142,6 +147,12 @@ func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logge
 		Description: "Desliga o bot",
 		Private:     true,
 	}, admin.ShutdownCommand)
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "shinobu",
+		Description: "S H I N O B U",
+		Private:     true,
+	}, admin.ShinobuCommand)
 }
 
 // weatherHandler envolve WeatherCommand injetando as dependências externas.
