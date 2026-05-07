@@ -5,25 +5,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 )
-
-// CheckFFmpeg verifica se o ffmpeg está instalado e acessível no PATH.
-// Deve ser chamado durante a inicialização do bot para falhar cedo e com
-// uma mensagem clara, em vez de só dar erro na hora que alguém usar !sticker.
-func CheckFFmpeg() error {
-	_, err := exec.LookPath("ffmpeg")
-	if err != nil {
-		return fmt.Errorf(
-			"ffmpeg não encontrado no PATH\n" +
-				"  → Linux/Ubuntu: sudo apt install ffmpeg\n" +
-				"  → macOS:        brew install ffmpeg\n" +
-				"  → Windows:      https://ffmpeg.org/download.html",
-		)
-	}
-	return nil
-}
 
 // ConvertToWebP converte os bytes de entrada (imagem ou vídeo) em WebP
 // usando ffmpeg e retorna os bytes do arquivo resultante.
@@ -63,19 +46,23 @@ func ConvertToWebP(ctx context.Context, data []byte, ext string, animated bool) 
 
 // runFFmpeg executa o ffmpeg com os argumentos corretos para cada tipo de mídia.
 func runFFmpeg(ctx context.Context, input, output string, animated bool) error {
-	scaleFilter := "scale=512:512:force_original_aspect_ratio=decrease," +
-		"pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000"
+	scaleFilter := "scale=512:512:force_original_aspect_ratio=increase," +
+		"crop=512:512"
 
 	var args []string
 
 	if animated {
 		args = []string{
+			"-ss", "0",
+			"-t", "6",
 			"-i", input,
 			"-vf", scaleFilter + ",fps=15",
+			"-vcodec", "libwebp",
 			"-loop", "0",
-			"-t", "6",
-			"-preset", "default",
 			"-compression_level", "6",
+			"-q:v", "60",
+			"-threads", "2",
+			"-an",
 			"-y",
 			output,
 		}
