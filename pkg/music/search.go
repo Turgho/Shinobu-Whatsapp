@@ -26,7 +26,7 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 	input := query
 	if _, err := url.ParseRequestURI(query); err != nil {
 		// "official audio" ajuda a trazer resultados melhores em buscas de música.
-		input = "ytsearch1:" + query + " official audio"
+		input = "ytsearch1:" + query
 	}
 
 	// Cria uma pasta temporária única para evitar conflito entre execuções.
@@ -42,37 +42,17 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 
 	args := []string{
 		input,
-
-		// Algumas música podem ser bloqueadas por restrição de idade ou por outros motivos
-		"--cookies", "cookies.txt",
-
-		// Evita configs externas influenciando o bot.
-		"--ignore-config",
-
-		// Evita playlist inteira.
-		"--no-playlist",
-
-		// Reduz ruído no terminal.
-		// "--quiet",
-		// "--no-warnings",
-
-		// Extrai apenas o áudio.
-		"-x",
-
-		// Melhor audio disponível
-		"-f", "bestaudio/best",
-
-		// Converte para mp3.
-		"--audio-format", "mp3",
-
-		// Qualidade razoável sem exagerar no tempo de processamento.
-		"--audio-quality", "5",
-
-		// Evita vídeos longos demais.
-		"--match-filter", "duration < 1800",
-
-		// Nome de saída temporário.
-		"-o", outTemplate,
+		"--cookies", "cookies.txt", // Algumas música podem ser bloqueadas por restrição de idade ou por outros motivos
+		"--ignore-config", // Evita configs externas influenciando o bot.
+		"--no-playlist",   // Evita playlist inteira.
+		"--quiet",         // Reduz ruído no terminal.
+		"--no-warnings",
+		"-x",                   // Extrai apenas o áudio.
+		"-f", "bestaudio/best", // Melhor audio disponível
+		"--audio-format", "mp3", // Converte para mp3.
+		"--audio-quality", "5", // Qualidade razoável sem exagerar no tempo de processamento.
+		"--match-filter", "duration < 1800", // Evita vídeos longos demais.
+		"-o", outTemplate, // Nome de saída temporário.
 	}
 
 	var out bytes.Buffer
