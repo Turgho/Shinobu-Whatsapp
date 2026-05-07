@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os/exec"
 
 	"github.com/Turgho/YuukoWhatsapp/internal/bot"
 	"github.com/Turgho/YuukoWhatsapp/internal/commands"
@@ -13,7 +14,6 @@ import (
 	"github.com/Turgho/YuukoWhatsapp/internal/database"
 	"github.com/Turgho/YuukoWhatsapp/internal/utils"
 	"github.com/Turgho/YuukoWhatsapp/pkg/geocoding"
-	"github.com/Turgho/YuukoWhatsapp/pkg/sticker"
 	"github.com/Turgho/YuukoWhatsapp/pkg/weather"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
@@ -25,8 +25,8 @@ func Run() error {
 	utils.StartUptime()
 
 	// Verifica dependências externas antes de qualquer conexão
-	if err := sticker.CheckFFmpeg(); err != nil {
-		return fmt.Errorf("dependência ausente: %w", err)
+	if err := checkDeps(); err != nil {
+		return fmt.Errorf("dependências ausentes: %w", err)
 	}
 
 	cfg := configs.Load()
@@ -123,6 +123,12 @@ func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logge
 		Description: "Gera uma figurinha com base em uma imagem ou vídeo",
 	}, public.StickerCommand)
 
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "play",
+		Description: "Busca por uma música via nome ou URL",
+		Args:        []commands.ArgMeta{{Name: "nome da música ou URL", Required: true}},
+	}, public.PlayCommand)
+
 	// ─── Privados (apenas owner/admins) ───────────────────────────────────
 
 	r.RegisterCommand(commands.CommandMeta{
@@ -144,4 +150,26 @@ func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) command
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		return public.WeatherCommand(ctx, client, evt, args, geo, wc)
 	}
+}
+
+func checkDeps() error {
+	if _, err := exec.LookPath("yt-dlp"); err != nil {
+		return fmt.Errorf(
+			"yt-dlp não encontrado no PATH\n" +
+				"  → Linux:   sudo apt install yt-dlp\n" +
+				"  → macOS:   brew install yt-dlp\n" +
+				"  → Windows: https://github.com/yt-dlp/yt-dlp/releases",
+		)
+	}
+
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		return fmt.Errorf(
+			"ffmpeg não encontrado no PATH\n" +
+				"  → Linux:   sudo apt install ffmpeg\n" +
+				"  → macOS:   brew install ffmpeg\n" +
+				"  → Windows: https://ffmpeg.org/download.html",
+		)
+	}
+
+	return nil
 }
