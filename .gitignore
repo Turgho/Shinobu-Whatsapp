@@ -32,7 +32,9 @@ storage/storage.db-wal
 .env
 .env.*
 !.env.example
+config.yaml
 cookies.txt
+assets/*
 
 # ─── Arquivos temporários do sticker ─────────────────────────────────────────
 /tmp/sticker-in-*
