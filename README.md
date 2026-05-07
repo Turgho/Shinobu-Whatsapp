@@ -13,6 +13,7 @@ Bot de WhatsApp escrito em Go, com arquitetura modular baseada em router de coma
 
 - Go 1.22+
 - [ffmpeg](https://ffmpeg.org/download.html) — necessário para o comando `!sticker`
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - necessário para o comando `!play`
 
 ```bash
 # Ubuntu / Debian
@@ -87,6 +88,23 @@ Na primeira execução, escaneie o QR Code com o WhatsApp para autenticar. As cr
 | `!sticker` | Converte imagem ou vídeo em figurinha | Pública |
 | `!stats` | Estatísticas de runtime do bot | Admin |
 | `!shutdown` | Desliga o bot | Admin |
+| `!play` | Envia música por nome ou URL | Pública |
+
+> **Aviso sobre cookies**
+>
+> Este projeto pode usar `cookies.txt` para autenticar requisições em serviços como o YouTube via `yt-dlp`, especialmente para conteúdos com restrição de idade, região ou sessão autenticada.
+>
+> **Importante:**  
+> - NÃO compartilhe esse arquivo com ninguém;  
+> - NÃO envie `cookies.txt` para o GitHub;  
+> - Adicione `cookies.txt` ao `.gitignore`;  
+> - Use cookies APENAS sua própria conta.
+>
+> Sem cookies válidos, alguns vídeos e músicas podem não ser baixados.
+>
+> FAQ do repositório oficial - [YT-DLP Cookies](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)
+>
+> Link de um vídeo explicando como corrigir - [Sign in to confirm you’re not a bot](https://youtu.be/nT_uI1raf6k?si=Nl2XfW_TCSYKVD6x)
 
 ---
 
