@@ -27,7 +27,13 @@ func StickerCommand(ctx context.Context, client *whatsmeow.Client, evt *events.M
 			"❌ Não consegui converter a mídia. Certifique-se de que é uma imagem ou vídeo válido.")
 	}
 
-	if err := sticker.Send(ctx, client, evt, webp, media.Animated); err != nil {
+	uploaded, err := client.Upload(ctx, webp, whatsmeow.MediaImage)
+	if err != nil {
+		return utils.Reply(ctx, client, evt,
+			"❌ Falha ao enviar a figurinha.")
+	}
+
+	if err := utils.SendSticker(ctx, client, evt, &uploaded, media.Animated); err != nil {
 		return utils.Reply(ctx, client, evt,
 			"❌ Falha ao enviar a figurinha. Tente novamente.")
 	}
