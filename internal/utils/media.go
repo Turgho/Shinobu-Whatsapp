@@ -116,21 +116,21 @@ func SendSticker(
 ) error {
 	msg := &waE2E.Message{
 		StickerMessage: &waE2E.StickerMessage{
-			URL:           proto.String(uploaded.URL),
-			DirectPath:    proto.String(uploaded.DirectPath),
-			MediaKey:      uploaded.MediaKey,
-			Mimetype:      proto.String("image/webp"),
-			FileEncSHA256: uploaded.FileEncSHA256,
-			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    proto.Uint64(uploaded.FileLength),
-			IsAnimated:    proto.Bool(animated),
-			ContextInfo:   quotedContext(evt, nil),
+			URL:                proto.String(uploaded.URL),
+			DirectPath:         proto.String(uploaded.DirectPath),
+			MediaKey:           uploaded.MediaKey,
+			Mimetype:           proto.String("image/webp"),
+			FileEncSHA256:      uploaded.FileEncSHA256,
+			FileSHA256:         uploaded.FileSHA256,
+			FileLength:         proto.Uint64(uploaded.FileLength),
+			IsAnimated:         proto.Bool(animated),
+			AccessibilityLabel: proto.String("Shinobu"),
+			ContextInfo:        quotedContext(evt, nil),
 		},
 	}
 
 	if _, err := client.SendMessage(ctx, evt.Info.Chat, msg); err != nil {
 		return fmt.Errorf("utils/send sticker: falha ao enviar: %w", err)
 	}
-
 	return nil
 }
