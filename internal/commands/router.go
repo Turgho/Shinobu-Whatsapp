@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Turgho/YuukoWhatsapp/pkg/history"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 	"go.uber.org/zap"
@@ -16,14 +17,16 @@ type Router struct {
 	prefix      string
 	client      *whatsmeow.Client
 	log         *zap.Logger
+	store       *history.Store
 }
 
-func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger) *Router {
+func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *history.Store) *Router {
 	return &Router{
 		commands: make(map[string]command),
 		prefix:   prefix,
 		client:   client,
 		log:      log,
+		store:    store,
 	}
 }
 
