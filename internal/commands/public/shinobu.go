@@ -12,7 +12,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-const ownerNumber = "5514991791379"
+const ownerNumber = ""
 
 func ShinobuCommand(store *history.Store) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
