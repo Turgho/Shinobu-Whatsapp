@@ -25,7 +25,13 @@ go.work.sum
 # Gerado automaticamente na primeira execução — contém credenciais do WhatsApp
 storage/storage.db
 storage/storage.db-shm
-storage/storage.db-wal
+storage/storage.db-wals
+
+# ─── IA / Modelfile ──────────────────────────────────────────────────────────
+Modelfile
+storage/message_history.db
+storage/message_history.db-shm
+storage/message_history.db-wal
 
 # ─── Configuração ────────────────────────────────────────────────────────────
 # Nunca commitar credenciais ou configurações locais
