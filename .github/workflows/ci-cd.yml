@@ -1,0 +1,37 @@
+name: CI/CD — Shinobu Bot
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Testes
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rodar testes
+        run: go test ./... -v
+
+      - name: Vet
+        run: go vet ./...
+
+  deploy:
+    name: Build & Deploy
+    runs-on: self-hosted
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build da imagem
+        run: docker build -t whatsapp-shinobu:latest .
+
+      - name: Reiniciar o bot
+        run: |
+          docker compose down
+          docker compose up -d
+          echo "✅ Shinobu Bot no ar!"
