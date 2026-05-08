@@ -13,8 +13,6 @@ import (
 )
 
 // MenuCommand retorna um handler que lista todos os comandos públicos registrados.
-// É gerado automaticamente a partir dos metadados — adicionar um novo comando
-// com RegisterCommand já o faz aparecer aqui sem nenhuma alteração manual.
 func MenuCommand(r *commands.Router) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		metas := r.Commands()
@@ -25,15 +23,21 @@ func MenuCommand(r *commands.Router) commands.HandlerFunc {
 		})
 
 		var sb strings.Builder
-		sb.WriteString("🤖 *Comandos disponíveis:*\n\n")
+
+		sb.WriteString("🤖 *Menu de comandos*\n")
+		sb.WriteString("━━━━━━━━━━━━━━\n")
+		sb.WriteString("┃\n")
 
 		for _, meta := range metas {
 			if meta.Private {
-				continue // oculta comandos de admin no menu público
+				continue
 			}
 
-			// Linha do comando com seus argumentos
-			sb.WriteString(fmt.Sprintf("*%s%s*", r.Prefix(), meta.Name))
+			sb.WriteString(fmt.Sprintf("┣ *%s%s*",
+				r.Prefix(),
+				meta.Name,
+			))
+
 			for _, arg := range meta.Args {
 				if arg.Required {
 					sb.WriteString(fmt.Sprintf(" `<%s>`", arg.Name))
@@ -41,14 +45,18 @@ func MenuCommand(r *commands.Router) commands.HandlerFunc {
 					sb.WriteString(fmt.Sprintf(" `[%s]`", arg.Name))
 				}
 			}
+
 			sb.WriteString("\n")
 
 			if meta.Description != "" {
-				sb.WriteString(fmt.Sprintf("  _%s_\n", meta.Description))
+				sb.WriteString(fmt.Sprintf("┃ %s\n", meta.Description))
 			}
-			sb.WriteString("\n")
+
+			sb.WriteString("┃\n")
 		}
 
-		return utils.Reply(ctx, client, evt, strings.TrimRight(sb.String(), "\n"))
+		sb.WriteString("┗━━━━━━━━━━━━━━")
+
+		return utils.Reply(ctx, client, evt, sb.String())
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Turgho/YuukoWhatsapp/pkg/history"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 	"go.uber.org/zap"
@@ -16,14 +17,16 @@ type Router struct {
 	prefix      string
 	client      *whatsmeow.Client
 	log         *zap.Logger
+	store       *history.Store
 }
 
-func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger) *Router {
+func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *history.Store) *Router {
 	return &Router{
 		commands: make(map[string]command),
 		prefix:   prefix,
 		client:   client,
 		log:      log,
+		store:    store,
 	}
 }
 
@@ -81,7 +84,7 @@ func (r *Router) HandleMessage(evt *events.Message) {
 		return
 	}
 
-	cmdName := parts[0]
+	cmdName := strings.ToLower(parts[0]) // Comando para ToLower facilita na hora de executar o comando
 	args := parts[1:]
 
 	// Middlewares rodam antes do log — mensagens antigas e do próprio bot
@@ -101,11 +104,10 @@ func (r *Router) HandleMessage(evt *events.Message) {
 
 	cmd, ok := r.commands[cmdName]
 	if !ok {
-		// Não deveria chegar aqui — CommandNotFoundMiddleware já tratou
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	start := time.Now()
@@ -146,5 +148,5 @@ func getTextMessage(evt *events.Message) string {
 		msg = evt.Message.GetDocumentMessage().GetCaption()
 	}
 
-	return strings.TrimSpace(strings.ToLower(msg))
+	return strings.TrimSpace(msg)
 }

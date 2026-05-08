@@ -5,34 +5,17 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 )
-
-// CheckFFmpeg verifica se o ffmpeg está instalado e acessível no PATH.
-// Deve ser chamado durante a inicialização do bot para falhar cedo e com
-// uma mensagem clara, em vez de só dar erro na hora que alguém usar !sticker.
-func CheckFFmpeg() error {
-	_, err := exec.LookPath("ffmpeg")
-	if err != nil {
-		return fmt.Errorf(
-			"ffmpeg não encontrado no PATH\n" +
-				"  → Linux/Ubuntu: sudo apt install ffmpeg\n" +
-				"  → macOS:        brew install ffmpeg\n" +
-				"  → Windows:      https://ffmpeg.org/download.html",
-		)
-	}
-	return nil
-}
 
 // ConvertToWebP converte os bytes de entrada (imagem ou vídeo) em WebP
 // usando ffmpeg e retorna os bytes do arquivo resultante.
 //
-// Para imagens estáticas: redimensiona para 512×512 mantendo proporção,
-// com padding transparente.
+// Para imagens estáticas: redimensiona e corta centralizado para 512×512.
+// Para vídeos/gifs animados: idem, limitado a 6 segundos e 15fps
+// (limites do WhatsApp para stickers animados).
 //
-// Para vídeos/gifs animados: idem, limitado a 6 segundos e 15fps,
-// que são os limites do WhatsApp para stickers animados.
+// Requer ffmpeg instalado no sistema (veja CheckFFmpeg).
 func ConvertToWebP(ctx context.Context, data []byte, ext string, animated bool) ([]byte, error) {
 	tmpIn, err := os.CreateTemp("", "sticker-in-*"+ext)
 	if err != nil {
@@ -63,29 +46,38 @@ func ConvertToWebP(ctx context.Context, data []byte, ext string, animated bool) 
 
 // runFFmpeg executa o ffmpeg com os argumentos corretos para cada tipo de mídia.
 func runFFmpeg(ctx context.Context, input, output string, animated bool) error {
-	scaleFilter := "scale=512:512:force_original_aspect_ratio=decrease," +
-		"pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000"
+	// Redimensiona cobrindo 512×512 inteiro e corta o excesso centralizado.
+	// "increase" faz o lado menor chegar a 512 antes do crop — sem bordas pretas.
+	scaleFilter := "scale=512:512:force_original_aspect_ratio=increase," +
+		"crop=512:512"
 
 	var args []string
 
 	if animated {
 		args = []string{
-			"-i", input,
-			"-vf", scaleFilter + ",fps=15",
-			"-loop", "0",
-			"-t", "6",
-			"-preset", "default",
-			"-compression_level", "6",
-			"-y",
-			output,
+			"-ss", "0", // começa do início do vídeo
+			"-t", "6", // limita a 6 segundos (máximo aceito pelo WhatsApp)
+			"-i", input, // arquivo de entrada
+			"-vf", scaleFilter + ",fps=15", // aplica escala+crop e limita a 15fps
+			"-vcodec", "libwebp", // codec de saída WebP (obrigatório para sticker animado)
+			"-loop", "0", // 0 = loop infinito
+			"-compression_level", "6", // nível de compressão (0-6, maior = menor arquivo e mais lento)
+			"-q:v", "60", // qualidade do vídeo (0-100, menor = mais comprimido)
+			"-threads", "2", // limita threads para não sobrecarregar o servidor
+			"-an",  // remove faixa de áudio (stickers não têm som)
+			"-y",   // sobrescreve o arquivo de saída sem perguntar
+			output, // arquivo de saída
 		}
 	} else {
 		args = []string{
-			"-i", input,
-			"-vf", scaleFilter,
-			"-frames:v", "1",
-			"-y",
-			output,
+			"-i", input, // arquivo de entrada
+			"-vf", scaleFilter, // aplica escala e crop
+			"-vcodec", "libwebp", // força codec WebP independente da extensão de entrada
+			"-frames:v", "1", // exporta apenas 1 frame (imagem estática)
+			"-compression_level", "6", // nível de compressão (0-6, maior = menor arquivo e mais lento)
+			"-q:v", "80", // qualidade maior que o animado (estático não tem custo de tamanho significativo)
+			"-y",   // sobrescreve o arquivo de saída sem perguntar
+			output, // arquivo de saída
 		}
 	}
 
