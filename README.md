@@ -5,15 +5,16 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 [![Último commit](https://img.shields.io/github/last-commit/Turgho/YuukoWhatsapp)](https://github.com/Turgho/YuukoWhatsapp/commits/main)
 
-Bot de WhatsApp escrito em Go, com arquitetura modular baseada em router de comandos, middlewares e injeção de dependências.
+Bot de WhatsApp escrito em Go, com arquitetura modular baseada em router de comandos, middlewares e injeção de dependências. Inclui IA local via Ollama com personalidade da Oshino Shinobu (Monogatari Series), histórico de conversa por usuário e busca web sob demanda via Tavily.
 
 ---
 
 ## Requisitos
 
 - Go 1.22+
+- [Ollama](https://ollama.com) — necessário para a IA local (`!shinobu`)
 - [ffmpeg](https://ffmpeg.org/download.html) — necessário para o comando `!sticker`
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - necessário para o comando `!play`
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) — necessário para o comando `!play`
 
 ```bash
 # Ubuntu / Debian
@@ -40,12 +41,14 @@ cd YuukoWhatsapp
 go mod tidy
 ```
 
-Configure o arquivo `internal/configs/configs.yaml` com suas credenciais e preferências.
+### Configuração
+
+Configure o arquivo `internal/configs/configs.yaml`:
 
 ```yaml
 bot:
   name: YuukoBot
-  prefix: "!"          # prefixo dos comandos
+  prefix: "!"
   environment: "development"
 
 database:
@@ -53,18 +56,58 @@ database:
   dsn: "file:storage/storage.db?_foreign_keys=on"
 
 log:
-  level: debug         # debug | info | warn | error
+  level: debug
 
 usersJID:
-  owner: "seu_jid@lid" # JID do dono do bot (aparece no log ao iniciar)
-  admins: []           # JIDs adicionais com permissão de admin
+  owner: "seu_jid@lid"
+  admins: []
 
 apiUrls:
   geocoding: "https://nominatim.openstreetmap.org/search"
   weather: "https://api.open-meteo.com/v1/forecast"
 ```
 
-> **Como encontrar seu JID:** inicie o bot uma vez, envie qualquer mensagem para ele e o JID do remetente aparecerá nos logs. Cole-o no campo `owner`.
+Configure o arquivo `.env` com as credenciais da IA:
+
+```env
+OLLAMA_URL=http://localhost:11434/api/chat
+TAVILY_API_KEY=tvly-sua-chave-aqui
+```
+
+> **Como encontrar seu JID:** inicie o bot uma vez, envie qualquer mensagem para ele e o JID aparecerá nos logs.
+
+> **Tavily API Key:** crie uma conta gratuita em [tavily.com](https://tavily.com) — plano gratuito inclui 1.000 buscas/mês.
+
+---
+
+## IA — Oshino Shinobu
+
+O comando `!shinobu` usa um modelo local via Ollama com personalidade customizada.
+
+### Configuração do modelo
+
+```bash
+# Instalar Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Baixar o modelo base
+ollama pull gemma3:4b
+
+# Criar o modelo com a personalidade da Shinobu
+ollama create shinobu -f Modelfile
+
+# Iniciar o Ollama
+ollama serve
+```
+
+O `Modelfile` com a personalidade **não está incluso no repositório** — é um arquivo pessoal e privado. Crie o seu com base na documentação do Ollama.
+
+### Funcionalidades da IA
+
+- Personalidade customizada via Modelfile
+- Histórico de conversa por usuário (últimas 5 mensagens / 2 horas)
+- Busca web automática via Tavily quando a pergunta exige informações atuais
+- Tom diferenciado para o owner do bot
 
 ---
 
@@ -74,7 +117,7 @@ apiUrls:
 go run cmd/bot/main.go
 ```
 
-Na primeira execução, escaneie o QR Code com o WhatsApp para autenticar. As credenciais são salvas localmente em `storage/storage.db` — nas próximas execuções a conexão é automática.
+Na primeira execução, escaneie o QR Code com o WhatsApp para autenticar. As credenciais são salvas em `storage/storage.db` — nas próximas execuções a conexão é automática.
 
 ---
 
@@ -86,32 +129,27 @@ Na primeira execução, escaneie o QR Code com o WhatsApp para autenticar. As cr
 | `!ping` | Verifica latência do bot | Pública |
 | `!weather <cidade>` | Clima atual de uma cidade | Pública |
 | `!sticker` | Converte imagem ou vídeo em figurinha | Pública |
+| `!play <nome ou URL>` | Envia música por nome ou URL | Pública |
+| `!shinobu <mensagem>` | Conversa com a IA Shinobu | Pública |
 | `!stats` | Estatísticas de runtime do bot | Admin |
 | `!shutdown` | Desliga o bot | Admin |
-| `!play` | Envia música por nome ou URL | Pública |
 
 > **Aviso sobre cookies**
 >
-> Este projeto pode usar `cookies.txt` para autenticar requisições em serviços como o YouTube via `yt-dlp`, especialmente para conteúdos com restrição de idade, região ou sessão autenticada.
+> Este projeto pode usar `cookies.txt` para autenticar requisições no YouTube via `yt-dlp`.
 >
-> **Importante:**  
-> - NÃO compartilhe esse arquivo com ninguém;  
-> - NÃO envie `cookies.txt` para o GitHub;  
-> - Adicione `cookies.txt` ao `.gitignore`;  
-> - Use cookies APENAS sua própria conta.
+> - **NÃO** compartilhe esse arquivo com ninguém
+> - **NÃO** envie `cookies.txt` para o GitHub
+> - Use cookies **apenas** da sua própria conta
 >
-> Sem cookies válidos, alguns vídeos e músicas podem não ser baixados.
->
-> FAQ do repositório oficial - [YT-DLP Cookies](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)
->
-> Link de um vídeo explicando como corrigir - [Sign in to confirm you’re not a bot](https://youtu.be/nT_uI1raf6k?si=Nl2XfW_TCSYKVD6x)
+> Sem cookies válidos, alguns vídeos podem não ser baixados.
+> [Como usar cookies com yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)
 
 ---
 
 ## Estrutura do projeto
 
-```
-.
+```text
 ├── cmd/bot/main.go              # Entry point
 │
 ├── internal/
@@ -125,15 +163,17 @@ Na primeira execução, escaneie o QR Code com o WhatsApp para autenticar. As cr
 │   │   ├── middleware.go        # IgnoreSelf, IgnoreOldMessages, permissões
 │   │   ├── router.go            # Roteamento e pipeline de middlewares
 │   │   └── types.go             # HandlerFunc, CommandMeta, ArgMeta
-│   ├── configs/                 # configs.toml e carregamento de configuração
+│   ├── configs/                 # configs.yaml e carregamento de configuração
 │   ├── database/                # Conexão com SQLite
 │   └── utils/                   # Reply, uptime
 │
 └── pkg/
-    ├── geocoding/               # Geocoding via Nominatim (OpenStreetMap)
-    ├── logger/                  # Logger baseado em Zap
-    ├── sticker/                 # Conversão de mídia para WebP via ffmpeg
-    └── weather/                 # Cliente Open-Meteo + mapeamento de códigos
+├── geocoding/               # Geocoding via Nominatim (OpenStreetMap)
+├── history/                 # Histórico de mensagens por usuário (SQLite)
+├── ia/                      # Cliente Ollama + busca web via Tavily
+├── logger/                  # Logger baseado em Zap
+├── sticker/                 # Conversão de mídia para WebP via ffmpeg
+└── weather/                 # Cliente Open-Meteo + mapeamento de códigos
 ```
 
 ---
@@ -143,7 +183,6 @@ Na primeira execução, escaneie o QR Code com o WhatsApp para autenticar. As cr
 **1.** Crie o arquivo em `internal/commands/public/` ou `internal/commands/admin/`:
 
 ```go
-// internal/commands/public/hello.go
 package public
 
 import (
@@ -168,9 +207,7 @@ r.RegisterCommand(commands.CommandMeta{
 }, public.HelloCommand)
 ```
 
-O comando aparece automaticamente no `!menu` — sem mais nenhuma alteração.
-
-Para comandos privados (apenas owner/admins), adicione `Private: true` nos metadados:
+O comando aparece automaticamente no `!menu`. Para comandos privados, adicione `Private: true`:
 
 ```go
 r.RegisterCommand(commands.CommandMeta{
@@ -181,11 +218,7 @@ r.RegisterCommand(commands.CommandMeta{
 
 ---
 
-## ⚡ Contato
+## Contato
 
-- Autor / Maintainer: **Turgho** — perfil no GitHub: [Turgho](https://github.com/Turgho)
-- Para sugestões ou dúvidas, abra uma **issue** no repositório.
-
----
-
-Obrigado por visitar o **BarraTour**
+- Autor: **Turgho** — [github.com/Turgho](https://github.com/Turgho)
+- Sugestões ou dúvidas: abra uma **issue** no repositório.
