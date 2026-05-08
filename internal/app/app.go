@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"os/exec"
+	"time"
 
 	"github.com/Turgho/YuukoWhatsapp/internal/bot"
 	"github.com/Turgho/YuukoWhatsapp/internal/commands"
@@ -14,6 +16,7 @@ import (
 	"github.com/Turgho/YuukoWhatsapp/internal/database"
 	"github.com/Turgho/YuukoWhatsapp/internal/utils"
 	"github.com/Turgho/YuukoWhatsapp/pkg/geocoding"
+	"github.com/Turgho/YuukoWhatsapp/pkg/history"
 	"github.com/Turgho/YuukoWhatsapp/pkg/weather"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
@@ -45,6 +48,15 @@ func Run() error {
 	}
 	defer db.Close()
 
+	// Histórico de mensagens por usuário — usado pela IA para contexto de conversa
+	store, err := history.NewStore("storage/message_history.db")
+	if err != nil {
+		log.Fatal("erro ao abrir history", zap.Error(err))
+	}
+	defer store.Close()
+
+	store.StartCleanup(ctx, 24*time.Hour) // apaga mensagens com mais de 24h
+
 	client, err := bot.NewClient(ctx, db)
 	if err != nil {
 		return fmt.Errorf("erro ao criar client WhatsApp: %w", err)
@@ -54,8 +66,8 @@ func Run() error {
 		return fmt.Errorf("erro ao conectar no WhatsApp: %w", err)
 	}
 
-	r := buildRouter(cfg, client.WAClient, logger)
-	registerCommands(r, cfg, logger)
+	r := buildRouter(cfg, client.WAClient, logger, store)
+	registerCommands(r, cfg, logger, store)
 
 	handler := bot.NewHandler(client.WAClient, r)
 	client.RegisterHandlers(handler.EventHandler)
@@ -79,12 +91,19 @@ func connectDatabase(cfg *configs.Config, logger *zap.Logger) (*sql.DB, error) {
 	return db, nil
 }
 
-func buildRouter(cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Logger) *commands.Router {
-	r := commands.NewRouter(cfg.Bot.Prefix, waClient, logger.Named("ROUTER"))
+func buildRouter(cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Logger, store *history.Store) *commands.Router {
+	r := commands.NewRouter(cfg.Bot.Prefix, waClient, logger.Named("ROUTER"), store)
 
+	// IgnoreSelfMiddleware: descarta mensagens enviadas pelo próprio bot (desativado por ora)
 	// r.Use(commands.IgnoreSelfMiddleware)
+
+	// Descarta mensagens antigas recebidas ao reconectar
 	r.Use(commands.IgnoreOldMessagesMiddleware)
+
+	// Notifica quando um comando não existe
 	r.Use(commands.CommandNotFoundMiddleware(r))
+
+	// Bloqueia comandos privados para quem não é owner/admin
 	r.Use(commands.PrivateCommandsMiddleware(r, cfg.UsersJID.Owner, cfg.UsersJID.Admins))
 
 	return r
@@ -96,7 +115,7 @@ func buildRouter(cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Lo
 //  1. Crie o handler em internal/commands/public/ ou admin/
 //  2. Chame r.RegisterCommand com os metadados e o handler
 //  3. O comando aparece automaticamente no !menu — sem mais nada.
-func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logger) {
+func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logger, store *history.Store) {
 	geoClient := geocoding.NewGeoCoding(cfg.ApiURLs.Geocoding, logger.Named("GEOCODING"))
 	weatherClient := weather.NewWeatherClient(cfg.ApiURLs.Weather, logger.Named("WEATHER"))
 
@@ -134,6 +153,13 @@ func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logge
 		Description: "M A M B O 🏇",
 	}, public.MamboCommand)
 
+	// Shinobu: IA com personalidade, histórico por usuário e busca web sob demanda
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "shinobu",
+		Description: "converse com shinobu",
+		Args:        []commands.ArgMeta{{Name: "escreva algo", Required: false}},
+	}, public.ShinobuCommand(store))
+
 	// ─── Privados (apenas owner/admins) ───────────────────────────────────
 
 	r.RegisterCommand(commands.CommandMeta{
@@ -148,11 +174,12 @@ func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logge
 		Private:     true,
 	}, admin.ShutdownCommand)
 
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "shinobu",
-		Description: "S H I N O B U",
-		Private:     true,
-	}, admin.ShinobuCommand)
+	// Versão admin da Shinobu: responde apenas com GIF (sem IA)
+	// r.RegisterCommand(commands.CommandMeta{
+	// 	Name:        "shinobu",
+	// 	Description: "S H I N O B U",
+	// 	Private:     true,
+	// }, admin.ShinobuCommand)
 }
 
 // weatherHandler envolve WeatherCommand injetando as dependências externas.
