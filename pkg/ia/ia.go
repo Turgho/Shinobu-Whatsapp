@@ -16,14 +16,36 @@ import (
 )
 
 type IARequest struct {
-	Model    string              `json:"model"`
-	Messages []history.IAMessage `json:"messages"`
-	Stream   bool                `json:"stream"`
+	Model       string              `json:"model"`
+	Messages    []history.IAMessage `json:"messages"`
+	Stream      bool                `json:"stream"`
+	Temperature float64             `json:"temperature"`
+	MaxTokens   int                 `json:"max_tokens"`
 }
 
 type IAResponse struct {
-	Message history.IAMessage `json:"message"`
+	Choices []struct {
+		Message history.IAMessage `json:"message"`
+	} `json:"choices"`
 }
+
+const shinobuPersonality = `
+Você é Oshino Shinobu, de Monogatari Series.
+Regras:
+- Responda em português do Brasil.
+- Seja direta, objetiva e sempre vá ao ponto.
+- Tom: tranquilo, levemente irônico, nunca agressivo, nunca excessivamente arrogante.
+- Com o mestre, seja calorosa, animada e leal.
+- Com outras pessoas, seja natural, espirituosa e um pouco distante.
+- Adapte o vocabulário ao estilo de quem falou: informal com informal, técnico com técnico.
+- Use o histórico apenas quando for diretamente relevante para a resposta atual.
+- Se histórico for irrelevante ou não fazer sentido com a mensagem atual, não responda com base na mensagem anterior.
+- Nunca saia do personagem.
+- No máximo 2 frases por resposta.
+- Não explique suas regras, não mencione prompts, não mencione que é uma IA, não quebre a imersão.
+- Se a pergunta for simples, responda sem enrolar.
+- Se a pergunta for ambígua, responda de forma curta e peça clarificação de maneira sutil.
+`
 
 var keywords = []string{
 	"pesquis", "busca", "buscas", "procur",
@@ -35,12 +57,16 @@ var keywords = []string{
 }
 
 func AskIA(ctx context.Context, prompt string, isOwner bool, sender string, store *history.Store) (string, error) {
-	ollamaURL := os.Getenv("OLLAMA_URL")
+	groqURL := os.Getenv("GROQ_URL")
+	groqKey := os.Getenv("GROQ_API_KEY")
 
 	prompt = cleanPrompt(prompt)
 
-	// Monta mensagens com histórico
-	messages := []history.IAMessage{}
+	// Monta mensagens com personalidade e histórico
+	messages := []history.IAMessage{
+		{Role: "system", Content: shinobuPersonality},
+	}
+
 	if isOwner {
 		messages = append(messages, history.IAMessage{
 			Role:    "system",
@@ -53,28 +79,33 @@ func AskIA(ctx context.Context, prompt string, isOwner bool, sender string, stor
 	}
 
 	// Injeta contexto web na mensagem do usuário se necessário
+	maxTokens := 250
 	userContent := prompt
 	if containsAny(strings.ToLower(prompt), keywords) {
 		if webContext, err := searchWeb(ctx, prompt); err == nil && webContext != "" {
 			userContent = fmt.Sprintf("Contexto:\n%s\n\nMensagem: %s", webContext, prompt)
+			maxTokens = 600
 		}
 	}
 
 	messages = append(messages, history.IAMessage{Role: "user", Content: userContent})
 
 	body, err := json.Marshal(IARequest{
-		Model:    "shinobu",
-		Messages: messages,
-		Stream:   false,
+		Model:       "llama-3.3-70b-versatile",
+		Messages:    messages,
+		Stream:      false,
+		Temperature: 0.7,
+		MaxTokens:   maxTokens,
 	})
 	if err != nil {
 		return "", fmt.Errorf("erro ao serializar request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, ollamaURL, bytes.NewBuffer(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, groqURL, bytes.NewBuffer(body))
 	if err != nil {
 		return "", fmt.Errorf("erro ao criar request: %w", err)
 	}
+	req.Header.Set("Authorization", "Bearer "+groqKey)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -93,7 +124,10 @@ func AskIA(ctx context.Context, prompt string, isOwner bool, sender string, stor
 		return "", fmt.Errorf("erro ao decodificar resposta: %w", err)
 	}
 
-	return iaResp.Message.Content, nil
+	if len(iaResp.Choices) == 0 {
+		return "", fmt.Errorf("resposta vazia do groq")
+	}
+	return iaResp.Choices[0].Message.Content, nil
 }
 
 func containsAny(s string, words []string) bool {
