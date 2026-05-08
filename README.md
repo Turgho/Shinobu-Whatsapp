@@ -71,7 +71,8 @@ Configure o arquivo `.env` com as credenciais da IA:
 
 ```env
 OLLAMA_URL=http://localhost:11434/api/chat
-TAVILY_API_KEY=tvly-sua-chave-aqui
+TAVILY_API_KEY=tvly-sua-chave-aquis
+OWNER_NUMBER=seu-numero
 ```
 
 > **Como encontrar seu JID:** inicie o bot uma vez, envie qualquer mensagem para ele e o JID aparecerá nos logs.

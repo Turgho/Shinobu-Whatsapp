@@ -2,6 +2,7 @@ package public
 
 import (
 	"context"
+	"os"
 	"strings"
 
 	"github.com/Turgho/YuukoWhatsapp/internal/commands"
@@ -12,10 +13,10 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-const ownerNumber = ""
-
 func ShinobuCommand(store *history.Store) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+		ownerNumber := os.Getenv("OWNER_NUMBER")
+
 		if len(args) == 0 {
 			return utils.Reply(ctx, client, evt, "Hmph... fala logo, tolo.")
 		}
