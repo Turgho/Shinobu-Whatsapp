@@ -209,5 +209,9 @@ func checkDeps() error {
 		)
 	}
 
+	if _, err := exec.LookPath("webpmux"); err != nil {
+		return fmt.Errorf("webpmux não encontrado\n  → sudo apt install webp")
+	}
+
 	return nil
 }
