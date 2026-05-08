@@ -64,8 +64,10 @@ func runFFmpeg(ctx context.Context, input, output string, animated bool) error {
 			"-compression_level", "6", // nível de compressão (0-6, maior = menor arquivo e mais lento)
 			"-q:v", "60", // qualidade do vídeo (0-100, menor = mais comprimido)
 			"-threads", "2", // limita threads para não sobrecarregar o servidor
-			"-an",  // remove faixa de áudio (stickers não têm som)
-			"-y",   // sobrescreve o arquivo de saída sem perguntar
+			"-an", // remove faixa de áudio (stickers não têm som)
+			"-y",  // sobrescreve o arquivo de saída sem perguntar
+			"-metadata", "author=Turgho",
+			"-metadata", "title=Shinobu",
 			output, // arquivo de saída
 		}
 	} else {
@@ -76,7 +78,9 @@ func runFFmpeg(ctx context.Context, input, output string, animated bool) error {
 			"-frames:v", "1", // exporta apenas 1 frame (imagem estática)
 			"-compression_level", "6", // nível de compressão (0-6, maior = menor arquivo e mais lento)
 			"-q:v", "80", // qualidade maior que o animado (estático não tem custo de tamanho significativo)
-			"-y",   // sobrescreve o arquivo de saída sem perguntar
+			"-y", // sobrescreve o arquivo de saída sem perguntar
+			"-metadata", "author=Turgho",
+			"-metadata", "title=Shinobu",
 			output, // arquivo de saída
 		}
 	}
