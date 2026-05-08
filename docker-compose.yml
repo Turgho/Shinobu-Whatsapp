@@ -1,0 +1,12 @@
+services:
+  bot:
+    image: whatsapp-shinobu:latest
+    container_name: whatsapp-shinobu
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+      - ./config.yaml:/internal/configs/config.yaml
+    env_file:
+      - .env
+    environment:
+      - TZ=America/Sao_Paulo
