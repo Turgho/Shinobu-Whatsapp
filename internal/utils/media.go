@@ -28,7 +28,7 @@ func SendImage(
 			FileSHA256:    uploaded.FileSHA256,
 			FileLength:    proto.Uint64(uploaded.FileLength),
 			Caption:       proto.String(caption),
-			ContextInfo:   quotedContext(evt),
+			ContextInfo:   quotedContext(evt, nil),
 		},
 	}
 
@@ -61,7 +61,7 @@ func SendVideo(
 			GifPlayback:   proto.Bool(gifPlayback),
 			Seconds:       proto.Uint32(seconds),
 			Caption:       proto.String(caption),
-			ContextInfo:   quotedContext(evt),
+			ContextInfo:   quotedContext(evt, nil),
 		},
 	}
 
@@ -94,7 +94,7 @@ func SendAudio(
 			FileSHA256:    uploaded.FileSHA256,
 			FileLength:    proto.Uint64(uploaded.FileLength),
 			PTT:           proto.Bool(ptt), // true = estilo voice note
-			ContextInfo:   quotedContext(evt),
+			ContextInfo:   quotedContext(evt, nil),
 		},
 	}
 
@@ -124,7 +124,7 @@ func SendSticker(
 			FileSHA256:    uploaded.FileSHA256,
 			FileLength:    proto.Uint64(uploaded.FileLength),
 			IsAnimated:    proto.Bool(animated),
-			ContextInfo:   quotedContext(evt),
+			ContextInfo:   quotedContext(evt, nil),
 		},
 	}
 
