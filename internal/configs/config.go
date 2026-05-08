@@ -48,7 +48,6 @@ func Load() *Config {
 	// configura o viper para ler o config.yaml e as variáveis de ambiente
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath("./internal/configs")
 	viper.AddConfigPath(".")
 
 	viper.AutomaticEnv()
