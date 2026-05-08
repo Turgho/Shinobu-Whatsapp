@@ -1,0 +1,27 @@
+on:
+  push:
+    branches: [main, dev]      # ← CI roda nos dois
+  pull_request:
+    branches: [main]           # ← PR de dev → main também roda CI
+
+jobs:
+  test:
+    name: Testes
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - run: go test ./... -v
+      - run: go vet ./...
+
+  deploy:
+    name: Build & Deploy
+    runs-on: self-hosted
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'  # ← deploy só na main
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t whatsapp-shinobu:latest .
+      - run: |
+          docker compose down
+          docker compose up -d
+          echo "✅ Shinobu Bot no ar!"
