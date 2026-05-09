@@ -37,7 +37,6 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 
 	// O yt-dlp vai gerar algo como /tmp/music-123456/download.mp3
 	outTemplate := filepath.Join(tmpDir, "download.%(ext)s")
-	outFile := filepath.Join(tmpDir, "download.mp3")
 
 	args := []string{
 		input,
@@ -48,8 +47,9 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		"--ignore-config", // Ignora configs globais do yt-dlp (evita conflitos no host)
 		"--no-playlist",   // Evita baixar playlists inteiras sem querer
 
-		// Usa client web (mais estável que android no Square Cloud)
-		"--extractor-args", "youtube:player_client=web",
+		// web,android: o cliente android serve como fallback quando o web
+		// retorna streams com restrição de formato (erro "format not available").
+		"--extractor-args", "youtube:player_client=web,android",
 
 		"--user-agent", "Mozilla/5.0", // Evita bloqueios simples de bot detection
 		"--socket-timeout", "15", // Timeout para evitar travamentos em rede lenta
@@ -59,8 +59,8 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		"--quiet",       // Reduz output desnecessário
 		"--no-warnings", // Remove warnings que poluem logs
 
-		"-x",                                                          // Extrai apenas áudio (sem vídeo)
-		"-f", "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best", // Formato mais compatível (evita erro "format not available")
+		"-x",         // Extrai apenas áudio (sem vídeo)
+		"-f", "ba/b", // ba = best audio; b = best geral como fallback universal
 
 		"--audio-format", "mp3", // Converte sempre para mp3
 		"--audio-quality", "5", // Qualidade balanceada (rápido e leve)
@@ -90,6 +90,26 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("music/download: yt-dlp falhou: %w", err)
 	}
 
+	// Após conversão o yt-dlp sempre gera download.mp3,
+	// mas buscamos no diretório para não depender de extensão fixa.
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		return nil, "", fmt.Errorf("music/download: erro ao listar pasta temporária: %w", err)
+	}
+
+	var outFile, ext string
+	for _, e := range entries {
+		if !e.IsDir() {
+			outFile = filepath.Join(tmpDir, e.Name())
+			ext = strings.TrimPrefix(filepath.Ext(e.Name()), ".")
+			break
+		}
+	}
+
+	if outFile == "" {
+		return nil, "", fmt.Errorf("music/download: nenhum arquivo gerado pelo yt-dlp em %s", tmpDir)
+	}
+
 	// Lê o arquivo final gerado.
 	data, err := os.ReadFile(outFile)
 	if err != nil {
@@ -97,8 +117,9 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 	}
 
 	fmt.Println("[music] yt-dlp executou com sucesso")
+	fmt.Println("[music] arquivo gerado:", outFile)
 	fmt.Println("[music] output:")
 	fmt.Println(out.String())
 
-	return data, "mp3", nil
+	return data, ext, nil
 }
