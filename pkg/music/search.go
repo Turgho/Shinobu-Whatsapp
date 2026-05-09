@@ -3,66 +3,130 @@ package music
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
-// DownloadAudio baixa áudio a partir de nome ou URL.
-//
-// O download é feito por um servidor local (music_server.go) rodando no PC
-// via Cloudflare Tunnel — usando IP residencial para evitar o bloqueio do
-// YouTube em servidores de datacenter (como Square Cloud).
+// cobaltRequest é o body enviado para a API do Cobalt.
+type cobaltRequest struct {
+	URL          string `json:"url"`
+	DownloadMode string `json:"downloadMode"` // "audio" = só áudio, sem vídeo
+	AudioFormat  string `json:"audioFormat"`  // "mp3", "opus", "ogg", "wav", "best"
+	AudioBitrate string `json:"audioBitrate"` // kbps
+}
+
+// cobaltResponse é a resposta da API do Cobalt.
+type cobaltResponse struct {
+	Status   string `json:"status"`   // "tunnel", "redirect", "error"
+	URL      string `json:"url"`      // URL do áudio para download
+	Filename string `json:"filename"` // nome do arquivo gerado pelo Cobalt
+}
+
+// DownloadAudio baixa áudio a partir de uma URL direta (YouTube, SoundCloud, etc).
 //
 // Fluxo:
-//  1. Bot envia POST para o tunnel com a query (nome ou URL)
-//  2. Servidor local executa o yt-dlp com ytsearch1 ou URL direta
-//  3. Retorna os bytes do mp3
+//  1. Bot envia POST para o Cobalt rodando no PC via Cloudflare Tunnel
+//  2. Cobalt resolve o stream usando IP residencial (sem bloqueio de datacenter)
+//  3. Cobalt retorna uma URL de túnel ou redirect para o áudio
+//  4. Bot baixa os bytes diretamente dessa URL
 //
-// Configure a variável de ambiente MUSIC_SERVER_URL com a URL do tunnel.
+// NOTA: o Cobalt não suporta busca por nome — apenas URLs diretas.
+// O usuário deve enviar a URL completa (ex: https://youtube.com/watch?v=...).
+//
+// Configure a variável de ambiente COBALT_URL com a URL do tunnel.
 // Exemplo: https://meu-tunnel.trycloudflare.com
+//
+// Retorna os bytes do arquivo e a extensão (ex: "mp3").
 func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, "", fmt.Errorf("music/download: query vazia")
 	}
 
-	// URL do servidor local exposto via Cloudflare Tunnel.
-	serverURL := os.Getenv("MUSIC_SERVER_URL")
-	if serverURL == "" {
-		return nil, "", fmt.Errorf("music/download: MUSIC_SERVER_URL não configurada")
+	// Cobalt só aceita URLs diretas — não suporta busca por nome.
+	if !strings.HasPrefix(query, "http://") && !strings.HasPrefix(query, "https://") {
+		return nil, "", fmt.Errorf("music/download: envie uma URL direta (ex: https://youtube.com/watch?v=...)")
 	}
 
-	endpoint := strings.TrimRight(serverURL, "/") + "/play"
+	// URL do Cobalt exposto via Cloudflare Tunnel.
+	cobaltURL := os.Getenv("COBALT_URL")
+	if cobaltURL == "" {
+		return nil, "", fmt.Errorf("music/download: COBALT_URL não configurada")
+	}
 
-	fmt.Println("[music] query:", query)
-	fmt.Println("[music] enviando para:", endpoint)
+	endpoint := strings.TrimRight(cobaltURL, "/") + "/"
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewBufferString(query))
+	reqBody := cobaltRequest{
+		URL:          query,
+		DownloadMode: "audio", // só áudio, sem vídeo
+		AudioFormat:  "mp3",   // formato de saída
+		AudioBitrate: "128",   // 128kbps — balanceia qualidade e velocidade no hardware fraco
+	}
+
+	reqBytes, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, "", fmt.Errorf("music/download: erro ao criar requisição: %w", err)
+		return nil, "", fmt.Errorf("music/download: erro ao serializar request: %w", err)
 	}
-	req.Header.Set("Content-Type", "text/plain")
+
+	fmt.Println("[music] enviando para Cobalt:", endpoint)
+	fmt.Println("[music] url:", query)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(reqBytes))
+	if err != nil {
+		return nil, "", fmt.Errorf("music/download: erro ao criar request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, "", fmt.Errorf("music/download: erro ao chamar servidor: %w", err)
+		return nil, "", fmt.Errorf("music/download: erro ao chamar Cobalt: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, "", fmt.Errorf("music/download: servidor retornou %d: %s", resp.StatusCode, string(body))
+	var cobaltResp cobaltResponse
+	if err := json.NewDecoder(resp.Body).Decode(&cobaltResp); err != nil {
+		return nil, "", fmt.Errorf("music/download: erro ao parsear resposta do Cobalt: %w", err)
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	fmt.Println("[music] Cobalt status:", cobaltResp.Status)
+	fmt.Println("[music] Cobalt url:", cobaltResp.URL)
+
+	if cobaltResp.Status == "error" || cobaltResp.URL == "" {
+		return nil, "", fmt.Errorf("music/download: Cobalt retornou erro para %q", query)
+	}
+
+	// Cobalt retorna "tunnel" ou "redirect" — em ambos baixamos direto da URL.
+	dlReq, err := http.NewRequestWithContext(ctx, http.MethodGet, cobaltResp.URL, nil)
 	if err != nil {
-		return nil, "", fmt.Errorf("music/download: erro ao ler resposta: %w", err)
+		return nil, "", fmt.Errorf("music/download: erro ao criar request de download: %w", err)
 	}
 
-	fmt.Println("[music] recebido:", len(data), "bytes")
+	dlResp, err := http.DefaultClient.Do(dlReq)
+	if err != nil {
+		return nil, "", fmt.Errorf("music/download: erro ao baixar áudio: %w", err)
+	}
+	defer dlResp.Body.Close()
 
-	return data, "mp3", nil
+	data, err := io.ReadAll(dlResp.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("music/download: erro ao ler áudio: %w", err)
+	}
+
+	// Detecta extensão pelo filename retornado pelo Cobalt.
+	ext := "mp3"
+	if cobaltResp.Filename != "" {
+		if e := filepath.Ext(cobaltResp.Filename); e != "" {
+			ext = strings.TrimPrefix(e, ".")
+		}
+	}
+
+	fmt.Println("[music] recebido:", len(data), "bytes, ext:", ext)
+
+	return data, ext, nil
 }
