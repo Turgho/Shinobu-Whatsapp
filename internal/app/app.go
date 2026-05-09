@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"time"
 
@@ -25,6 +26,8 @@ import (
 
 // Run é o ponto de entrada da aplicação.
 func Run() error {
+	os.Setenv("PATH", os.Getenv("PATH")+":./bin")
+
 	utils.StartUptime()
 
 	// Verifica dependências externas antes de qualquer conexão
