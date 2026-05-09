@@ -40,7 +40,6 @@ storage/message_history.db-wal
 !.env.example
 config.yaml
 cookies.txt
-assets/*
 
 # ─── Arquivos temporários do sticker ─────────────────────────────────────────
 /tmp/sticker-in-*
