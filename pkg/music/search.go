@@ -55,13 +55,24 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		"-o", outTemplate, // Nome de saída temporário.
 	}
 
+	fmt.Println("[music] executando yt-dlp com args:")
+	fmt.Println(strings.Join(args, " "))
+
 	var out bytes.Buffer
 	cmd := ytdlpCmd(ctx, args...)
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 
+	// DEBUG LOGS
+	fmt.Println("[music] query original:", query)
+	fmt.Println("[music] input final:", input)
+	fmt.Println("[music] temp dir:", tmpDir)
+	fmt.Println("[music] output template:", outTemplate)
+
 	if err := cmd.Run(); err != nil {
-		return nil, "", fmt.Errorf("music/download: yt-dlp falhou: %w\n%s", err, out.String())
+		fmt.Println("[music] yt-dlp ERRO:")
+		fmt.Println(out.String())
+		return nil, "", fmt.Errorf("music/download: yt-dlp falhou: %w", err)
 	}
 
 	// Lê o arquivo final gerado.
@@ -69,6 +80,10 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", fmt.Errorf("music/download: erro ao ler arquivo gerado: %w", err)
 	}
+
+	fmt.Println("[music] yt-dlp executou com sucesso")
+	fmt.Println("[music] output:")
+	fmt.Println(out.String())
 
 	return data, "mp3", nil
 }
