@@ -65,7 +65,7 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		"--audio-format", "mp3", // Converte sempre para mp3
 		"--audio-quality", "5", // Qualidade balanceada (rápido e leve)
 
-		"--match-filter", "duration < 1800", // Bloqueia vídeos maiores que 30min
+		"--match-filter", "duration < 900", // Bloqueia vídeos maiores que 15min
 
 		"-o", outTemplate, // Template de saída temporária
 	}
