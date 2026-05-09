@@ -49,7 +49,7 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		"--no-playlist",   // Evita baixar playlists inteiras sem querer
 
 		// Usa client web (mais estável que android no Square Cloud)
-		"--extractor-args", "youtube:player_client=tv,android,web",
+		"--extractor-args", "youtube:player_client=tv_simply",
 
 		"--user-agent", "Mozilla/5.0", // Evita bloqueios simples de bot detection
 		"--socket-timeout", "15", // Timeout para evitar travamentos em rede lenta
@@ -65,7 +65,7 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		"--audio-format", "mp3", // Converte sempre para mp3
 		"--audio-quality", "5", // Qualidade balanceada (rápido e leve)
 
-		"--match-filter", "duration < 1500", // Bloqueia vídeos maiores que 15min
+		"--match-filter", "duration < 900", // Bloqueia vídeos maiores que 15min
 
 		"-o", outTemplate, // Template de saída temporária
 	}
