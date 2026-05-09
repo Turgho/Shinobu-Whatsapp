@@ -11,7 +11,7 @@ import (
 
 // DownloadAudio baixa áudio temporário a partir de nome ou URL.
 // - Se query for URL, usa direto.
-// - Se query for texto, pesquisa no YouTube com ytsearch1.
+// - Se query for texto, pesquisa no SoundCloud com scsearch1.
 // - Retorna os bytes do arquivo final e a extensão gerada.
 //
 // Exemplo de retorno final: mp3
@@ -21,11 +21,11 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("music/download: query vazia")
 	}
 
-	// Se não for URL, transforma em busca no YouTube.
+	// Se não for URL, transforma em busca no SoundCloud.
 	input := query
 	if !strings.HasPrefix(query, "http://") &&
 		!strings.HasPrefix(query, "https://") {
-		input = "ytsearch1:" + query
+		input = "scsearch1:" + query
 	}
 
 	// Cria uma pasta temporária única para evitar conflito entre execuções.
@@ -35,34 +35,30 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// O yt-dlp vai gerar algo como /tmp/music-123456/download.mp3
 	outTemplate := filepath.Join(tmpDir, "download.%(ext)s")
 
 	args := []string{
 		input,
-		"--cookies", "cookies.txt",
 
-		"--default-search", "scsearch1", // Permite buscar músicas sem URL direta (SoundCloud search)
+		"--default-search", "scsearch1", // Busca no SoundCloud por padrão
+		"--ignore-config", // Ignora configs globais do yt-dlp
+		"--no-playlist",   // Evita baixar playlists inteiras
 
-		"--ignore-config", // Ignora configs globais do yt-dlp (evita conflitos no host)
-		"--no-playlist",   // Evita baixar playlists inteiras sem querer
-
-		"--socket-timeout", "15", // Timeout para evitar travamentos em rede lenta
-
+		"--socket-timeout", "15", // Timeout para evitar travamentos
 		"--no-check-certificate", // Evita falhas TLS em ambientes restritos
 
 		"--quiet",       // Reduz output desnecessário
 		"--no-warnings", // Remove warnings que poluem logs
 
 		"-x",                   // Extrai apenas áudio (sem vídeo)
-		"-f", "bestaudio/best", // Melhor audio possível
+		"-f", "bestaudio/best", // Melhor áudio disponível
 
 		"--audio-format", "mp3", // Converte sempre para mp3
-		"--audio-quality", "5", // Qualidade balanceada (rápido e leve)
+		"--audio-quality", "5", // Qualidade balanceada
 
-		"--match-filter", "duration < 900", // Bloqueia vídeos maiores que 15min
+		"--match-filter", "duration < 900", // Bloqueia faixas maiores que 15min
 
-		"-o", outTemplate, // Template de saída temporária
+		"-o", outTemplate,
 	}
 
 	fmt.Println("[music] executando yt-dlp com args:")
@@ -73,7 +69,6 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 
-	// DEBUG LOGS
 	fmt.Println("[music] query original:", query)
 	fmt.Println("[music] input final:", input)
 	fmt.Println("[music] temp dir:", tmpDir)
@@ -85,8 +80,6 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("music/download: yt-dlp falhou: %w", err)
 	}
 
-	// Após conversão o yt-dlp sempre gera download.mp3,
-	// mas buscamos no diretório para não depender de extensão fixa.
 	entries, err := os.ReadDir(tmpDir)
 	if err != nil {
 		return nil, "", fmt.Errorf("music/download: erro ao listar pasta temporária: %w", err)
@@ -105,7 +98,6 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("music/download: nenhum arquivo gerado pelo yt-dlp em %s", tmpDir)
 	}
 
-	// Lê o arquivo final gerado.
 	data, err := os.ReadFile(outFile)
 	if err != nil {
 		return nil, "", fmt.Errorf("music/download: erro ao ler arquivo gerado: %w", err)
