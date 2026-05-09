@@ -51,7 +51,7 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 
 		// web,android: o cliente android serve como fallback quando o web
 		// retorna streams com restrição de formato (erro "format not available").
-		"--extractor-args", "youtube:player_client=web,android",
+		"--extractor-args", "youtube:player_client=web",
 
 		"--user-agent", "Mozilla/5.0", // Evita bloqueios simples de bot detection
 		"--socket-timeout", "15", // Timeout para evitar travamentos em rede lenta
