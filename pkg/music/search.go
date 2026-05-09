@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,8 +23,8 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 
 	// Se não for URL, transforma em busca no YouTube.
 	input := query
-	if _, err := url.ParseRequestURI(query); err != nil {
-		// "official audio" ajuda a trazer resultados melhores em buscas de música.
+	if !strings.HasPrefix(query, "http://") &&
+		!strings.HasPrefix(query, "https://") {
 		input = "ytsearch1:" + query
 	}
 
@@ -42,6 +41,7 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 
 	args := []string{
 		input,
+		"--default-search", "ytsearch1",
 		"--cookies", "cookies.txt", // Algumas música podem ser bloqueadas por restrição de idade ou por outros motivos
 		"--ignore-config", // Evita configs externas influenciando o bot.
 		"--no-playlist",   // Evita playlist inteira.
