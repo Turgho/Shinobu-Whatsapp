@@ -21,6 +21,7 @@ func NewHandler(client *whatsmeow.Client, router *commands.Router) *Handler {
 func (h *Handler) EventHandler(evt interface{}) {
 	switch v := evt.(type) {
 	case *events.Message:
-		h.router.HandleMessage(v)
+		// Goroutine para concorrencia e poder usar comando mais de uma vez
+		go h.router.HandleMessage(v)
 	}
 }
