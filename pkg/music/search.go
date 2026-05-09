@@ -41,15 +41,13 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 
 	args := []string{
 		input,
-		"--cookies", "cookies.txt",
-
 		"--default-search", "ytsearch1", // Permite buscar músicas sem URL direta (YouTube search)
 
 		"--ignore-config", // Ignora configs globais do yt-dlp (evita conflitos no host)
 		"--no-playlist",   // Evita baixar playlists inteiras sem querer
 
 		// Usa client web (mais estável que android no Square Cloud)
-		"--extractor-args", "youtube:player_client=web",
+		"--extractor-args", "youtube:player_client=tv,android,web",
 
 		"--user-agent", "Mozilla/5.0", // Evita bloqueios simples de bot detection
 		"--socket-timeout", "15", // Timeout para evitar travamentos em rede lenta
