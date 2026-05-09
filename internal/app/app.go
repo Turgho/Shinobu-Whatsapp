@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/Turgho/YuukoWhatsapp/internal/bot"
@@ -26,7 +27,18 @@ import (
 
 // Run é o ponto de entrada da aplicação.
 func Run() error {
-	os.Setenv("PATH", os.Getenv("PATH")+":./bin")
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	exeDir := filepath.Dir(exe)
+	binDir := filepath.Join(exeDir, "bin")
+
+	os.Setenv(
+		"PATH",
+		os.Getenv("PATH")+":"+binDir,
+	)
 
 	utils.StartUptime()
 
@@ -196,24 +208,15 @@ func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) command
 func checkDeps() error {
 	if _, err := exec.LookPath("yt-dlp"); err != nil {
 		return fmt.Errorf(
-			"yt-dlp não encontrado no PATH\n" +
-				"  → Linux:   sudo apt install yt-dlp\n" +
-				"  → macOS:   brew install yt-dlp\n" +
-				"  → Windows: https://github.com/yt-dlp/yt-dlp/releases",
-		)
+			"yt-dlp não encontrado no PATH")
 	}
 
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		return fmt.Errorf(
-			"ffmpeg não encontrado no PATH\n" +
-				"  → Linux:   sudo apt install ffmpeg\n" +
-				"  → macOS:   brew install ffmpeg\n" +
-				"  → Windows: https://ffmpeg.org/download.html",
-		)
+		return fmt.Errorf("ffmpeg não encontrado no PATH")
 	}
 
 	if _, err := exec.LookPath("webpmux"); err != nil {
-		return fmt.Errorf("webpmux não encontrado\n  → sudo apt install webp")
+		return fmt.Errorf("webpmux não encontrado no PATH")
 	}
 
 	return nil
