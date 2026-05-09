@@ -40,6 +40,8 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 
 	args := []string{
 		input,
+		"--cookies", "cookies.txt",
+
 		"--default-search", "scsearch1", // Permite buscar músicas sem URL direta (SoundCloud search)
 
 		"--ignore-config", // Ignora configs globais do yt-dlp (evita conflitos no host)
