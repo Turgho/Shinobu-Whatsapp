@@ -11,6 +11,8 @@ import (
 )
 
 func PlayCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+	return utils.Reply(ctx, client, evt, "Comando desativado temporariamente para manutenção")
+
 	// Valida antes de iniciar processamento pesado.
 	if len(args) == 0 {
 		return utils.Reply(ctx, client, evt,
