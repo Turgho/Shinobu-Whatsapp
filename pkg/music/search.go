@@ -51,8 +51,8 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		"--no-check-certificate",
 		"--quiet", // Reduz ruído no terminal.
 		"--no-warnings",
-		"-x",                   // Extrai apenas o áudio.
-		"-f", "bestaudio/best", // Melhor audio disponível
+		"-x",                                      // Extrai apenas o áudio.
+		"-f", "bestaudio[ext=m4a]/bestaudio/best", // Melhor audio disponível
 		"--audio-format", "mp3", // Converte para mp3.
 		"--audio-quality", "5", // Qualidade razoável sem exagerar no tempo de processamento.
 		"--match-filter", "duration < 1800", // Evita vídeos longos demais.
