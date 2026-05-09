@@ -45,7 +45,11 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		"--cookies", "cookies.txt", // Algumas música podem ser bloqueadas por restrição de idade ou por outros motivos
 		"--ignore-config", // Evita configs externas influenciando o bot.
 		"--no-playlist",   // Evita playlist inteira.
-		"--quiet",         // Reduz ruído no terminal.
+		"--extractor-args", "youtube:player_client=android",
+		"--user-agent", "Mozilla/5.0",
+		"--socket-timeout", "15",
+		"--no-check-certificate",
+		"--quiet", // Reduz ruído no terminal.
 		"--no-warnings",
 		"-x",                   // Extrai apenas o áudio.
 		"-f", "bestaudio/best", // Melhor audio disponível
