@@ -11,7 +11,7 @@ import (
 
 // DownloadAudio baixa áudio temporário a partir de nome ou URL.
 // - Se query for URL, usa direto.
-// - Se query for texto, pesquisa no SoundCloud com scsearch1.
+// - Se query for texto, pesquisa no YouTube com ytsearch1.
 // - Retorna os bytes do arquivo final e a extensão gerada.
 //
 // Exemplo de retorno final: mp3
@@ -21,11 +21,11 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("music/download: query vazia")
 	}
 
-	// Se não for URL, transforma em busca no SoundCloud.
+	// Se não for URL, transforma em busca no YouTube.
 	input := query
 	if !strings.HasPrefix(query, "http://") &&
 		!strings.HasPrefix(query, "https://") {
-		input = "scsearch1:" + query
+		input = "ytsearch1:" + query
 	}
 
 	// Cria uma pasta temporária única para evitar conflito entre execuções.
@@ -35,30 +35,39 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 	}
 	defer os.RemoveAll(tmpDir)
 
+	// O yt-dlp vai gerar algo como /tmp/music-123456/download.mp3
 	outTemplate := filepath.Join(tmpDir, "download.%(ext)s")
+	outFile := filepath.Join(tmpDir, "download.mp3")
 
 	args := []string{
 		input,
+		"--cookies", "cookies.txt",
 
-		"--default-search", "scsearch1", // Busca no SoundCloud por padrão
-		"--ignore-config", // Ignora configs globais do yt-dlp
-		"--no-playlist",   // Evita baixar playlists inteiras
+		"--default-search", "ytsearch1", // Permite buscar músicas sem URL direta (YouTube search)
 
-		"--socket-timeout", "15", // Timeout para evitar travamentos
+		"--ignore-config", // Ignora configs globais do yt-dlp (evita conflitos no host)
+		"--no-playlist",   // Evita baixar playlists inteiras sem querer
+
+		// Usa client web (mais estável que android no Square Cloud)
+		"--extractor-args", "youtube:player_client=tv,android,web",
+
+		"--user-agent", "Mozilla/5.0", // Evita bloqueios simples de bot detection
+		"--socket-timeout", "15", // Timeout para evitar travamentos em rede lenta
+
 		"--no-check-certificate", // Evita falhas TLS em ambientes restritos
 
 		"--quiet",       // Reduz output desnecessário
 		"--no-warnings", // Remove warnings que poluem logs
 
-		"-x",                   // Extrai apenas áudio (sem vídeo)
-		"-f", "bestaudio/best", // Melhor áudio disponível
+		"-x",              // Extrai apenas áudio (sem vídeo)
+		"-f", "bestaudio", // Formato mais compatível (evita erro "format not available")
 
 		"--audio-format", "mp3", // Converte sempre para mp3
-		"--audio-quality", "5", // Qualidade balanceada
+		"--audio-quality", "5", // Qualidade balanceada (rápido e leve)
 
-		"--match-filter", "duration < 900", // Bloqueia faixas maiores que 15min
+		"--match-filter", "duration < 1500", // Bloqueia vídeos maiores que 15min
 
-		"-o", outTemplate,
+		"-o", outTemplate, // Template de saída temporária
 	}
 
 	fmt.Println("[music] executando yt-dlp com args:")
@@ -69,6 +78,7 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 
+	// DEBUG LOGS
 	fmt.Println("[music] query original:", query)
 	fmt.Println("[music] input final:", input)
 	fmt.Println("[music] temp dir:", tmpDir)
@@ -80,33 +90,15 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("music/download: yt-dlp falhou: %w", err)
 	}
 
-	entries, err := os.ReadDir(tmpDir)
-	if err != nil {
-		return nil, "", fmt.Errorf("music/download: erro ao listar pasta temporária: %w", err)
-	}
-
-	var outFile, ext string
-	for _, e := range entries {
-		if !e.IsDir() {
-			outFile = filepath.Join(tmpDir, e.Name())
-			ext = strings.TrimPrefix(filepath.Ext(e.Name()), ".")
-			break
-		}
-	}
-
-	if outFile == "" {
-		return nil, "", fmt.Errorf("music/download: nenhum arquivo gerado pelo yt-dlp em %s", tmpDir)
-	}
-
+	// Lê o arquivo final gerado.
 	data, err := os.ReadFile(outFile)
 	if err != nil {
 		return nil, "", fmt.Errorf("music/download: erro ao ler arquivo gerado: %w", err)
 	}
 
 	fmt.Println("[music] yt-dlp executou com sucesso")
-	fmt.Println("[music] arquivo gerado:", outFile)
 	fmt.Println("[music] output:")
 	fmt.Println(out.String())
 
-	return data, ext, nil
+	return data, "mp3", nil
 }
