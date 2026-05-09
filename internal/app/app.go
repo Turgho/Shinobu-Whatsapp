@@ -191,15 +191,15 @@ func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) command
 }
 
 func checkDeps() error {
-	if _, err := exec.LookPath("yt-dlp"); err != nil {
+	if _, err := exec.LookPath("./bin/yt-dlp"); err != nil {
 		return fmt.Errorf("yt-dlp não encontrado no PATH")
 	}
 
-	if _, err := exec.LookPath("ffmpeg"); err != nil {
+	if _, err := exec.LookPath("./bin/ffmpeg"); err != nil {
 		return fmt.Errorf("ffmpeg não encontrado no PATH")
 	}
 
-	if _, err := exec.LookPath("webpmux"); err != nil {
+	if _, err := exec.LookPath("./bin/webpmux"); err != nil {
 		return fmt.Errorf("webpmux não encontrado no PATH")
 	}
 
