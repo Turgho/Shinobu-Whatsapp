@@ -41,9 +41,10 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 
 	args := []string{
 		input,
-		"--cookies", "cookies.txt",
+		// "--cookies", "cookies.txt",
 
 		"--verbose",
+		"--list-formats",
 
 		"--default-search", "ytsearch1", // Permite buscar músicas sem URL direta (YouTube search)
 
