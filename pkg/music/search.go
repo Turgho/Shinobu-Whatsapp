@@ -40,20 +40,11 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 
 	args := []string{
 		input,
-		"--cookies", "cookies.txt",
-
-		"--verbose",
-
-		"--default-search", "ytsearch1", // Permite buscar músicas sem URL direta (YouTube search)
+		"--default-search", "scsearch1", // Permite buscar músicas sem URL direta (SoundCloud search)
 
 		"--ignore-config", // Ignora configs globais do yt-dlp (evita conflitos no host)
 		"--no-playlist",   // Evita baixar playlists inteiras sem querer
 
-		// web,android: o cliente android serve como fallback quando o web
-		// retorna streams com restrição de formato (erro "format not available").
-		"--extractor-args", "youtube:player_client=web",
-
-		"--user-agent", "Mozilla/5.0", // Evita bloqueios simples de bot detection
 		"--socket-timeout", "15", // Timeout para evitar travamentos em rede lenta
 
 		"--no-check-certificate", // Evita falhas TLS em ambientes restritos
@@ -61,8 +52,8 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		"--quiet",       // Reduz output desnecessário
 		"--no-warnings", // Remove warnings que poluem logs
 
-		"-x",                    // Extrai apenas áudio (sem vídeo)
-		"-f", "140/251/139/249", // áudio DASH disponível: m4a e opus, fallback em cadeia
+		"-x",                   // Extrai apenas áudio (sem vídeo)
+		"-f", "bestaudio/best", // Melhor audio possível
 
 		"--audio-format", "mp3", // Converte sempre para mp3
 		"--audio-quality", "5", // Qualidade balanceada (rápido e leve)
