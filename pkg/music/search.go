@@ -41,22 +41,32 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 
 	args := []string{
 		input,
-		"--default-search", "ytsearch1",
-		"--cookies", "cookies.txt", // Algumas música podem ser bloqueadas por restrição de idade ou por outros motivos
-		"--ignore-config", // Evita configs externas influenciando o bot.
-		"--no-playlist",   // Evita playlist inteira.
-		"--extractor-args", "youtube:player_client=android",
-		"--user-agent", "Mozilla/5.0",
-		"--socket-timeout", "15",
-		"--no-check-certificate",
-		"--quiet", // Reduz ruído no terminal.
-		"--no-warnings",
-		"-x",                                      // Extrai apenas o áudio.
-		"-f", "bestaudio[ext=m4a]/bestaudio/best", // Melhor audio disponível
-		"--audio-format", "mp3", // Converte para mp3.
-		"--audio-quality", "5", // Qualidade razoável sem exagerar no tempo de processamento.
-		"--match-filter", "duration < 1800", // Evita vídeos longos demais.
-		"-o", outTemplate, // Nome de saída temporário.
+
+		"--default-search", "ytsearch1", // Permite buscar músicas sem URL direta (YouTube search)
+
+		"--ignore-config", // Ignora configs globais do yt-dlp (evita conflitos no host)
+		"--no-playlist",   // Evita baixar playlists inteiras sem querer
+
+		// Usa client web (mais estável que android no Square Cloud)
+		"--extractor-args", "youtube:player_client=web",
+
+		"--user-agent", "Mozilla/5.0", // Evita bloqueios simples de bot detection
+		"--socket-timeout", "15", // Timeout para evitar travamentos em rede lenta
+
+		"--no-check-certificate", // Evita falhas TLS em ambientes restritos
+
+		"--quiet",       // Reduz output desnecessário
+		"--no-warnings", // Remove warnings que poluem logs
+
+		"-x",              // Extrai apenas áudio (sem vídeo)
+		"-f", "bestaudio", // Formato mais compatível (evita erro "format not available")
+
+		"--audio-format", "mp3", // Converte sempre para mp3
+		"--audio-quality", "5", // Qualidade balanceada (rápido e leve)
+
+		"--match-filter", "duration < 1800", // Bloqueia vídeos maiores que 30min
+
+		"-o", outTemplate, // Template de saída temporária
 	}
 
 	fmt.Println("[music] executando yt-dlp com args:")
