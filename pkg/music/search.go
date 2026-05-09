@@ -126,6 +126,10 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("music/download: erro ao ler áudio: %w", err)
 	}
 
+	fmt.Println("[music] download status:", dlResp.StatusCode)
+	fmt.Println("[music] content-length:", dlResp.Header.Get("Content-Length"))
+	fmt.Println("[music] transfer-encoding:", dlResp.Header.Get("Transfer-Encoding"))
+
 	// Detecta extensão pelo filename retornado pelo Cobalt.
 	ext := "mp3"
 	if cobaltResp.Filename != "" {
