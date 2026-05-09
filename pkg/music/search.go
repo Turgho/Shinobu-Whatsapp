@@ -41,6 +41,8 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 
 	args := []string{
 		input,
+		"--cookies", "cookies.txt",
+
 		"--default-search", "ytsearch1", // Permite buscar músicas sem URL direta (YouTube search)
 
 		"--ignore-config", // Ignora configs globais do yt-dlp (evita conflitos no host)
@@ -57,8 +59,7 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		"--quiet",       // Reduz output desnecessário
 		"--no-warnings", // Remove warnings que poluem logs
 
-		"-x",              // Extrai apenas áudio (sem vídeo)
-		"-f", "bestaudio", // Formato mais compatível (evita erro "format not available")
+		"-x", // Extrai apenas áudio (sem vídeo)
 
 		"--audio-format", "mp3", // Converte sempre para mp3
 		"--audio-quality", "5", // Qualidade balanceada (rápido e leve)
