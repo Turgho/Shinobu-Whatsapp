@@ -119,6 +119,8 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 	}
 	defer dlResp.Body.Close()
 
+	fmt.Println("[music] download status:", dlResp.StatusCode)
+
 	data, err := io.ReadAll(dlResp.Body)
 	if err != nil {
 		return nil, "", fmt.Errorf("music/download: erro ao ler áudio: %w", err)
