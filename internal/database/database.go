@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	_ "github.com/mattn/go-sqlite3" // Importa o driver do SQLite3
 	"go.uber.org/zap"
+	_ "modernc.org/sqlite" // Importa o driver do SQLite3
 )
 
 type Database struct {
