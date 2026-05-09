@@ -59,8 +59,8 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		"--quiet",       // Reduz output desnecessário
 		"--no-warnings", // Remove warnings que poluem logs
 
-		"-x",         // Extrai apenas áudio (sem vídeo)
-		"-f", "ba/b", // ba = best audio; b = best geral como fallback universal
+		"-x",                    // Extrai apenas áudio (sem vídeo)
+		"-f", "140/251/139/249", // áudio DASH disponível: m4a e opus, fallback em cadeia
 
 		"--audio-format", "mp3", // Converte sempre para mp3
 		"--audio-quality", "5", // Qualidade balanceada (rápido e leve)
