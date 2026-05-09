@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"time"
 
 	"github.com/Turgho/YuukoWhatsapp/internal/bot"
@@ -27,18 +26,25 @@ import (
 
 // Run é o ponto de entrada da aplicação.
 func Run() error {
-	exe, err := os.Executable()
-	if err != nil {
-		return err
+	cwd, _ := os.Getwd()
+
+	exe, _ := os.Executable()
+
+	fmt.Println("CWD:", cwd)
+	fmt.Println("EXE:", exe)
+
+	entries, _ := os.ReadDir(".")
+
+	fmt.Println("Arquivos na raiz:")
+	for _, e := range entries {
+		fmt.Println("-", e.Name())
 	}
 
-	exeDir := filepath.Dir(exe)
-	binDir := filepath.Join(exeDir, "bin")
-
-	os.Setenv(
-		"PATH",
-		os.Getenv("PATH")+":"+binDir,
-	)
+	if _, err := os.Stat("./bin/yt-dlp"); err != nil {
+		fmt.Println("ERRO BIN:", err)
+	} else {
+		fmt.Println("yt-dlp existe")
+	}
 
 	utils.StartUptime()
 
