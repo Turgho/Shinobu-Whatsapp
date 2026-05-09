@@ -71,7 +71,11 @@ func searchWeb(ctx context.Context, query string) (string, error) {
 	// Fallback: junta os conteúdos dos resultados
 	var parts []string
 	for _, r := range result.Results {
-		parts = append(parts, r.Content)
+		content := r.Content
+		if len(content) > 300 {
+			content = content[:300] // evita contexto gigante
+		}
+		parts = append(parts, content)
 	}
 	return strings.Join(parts, "\n\n"), nil
 }

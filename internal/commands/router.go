@@ -73,9 +73,41 @@ func (r *Router) Prefix() string {
 // HandleMessage é o ponto de entrada para eventos de mensagem do WhatsApp.
 func (r *Router) HandleMessage(evt *events.Message) {
 	msg := getTextMessage(evt)
+	if msg == "" {
+		return
+	}
 
-	// Descarta silenciosamente mensagens sem prefixo — a grande maioria
-	if msg == "" || !strings.HasPrefix(msg, r.prefix) {
+	// Caminho 1: menção pelo nome — responde sem precisar do prefixo
+	if isMentioned(msg) {
+		// Roda middlewares (filtra bot, mensagens antigas, etc)
+		for _, m := range r.middlewares {
+			if !m("shinobu", evt) {
+				return
+			}
+		}
+
+		cmd, ok := r.commands["shinobu"]
+		if !ok {
+			return
+		}
+
+		r.log.Info("Shinobu mencionada",
+			zap.String("user", evt.Info.Sender.User),
+			zap.String("msg", msg),
+		)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		args := []string{msg} // passa a mensagem inteira como argumento
+		if err := cmd.Handler(ctx, r.client, evt, args); err != nil {
+			r.log.Error("Erro ao responder menção", zap.Error(err))
+		}
+		return
+	}
+
+	// Caminho 2: comando com prefixo — fluxo normal
+	if !strings.HasPrefix(msg, r.prefix) {
 		return
 	}
 
@@ -150,4 +182,9 @@ func getTextMessage(evt *events.Message) string {
 	}
 
 	return strings.TrimSpace(msg)
+}
+
+func isMentioned(msg string) bool {
+	msg = strings.ToLower(msg)
+	return strings.Contains(msg, "shinobu")
 }
