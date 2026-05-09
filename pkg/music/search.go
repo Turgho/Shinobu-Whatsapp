@@ -90,6 +90,12 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 	defer resp.Body.Close()
 
 	var cobaltResp cobaltResponse
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	fmt.Println("[music] Cobalt resposta raw:", string(bodyBytes))
+	if err := json.Unmarshal(bodyBytes, &cobaltResp); err != nil {
+		return nil, "", fmt.Errorf("music/download: erro ao parsear resposta: %w", err)
+	}
+
 	if err := json.NewDecoder(resp.Body).Decode(&cobaltResp); err != nil {
 		return nil, "", fmt.Errorf("music/download: erro ao parsear resposta do Cobalt: %w", err)
 	}
