@@ -151,7 +151,17 @@ func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logge
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "mambo",
 		Description: "M A M B O 🏇",
-	}, public.MamboCommand)
+	}, public.MamboAudioCommand)
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "dio",
+		Description: "Talvez o tempo pare...",
+	}, public.DioAudioCommand)
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "cafe",
+		Description: "Não importa a hora!",
+	}, public.HoraCafeAudioCommand)
 
 	// Shinobu: IA com personalidade, histórico por usuário e busca web sob demanda
 	r.RegisterCommand(commands.CommandMeta{
