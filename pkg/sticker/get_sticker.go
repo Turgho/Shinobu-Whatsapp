@@ -70,7 +70,7 @@ func loadStore() (StickerStore, error) {
 }
 
 func saveStore(store StickerStore) error {
-	if err := os.MkdirAll("assets/sticker", 0755); err != nil {
+	if err := os.MkdirAll("assets/stickers", 0755); err != nil {
 		return err
 	}
 

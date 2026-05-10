@@ -38,7 +38,7 @@ const shinobuPersonality = `
 // AskIA monta o contexto completo (personalidade, histórico, web se necessário)
 // e envia para o modelo adequado no Groq.
 // Usa Scout 17B para conversa casual e 70B Versatile quando há contexto web.
-func AskIA(ctx context.Context, prompt string, isOwner bool, sender string, store *history.Store) (string, error) {
+func AskIA(ctx context.Context, prompt string, isOwner bool, sender string, store *history.Store) (string, bool, error) {
 	groqURL := os.Getenv("GROQ_URL")
 	groqKey := os.Getenv("GROQ_API_KEY")
 
@@ -67,11 +67,14 @@ func AskIA(ctx context.Context, prompt string, isOwner bool, sender string, stor
 	model := "meta-llama/llama-4-scout-17b-16e-instruct"
 	maxTokens := 150 // Suficiente para 2 frases em PT-BR com folga
 	userContent := prompt
+	usedSearch := false
 
 	// Decide dinamicamente se a pergunta precisa de busca web
 	// Usa uma chamada leve ao Scout para classificar, evitando keyword matching frágil
 	if shouldSearch(ctx, prompt) {
 		if webContext, err := searchWeb(ctx, prompt); err == nil && webContext != "" {
+			usedSearch = true
+
 			// Limita o contexto antes de injetar — evita resposta longa
 			if len(webContext) > 600 {
 				webContext = webContext[:600]
@@ -107,37 +110,37 @@ func AskIA(ctx context.Context, prompt string, isOwner bool, sender string, stor
 		MaxTokens:   maxTokens,
 	})
 	if err != nil {
-		return "", fmt.Errorf("erro ao serializar request: %w", err)
+		return "", usedSearch, fmt.Errorf("erro ao serializar request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, groqURL, bytes.NewBuffer(body))
 	if err != nil {
-		return "", fmt.Errorf("erro ao criar request: %w", err)
+		return "", usedSearch, fmt.Errorf("erro ao criar request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+groqKey)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("erro ao chamar Groq: %w", err)
+		return "", usedSearch, fmt.Errorf("erro ao chamar Groq: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("groq retornou status %d: %s", resp.StatusCode, string(b))
+		return "", usedSearch, fmt.Errorf("groq retornou status %d: %s", resp.StatusCode, string(b))
 	}
 
 	var iaResp IAResponse
 	if err := json.NewDecoder(resp.Body).Decode(&iaResp); err != nil {
-		return "", fmt.Errorf("erro ao decodificar resposta: %w", err)
+		return "", usedSearch, fmt.Errorf("erro ao decodificar resposta: %w", err)
 	}
 
 	if len(iaResp.Choices) == 0 {
-		return "", fmt.Errorf("resposta vazia do groq")
+		return "", usedSearch, fmt.Errorf("resposta vazia do groq")
 	}
 
-	return iaResp.Choices[0].Message.Content, nil
+	return iaResp.Choices[0].Message.Content, usedSearch, nil
 }
 
 // shouldSearch faz uma chamada leve ao Scout para decidir se a pergunta
