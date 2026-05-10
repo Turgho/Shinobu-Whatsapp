@@ -18,6 +18,7 @@ func ShinobuCommand(store *history.Store) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		ownerNumber := os.Getenv("OWNER_NUMBER")
 
+		chat := evt.Info.Chat.String()
 		sender := evt.Info.Sender.User
 		isOwner := sender == ownerNumber
 		prompt := strings.Join(args, " ")
@@ -37,14 +38,14 @@ func ShinobuCommand(store *history.Store) commands.HandlerFunc {
 			mentions = ext.GetContextInfo().GetMentionedJID()
 		}
 
-		store.Save(ctx, evt.Info.Chat.String(), sender, prompt)
+		_ = store.Save(ctx, chat, sender, prompt)
 
-		answer, usedSearch, err := ia.AskIA(ctx, prompt, isOwner, sender, store)
+		answer, usedSearch, err := ia.AskIA(ctx, chat, prompt, isOwner, sender, store)
 		if err != nil {
 			return utils.Reply(ctx, client, evt, "❌ Falha ao consultar a Shinobu.")
 		}
 
-		store.Save(ctx, evt.Info.Chat.String(), "Shinobu", answer)
+		_ = store.Save(ctx, chat, "Shinobu", answer)
 
 		if len(mentions) > 0 {
 			if err := utils.ReplyWithMentions(ctx, client, evt, answer, mentions); err != nil {
