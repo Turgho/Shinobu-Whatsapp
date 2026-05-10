@@ -25,7 +25,7 @@ func MenuCommand(r *commands.Router) commands.HandlerFunc {
 
 		var sb strings.Builder
 		sb.WriteString("╔══════════════════╗\n")
-		sb.WriteString("║   🌸  *Shinobu*  🌸   ║\n")
+		sb.WriteString("║             🌸  *Shinobu*  🌸   ║\n")
 		sb.WriteString("╚══════════════════╝\n\n")
 
 		for _, meta := range metas {
