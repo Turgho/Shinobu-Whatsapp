@@ -17,13 +17,18 @@ func ShinobuCommand(store *history.Store) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		ownerNumber := os.Getenv("OWNER_NUMBER")
 
-		if len(args) == 0 {
-			return utils.Reply(ctx, client, evt, "Hmph... fala logo, tolo.")
-		}
-
 		sender := evt.Info.Sender.User
 		isOwner := sender == ownerNumber
 		prompt := strings.Join(args, " ")
+
+		// Remove o nome do bot do prompt — evita ruído quando chamado por menção
+		prompt = strings.TrimSpace(
+			strings.NewReplacer("shinobu", "", "Shinobu", "").Replace(prompt),
+		)
+
+		if len(args) == 0 || prompt == "" {
+			return utils.Reply(ctx, client, evt, "Hmph... fala logo, tolo.")
+		}
 
 		// Menções
 		mentions := []string{}
