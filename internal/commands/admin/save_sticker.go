@@ -14,10 +14,10 @@ import (
 // StickerCommand gerencia stickers salvos.
 //
 // Uso:
-// !sticker salvar <nome>
-// !sticker remover <nome>
-// !sticker lista
-// !sticker <nome>
+// !fig salvar <nome>
+// !fig remover <nome>
+// !fig lista
+// !fig <nome>
 func SaveStickerCommand(ownerNumber string) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 
@@ -33,9 +33,9 @@ func SaveStickerCommand(ownerNumber string) commands.HandlerFunc {
 
 			msg = strings.TrimSpace(msg)
 
-			if strings.HasPrefix(strings.ToLower(msg), "!sticker salvar") ||
-				strings.HasPrefix(strings.ToLower(msg), "!sticker remover") ||
-				strings.HasPrefix(strings.ToLower(msg), "!sticker lista") {
+			if strings.HasPrefix(strings.ToLower(msg), "!fig salvar") ||
+				strings.HasPrefix(strings.ToLower(msg), "!fig remover") ||
+				strings.HasPrefix(strings.ToLower(msg), "!fig lista") {
 
 				sticker.HandleStickerDM(client, evt, ownerNumber)
 				return nil
@@ -46,10 +46,10 @@ func SaveStickerCommand(ownerNumber string) commands.HandlerFunc {
 		if len(args) == 0 {
 			return utils.Reply(ctx, client, evt,
 				"❌ Uso:\n"+
-					"!sticker salvar <nome>\n"+
-					"!sticker remover <nome>\n"+
-					"!sticker lista\n"+
-					"!sticker <nome>")
+					"!fig salvar <nome>\n"+
+					"!fig remover <nome>\n"+
+					"!fig lista\n"+
+					"!fig <nome>")
 		}
 
 		if err := sticker.Send(ctx, client, evt, args[0]); err != nil {
