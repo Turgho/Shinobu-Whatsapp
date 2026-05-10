@@ -5,18 +5,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
+	"unicode"
 
+	"github.com/Turgho/YuukoWhatsapp/internal/utils"
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
-
-	"go.mau.fi/whatsmeow"
 )
 
-const stickerFile = "stickers.json"
+const stickerFile = "assets/stickers/stickers.json"
 
-// StickerData armazena os campos necessários para reenviar um sticker sem novo upload
+// StickerData guarda os dados necessários para reenviar um sticker sem novo upload.
 type StickerData struct {
 	URL           string `json:"url"`
 	DirectPath    string `json:"direct_path"`
@@ -28,6 +30,20 @@ type StickerData struct {
 }
 
 type StickerStore map[string]StickerData
+
+func normalizeName(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
+}
+
+func normalizeNumber(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if unicode.IsDigit(r) {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
 
 // ─── Persistência ─────────────────────────────────────────────────────────────
 
@@ -42,11 +58,22 @@ func loadStore() (StickerStore, error) {
 		return nil, err
 	}
 
-	err = json.Unmarshal(data, &store)
-	return store, err
+	if len(data) == 0 {
+		return store, nil
+	}
+
+	if err := json.Unmarshal(data, &store); err != nil {
+		return nil, err
+	}
+
+	return store, nil
 }
 
 func saveStore(store StickerStore) error {
+	if err := os.MkdirAll("assets/sticker", 0755); err != nil {
+		return err
+	}
+
 	data, err := json.MarshalIndent(store, "", "  ")
 	if err != nil {
 		return err
@@ -54,82 +81,107 @@ func saveStore(store StickerStore) error {
 	return os.WriteFile(stickerFile, data, 0644)
 }
 
-// Get retorna um sticker pelo nome, ou false se não existir
+// Get retorna um sticker pelo nome.
 func Get(name string) (StickerData, bool) {
 	store, err := loadStore()
 	if err != nil {
 		return StickerData{}, false
 	}
-	s, ok := store[strings.ToLower(name)]
+	s, ok := store[normalizeName(name)]
 	return s, ok
 }
 
-// List retorna os nomes de todos os stickers cadastrados
+// List retorna os nomes de todos os stickers cadastrados.
 func List() []string {
 	store, err := loadStore()
 	if err != nil {
 		return nil
 	}
+
 	names := make([]string, 0, len(store))
 	for name := range store {
 		names = append(names, name)
 	}
+
+	sort.Strings(names)
 	return names
 }
 
 // ─── Handler de DM ────────────────────────────────────────────────────────────
 
-// HandleStickerDM processa mensagens de DM com sticker.
-// Fluxo: usuário manda !sticker salvar <nome> com um sticker citado ou anexado.
-// Só funciona fora de grupos (DM).
+// HandleStickerDM processa comandos de sticker somente em DM.
+// Uso:
+//
+//	!sticker salvar <nome>   -> com sticker citado/reply
+//	!sticker remover <nome>
+//	!sticker lista
 func HandleStickerDM(client *whatsmeow.Client, evt *events.Message, ownerNumber string) {
-	// Só DM e só o dono
+	if evt == nil || evt.Message == nil {
+		return
+	}
+
+	// Só DM
 	if evt.Info.IsGroup {
 		return
 	}
-	if evt.Info.Sender.User != ownerNumber {
+
+	// Só o dono
+	if normalizeNumber(evt.Info.Sender.User) != normalizeNumber(ownerNumber) {
 		return
 	}
 
-	msg := ""
-	if evt.Message.GetConversation() != "" {
-		msg = evt.Message.GetConversation()
-	} else if evt.Message.GetExtendedTextMessage() != nil {
-		msg = evt.Message.GetExtendedTextMessage().GetText()
+	msg := getText(evt.Message)
+	msg = strings.TrimSpace(msg)
+	if msg == "" {
+		return
 	}
 
-	msg = strings.TrimSpace(msg)
-	parts := strings.Fields(strings.ToLower(msg))
+	parts := strings.Fields(msg)
+	if len(parts) < 2 {
+		return
+	}
 
-	// Comando: !sticker salvar <nome>
-	if len(parts) >= 3 && parts[0] == "!sticker" && parts[1] == "salvar" {
-		name := strings.ToLower(parts[2])
+	if strings.ToLower(parts[0]) != "!sticker" {
+		return
+	}
 
-		// Tenta pegar o sticker da mensagem citada
-		sticker := extractStickerFromQuoted(evt)
-		if sticker == nil {
-			// Tenta pegar da própria mensagem
-			sticker = evt.Message.GetStickerMessage()
-		}
+	cmd := strings.ToLower(parts[1])
 
-		if sticker == nil {
-			sendText(client, evt, "❌ Manda o sticker junto ou cita uma mensagem com sticker.")
+	switch cmd {
+	case "salvar":
+		if len(parts) < 3 {
+			sendText(client, evt, "❌ Use: `!sticker salvar <nome>` respondendo/citando um sticker.")
 			return
 		}
 
-		err := saveSticker(name, sticker)
-		if err != nil {
+		name := normalizeName(parts[2])
+
+		// Pega primeiro o sticker da própria mensagem (se existir),
+		// depois tenta pegar o sticker citado/reply.
+		sticker := evt.Message.GetStickerMessage()
+		if sticker == nil {
+			sticker = extractStickerFromQuoted(evt)
+		}
+
+		if sticker == nil {
+			sendText(client, evt, "❌ Manda o sticker junto ou responde/ cita uma mensagem com sticker.")
+			return
+		}
+
+		if err := saveSticker(name, sticker); err != nil {
 			sendText(client, evt, "❌ Erro ao salvar: "+err.Error())
 			return
 		}
 
 		sendText(client, evt, fmt.Sprintf("✅ Sticker *%s* salvo!", name))
-		return
-	}
 
-	// Comando: !sticker remover <nome>
-	if len(parts) >= 3 && parts[0] == "!sticker" && parts[1] == "remover" {
-		name := strings.ToLower(parts[2])
+	case "remover":
+		if len(parts) < 3 {
+			sendText(client, evt, "❌ Use: `!sticker remover <nome>`")
+			return
+		}
+
+		name := normalizeName(parts[2])
 
 		store, err := loadStore()
 		if err != nil {
@@ -143,45 +195,49 @@ func HandleStickerDM(client *whatsmeow.Client, evt *events.Message, ownerNumber 
 		}
 
 		delete(store, name)
-		saveStore(store)
-		sendText(client, evt, fmt.Sprintf("🗑️ Sticker *%s* removido.", name))
-		return
-	}
 
-	// Comando: !sticker lista
-	if len(parts) >= 2 && parts[0] == "!sticker" && parts[1] == "lista" {
+		if err := saveStore(store); err != nil {
+			sendText(client, evt, "❌ Erro ao remover sticker: "+err.Error())
+			return
+		}
+
+		sendText(client, evt, fmt.Sprintf("🗑️ Sticker *%s* removido.", name))
+
+	case "lista":
 		names := List()
 		if len(names) == 0 {
 			sendText(client, evt, "📋 Nenhum sticker cadastrado ainda.")
 			return
 		}
+
 		sendText(client, evt, "🗂️ Stickers cadastrados:\n"+strings.Join(names, ", "))
-		return
 	}
 }
 
 // ─── Envio ────────────────────────────────────────────────────────────────────
 
-// Send envia um sticker salvo pelo nome para um chat
-func Send(ctx context.Context, client *whatsmeow.Client, evt *events.Message, name string) error {
+// Send envia um sticker salvo pelo nome para um chat.
+func Send(
+	ctx context.Context,
+	client *whatsmeow.Client,
+	evt *events.Message,
+	name string,
+) error {
 	s, ok := Get(name)
 	if !ok {
 		return fmt.Errorf("sticker '%s' não encontrado", name)
 	}
 
-	_, err := client.SendMessage(ctx, evt.Info.Chat, &waE2E.Message{
-		StickerMessage: &waE2E.StickerMessage{
-			URL:           proto.String(s.URL),
-			DirectPath:    proto.String(s.DirectPath),
-			MediaKey:      s.MediaKey,
-			FileEncSHA256: s.FileEncSHA256,
-			FileSHA256:    s.FileSHA256,
-			FileLength:    proto.Uint64(s.FileLength),
-			Mimetype:      proto.String("image/webp"),
-			IsAnimated:    proto.Bool(s.IsAnimated),
-		},
-	})
-	return err
+	uploaded := &whatsmeow.UploadResponse{
+		URL:           s.URL,
+		DirectPath:    s.DirectPath,
+		MediaKey:      s.MediaKey,
+		FileEncSHA256: s.FileEncSHA256,
+		FileSHA256:    s.FileSHA256,
+		FileLength:    s.FileLength,
+	}
+
+	return utils.SendSticker(ctx, client, evt, uploaded, s.IsAnimated)
 }
 
 // ─── Helpers internos ─────────────────────────────────────────────────────────
@@ -192,7 +248,7 @@ func saveSticker(name string, s *waE2E.StickerMessage) error {
 		return err
 	}
 
-	store[name] = StickerData{
+	store[normalizeName(name)] = StickerData{
 		URL:           s.GetURL(),
 		DirectPath:    s.GetDirectPath(),
 		MediaKey:      s.GetMediaKey(),
@@ -205,25 +261,47 @@ func saveSticker(name string, s *waE2E.StickerMessage) error {
 	return saveStore(store)
 }
 
-// extractStickerFromQuoted tenta extrair o sticker de uma mensagem citada
 func extractStickerFromQuoted(evt *events.Message) *waE2E.StickerMessage {
+	if evt == nil || evt.Message == nil {
+		return nil
+	}
+
 	ext := evt.Message.GetExtendedTextMessage()
 	if ext == nil {
 		return nil
 	}
+
 	ctx := ext.GetContextInfo()
 	if ctx == nil {
 		return nil
 	}
+
 	quoted := ctx.GetQuotedMessage()
 	if quoted == nil {
 		return nil
 	}
+
 	return quoted.GetStickerMessage()
 }
 
+func getText(msg *waE2E.Message) string {
+	if msg == nil {
+		return ""
+	}
+
+	if msg.GetConversation() != "" {
+		return msg.GetConversation()
+	}
+
+	if ext := msg.GetExtendedTextMessage(); ext != nil {
+		return ext.GetText()
+	}
+
+	return ""
+}
+
 func sendText(client *whatsmeow.Client, evt *events.Message, text string) {
-	client.SendMessage(context.Background(), evt.Info.Chat, &waE2E.Message{
+	_, _ = client.SendMessage(context.Background(), evt.Info.Chat, &waE2E.Message{
 		Conversation: proto.String(text),
 	})
 }
