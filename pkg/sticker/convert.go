@@ -131,7 +131,7 @@ func injectStickerMeta(webpPath, author, pack string) error {
 	tmpExif.Close()
 
 	tmpOut := webpPath + ".tmp.webp"
-	cmd := exec.Command("webpmux",
+	cmd := exec.Command("./bin/webpmux",
 		"-set", "exif", tmpExif.Name(),
 		webpPath, "-o", tmpOut,
 	)
