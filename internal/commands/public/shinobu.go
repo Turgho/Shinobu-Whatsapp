@@ -54,7 +54,7 @@ func ShinobuCommand(store *history.Store) commands.HandlerFunc {
 
 			// Envia figurinha quando usar pesquisa web
 			if usedSearch {
-				_ = sticker.Send(ctx, client, evt, "smart_ruby")
+				_ = sticker.Send(ctx, client, evt, "smart_ruby", false)
 			}
 
 			return nil
@@ -66,7 +66,7 @@ func ShinobuCommand(store *history.Store) commands.HandlerFunc {
 
 		// Envia figurinha quando usar pesquisa web
 		if usedSearch {
-			_ = sticker.Send(ctx, client, evt, "smart_ruby")
+			_ = sticker.Send(ctx, client, evt, "smart_ruby", false)
 		}
 
 		return nil

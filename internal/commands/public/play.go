@@ -48,6 +48,7 @@ func PlayCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Mess
 		&uploaded,
 		mimetype,
 		false,
+		false,
 	); err != nil {
 		return utils.Reply(ctx, client, evt,
 			"❌ Não consegui enviar o áudio.")

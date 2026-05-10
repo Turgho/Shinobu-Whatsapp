@@ -36,12 +36,13 @@ func HoraCafeAudioCommand(ctx context.Context, client *whatsmeow.Client, evt *ev
 		&uploaded,
 		mimetype,
 		true,
+		true,
 	); err != nil {
 		return utils.Reply(ctx, client, evt,
 			"❌ Não consegui enviar o áudio.")
 	}
 
-	_ = sticker.Send(ctx, client, evt, "hora_cafe")
+	_ = sticker.Send(ctx, client, evt, "hora_cafe", false)
 
 	return nil
 }
