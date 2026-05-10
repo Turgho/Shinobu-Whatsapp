@@ -19,14 +19,14 @@ const bannerPath = "assets/images/shinobu_banner.png"
 func MenuCommand(r *commands.Router) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		metas := r.Commands()
+
+		// Ordena os comandos por nome para facilitar leitura
 		sort.Slice(metas, func(i, j int) bool {
 			return metas[i].Name < metas[j].Name
 		})
 
 		var sb strings.Builder
-		sb.WriteString("╔══════════════════╗\n")
-		sb.WriteString("║             🌸  *Shinobu*  🌸   ║\n")
-		sb.WriteString("╚══════════════════╝\n\n")
+		sb.WriteString("🌸━━━━━ *Shinobu* ━━━━━🌸\n\n")
 
 		for _, meta := range metas {
 			if meta.Private {
