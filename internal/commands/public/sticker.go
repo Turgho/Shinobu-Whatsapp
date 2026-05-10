@@ -33,7 +33,7 @@ func StickerCommand(ctx context.Context, client *whatsmeow.Client, evt *events.M
 			"❌ Falha ao enviar a figurinha.")
 	}
 
-	if err := utils.SendSticker(ctx, client, evt, &uploaded, media.Animated); err != nil {
+	if err := utils.SendSticker(ctx, client, evt, &uploaded, media.Animated, true); err != nil {
 		return utils.Reply(ctx, client, evt,
 			"❌ Falha ao enviar a figurinha. Tente novamente.")
 	}

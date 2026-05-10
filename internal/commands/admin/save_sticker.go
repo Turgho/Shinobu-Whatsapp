@@ -2,7 +2,6 @@ package admin
 
 import (
 	"context"
-	"strings"
 
 	"github.com/Turgho/YuukoWhatsapp/internal/commands"
 	"github.com/Turgho/YuukoWhatsapp/internal/utils"
@@ -13,48 +12,34 @@ import (
 
 // StickerCommand gerencia stickers salvos.
 //
-// Uso:
-// !fig salvar <nome>
-// !fig remover <nome>
-// !fig lista
-// !fig <nome>
+// Em DM (apenas o dono):
+//
+//	!fig salvar <nome>  — salva o sticker enviado ou citado
+//	!fig remover <nome> — remove um sticker salvo
+//	!fig lista          — lista todos os stickers
+//
+// Em grupos ou DM:
+//
+//	!fig <nome>         — envia o sticker salvo
 func SaveStickerCommand(ownerNumber string) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+		// HandleDM já filtra por DM, dono e prefixo !fig salvar/remover/lista.
+		sticker.HandleDM(ctx, client, evt, ownerNumber)
 
-		// Gerenciamento via DM
-		if !evt.Info.IsGroup {
-			msg := ""
-
-			if evt.Message.GetConversation() != "" {
-				msg = evt.Message.GetConversation()
-			} else if evt.Message.GetExtendedTextMessage() != nil {
-				msg = evt.Message.GetExtendedTextMessage().GetText()
-			}
-
-			msg = strings.TrimSpace(msg)
-
-			if strings.HasPrefix(strings.ToLower(msg), "!fig salvar") ||
-				strings.HasPrefix(strings.ToLower(msg), "!fig remover") ||
-				strings.HasPrefix(strings.ToLower(msg), "!fig lista") {
-
-				sticker.HandleStickerDM(client, evt, ownerNumber)
-				return nil
-			}
-		}
-
-		// Enviar sticker salvo
+		// Enviar sticker salvo pelo nome.
 		if len(args) == 0 {
-			return utils.Reply(ctx, client, evt,
+			return utils.SendText(ctx, client, evt,
 				"❌ Uso:\n"+
 					"!fig salvar <nome>\n"+
 					"!fig remover <nome>\n"+
 					"!fig lista\n"+
-					"!fig <nome>")
+					"!fig <nome>",
+				true,
+			)
 		}
 
-		if err := sticker.Send(ctx, client, evt, args[0]); err != nil {
-			return utils.Reply(ctx, client, evt,
-				"❌ Sticker não encontrado ou falha ao enviar.")
+		if err := sticker.Send(ctx, client, evt, args[0], true); err != nil {
+			return utils.SendText(ctx, client, evt, "❌ Sticker não encontrado ou falha ao enviar.", true)
 		}
 
 		return nil

@@ -36,12 +36,13 @@ func DioAudioCommand(ctx context.Context, client *whatsmeow.Client, evt *events.
 		&uploaded,
 		mimetype,
 		true,
+		true,
 	); err != nil {
 		return utils.Reply(ctx, client, evt,
 			"❌ Não consegui enviar o áudio.")
 	}
 
-	_ = sticker.Send(ctx, client, evt, "zawarudo")
+	_ = sticker.Send(ctx, client, evt, "zawarudo", false)
 
 	return nil
 }

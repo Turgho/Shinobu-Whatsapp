@@ -184,13 +184,6 @@ func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logge
 		Private:     true,
 	}, admin.ShutdownCommand)
 
-	// Versão admin da Shinobu: responde apenas com GIF (sem IA)
-	// r.RegisterCommand(commands.CommandMeta{
-	// 	Name:        "shinobu",
-	// 	Description: "S H I N O B U",
-	// 	Private:     true,
-	// }, admin.ShinobuCommand)
-
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "fig",
 		Description: "Gerencia stickers salvos. Uso em DM: !fig salvar <nome>, !fig remover <nome>, !sticker lista. Uso normal: !fig <nome>",

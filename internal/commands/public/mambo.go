@@ -35,6 +35,7 @@ func MamboAudioCommand(ctx context.Context, client *whatsmeow.Client, evt *event
 		&uploaded,
 		mimetype,
 		true,
+		true,
 	); err != nil {
 		return utils.Reply(ctx, client, evt,
 			"❌ Não consegui enviar o áudio.")
