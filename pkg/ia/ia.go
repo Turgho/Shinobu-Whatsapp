@@ -76,7 +76,7 @@ func AskIA(ctx context.Context, prompt string, isOwner bool, sender string, stor
 				"Contexto atualizado da web (use estas informações para responder com precisão, mantendo seu estilo):\n%s\n\nMensagem: %s",
 				webContext, prompt,
 			)
-			maxTokens = 500
+			maxTokens = 1000
 			model = "llama-3.3-70b-versatile"
 		}
 	}
