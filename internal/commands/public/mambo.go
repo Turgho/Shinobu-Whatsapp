@@ -9,7 +9,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-func MamboCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+func MamboAudioCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	// Lê o arquivo .mp3
 	data, err := os.ReadFile("assets/audios/mambo.ogg")
 	if err != nil {
