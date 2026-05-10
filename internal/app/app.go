@@ -182,7 +182,7 @@ func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logge
 	// }, admin.ShinobuCommand)
 
 	r.RegisterCommand(commands.CommandMeta{
-		Name:        "save-sticker",
+		Name:        "sticker",
 		Description: "Gerencia stickers salvos. Uso em DM: !sticker salvar <nome>, !sticker remover <nome>, !sticker lista. Uso normal: !sticker <nome>",
 		Args: []commands.ArgMeta{
 			{Name: "nome", Required: false},
