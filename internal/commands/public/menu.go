@@ -70,5 +70,5 @@ func sendBannerWithCaption(ctx context.Context, client *whatsmeow.Client, evt *e
 		return fmt.Errorf("upload banner: %w", err)
 	}
 
-	return utils.SendImage(ctx, client, evt, &uploaded, caption, true)
+	return utils.SendImage(ctx, client, evt, &uploaded, data, caption, true)
 }
