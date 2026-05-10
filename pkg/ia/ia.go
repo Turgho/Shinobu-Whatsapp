@@ -72,12 +72,24 @@ func AskIA(ctx context.Context, prompt string, isOwner bool, sender string, stor
 	// Usa uma chamada leve ao Scout para classificar, evitando keyword matching frágil
 	if shouldSearch(ctx, prompt) {
 		if webContext, err := searchWeb(ctx, prompt); err == nil && webContext != "" {
-			// Limita o contexto antes de injetar
+			// Limita o contexto antes de injetar — evita resposta longa
 			if len(webContext) > 600 {
 				webContext = webContext[:600]
 			}
+
+			// Histórico irrelevante quando tem contexto web — remove pra não confundir
+			messages = []history.IAMessage{
+				{Role: "system", Content: shinobuPersonality},
+			}
+			if isOwner {
+				messages = append(messages, history.IAMessage{
+					Role:    "system",
+					Content: "Você está falando com seu mestre. Seja calorosa e animada.",
+				})
+			}
+
 			userContent = fmt.Sprintf(
-				"Contexto da web:\n%s\n\nMensagem: %s\n\nIMPORTANTE: Responda em no máximo 2 frases usando as informações acima.",
+				"Contexto:\n%s\n\nMensagem: %s\n\nIMPORTANTE: Responda em no máximo 2 frases curtas.",
 				webContext, prompt,
 			)
 			maxTokens = 300
@@ -91,7 +103,7 @@ func AskIA(ctx context.Context, prompt string, isOwner bool, sender string, stor
 		Model:       model,
 		Messages:    messages,
 		Stream:      false,
-		Temperature: 0.8,
+		Temperature: 0.7,
 		MaxTokens:   maxTokens,
 	})
 	if err != nil {
