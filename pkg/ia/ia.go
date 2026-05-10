@@ -70,14 +70,15 @@ func AskIA(ctx context.Context, prompt string, isOwner bool, sender string, stor
 	usedSearch := false
 
 	// Decide dinamicamente se a pergunta precisa de busca web
-	// Usa uma chamada leve ao Scout para classificar, evitando keyword matching frágil
+	// Primeiro tenta keywords óbvias — sem chamada extra ao modelo
+	// Se não encaixar, usa o Scout para classificar
 	if shouldSearch(ctx, prompt) {
 		if webContext, err := searchWeb(ctx, prompt); err == nil && webContext != "" {
 			usedSearch = true
 
-			// Limita o contexto antes de injetar — evita resposta longa
-			if len(webContext) > 600 {
-				webContext = webContext[:600]
+			// Limita o contexto antes de injetar — evita prompt gigante mas mantém informação suficiente
+			if len(webContext) > 1500 {
+				webContext = webContext[:1500]
 			}
 
 			// Histórico irrelevante quando tem contexto web — remove pra não confundir
@@ -92,10 +93,10 @@ func AskIA(ctx context.Context, prompt string, isOwner bool, sender string, stor
 			}
 
 			userContent = fmt.Sprintf(
-				"Contexto:\n%s\n\nMensagem: %s\n\nIMPORTANTE: Responda em no máximo 2 frases curtas.",
+				"Contexto:\n%s\n\nMensagem: %s\n\nIMPORTANTE: Responda de forma completa mas concisa, no estilo da Shinobu. Não corte a resposta no meio.",
 				webContext, prompt,
 			)
-			maxTokens = 300
+			maxTokens = 600 // Espaço suficiente para respostas completas com contexto web
 			model = "llama-3.3-70b-versatile"
 		}
 	}
@@ -143,10 +144,55 @@ func AskIA(ctx context.Context, prompt string, isOwner bool, sender string, stor
 	return iaResp.Choices[0].Message.Content, usedSearch, nil
 }
 
-// shouldSearch faz uma chamada leve ao Scout para decidir se a pergunta
+// shouldSearch decide se a pergunta precisa de busca web.
+// Primeiro verifica keywords óbvias para evitar chamada extra ao modelo.
+// Se não encaixar em nenhuma keyword, usa o Scout para classificar.
+func shouldSearch(ctx context.Context, prompt string) bool {
+	lower := strings.ToLower(prompt)
+
+	// Keywords que indicam necessidade de informação atual sem precisar chamar o modelo
+	keywords := []string{
+		// Tempo/data
+		"hoje", "agora", "ontem", "amanhã", "amanha", "essa semana", "esse mês", "esse ano",
+		"atual", "atualmente", "recente", "recentemente", "últimas horas", "ultimas horas",
+
+		// Notícias e eventos
+		"notícia", "noticia", "novidade", "aconteceu", "acontecendo",
+		"anunciou", "anunciaram", "confirmou", "cancelou", "adiou",
+
+		// Preços e mercado
+		"preço", "preco", "valor", "cotação", "cotacao", "dólar", "dolar", "euro", "bitcoin",
+		"criptomoeda", "bolsa", "inflação", "inflacao",
+
+		// Clima
+		"clima", "tempo", "chuva", "temperatura", "previsão", "previsao",
+
+		// Esportes
+		"placar", "resultado", "ganhou", "perdeu", "classificação", "classificacao",
+		"campeonato", "copa", "jogo de hoje", "rodada",
+
+		// Entretenimento/lançamentos
+		"lançou", "lancou", "lançamento", "lancamento", "estreou", "estreia",
+		"temporada", "episódio", "episodio", "album", "álbum", "música nova", "musica nova",
+
+		// Busca explícita
+		"pesquisa", "pesquise", "busca", "busque", "procura", "procure",
+		"me fala sobre", "me conta sobre", "o que é", "o que foi", "quem é", "quem foi",
+	}
+	for _, kw := range keywords {
+		if strings.Contains(lower, kw) {
+			return true
+		}
+	}
+
+	// Sem keyword óbvia — chama o Scout para classificar
+	return shouldSearchLLM(ctx, prompt)
+}
+
+// shouldSearchLLM faz uma chamada leve ao Scout para decidir se a pergunta
 // precisa de informações atuais da internet. Retorna true se sim.
 // MaxTokens=5 e Temperature=0 garantem resposta mínima e determinística.
-func shouldSearch(ctx context.Context, prompt string) bool {
+func shouldSearchLLM(ctx context.Context, prompt string) bool {
 	groqURL := os.Getenv("GROQ_URL")
 	groqKey := os.Getenv("GROQ_API_KEY")
 
