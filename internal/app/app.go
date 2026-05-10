@@ -180,6 +180,11 @@ func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logge
 	// 	Description: "S H I N O B U",
 	// 	Private:     true,
 	// }, admin.ShinobuCommand)
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:    "sticker",
+		Private: true, // só o dono pode usar
+	}, admin.StickerCommand())
 }
 
 // weatherHandler envolve WeatherCommand injetando as dependências externas.
