@@ -46,15 +46,28 @@ func ShinobuCommand(store *history.Store) commands.HandlerFunc {
 
 		store.Save(ctx, evt.Info.Chat.String(), "Shinobu", answer)
 
+		if len(mentions) > 0 {
+			if err := utils.ReplyWithMentions(ctx, client, evt, answer, mentions); err != nil {
+				return err
+			}
+
+			// Envia figurinha quando usar pesquisa web
+			if usedSearch {
+				_ = sticker.Send(ctx, client, evt, "smart_ruby")
+			}
+
+			return nil
+		}
+
+		if err := utils.Reply(ctx, client, evt, answer); err != nil {
+			return err
+		}
+
 		// Envia figurinha quando usar pesquisa web
 		if usedSearch {
 			_ = sticker.Send(ctx, client, evt, "smart_ruby")
 		}
 
-		if len(mentions) > 0 {
-			return utils.ReplyWithMentions(ctx, client, evt, answer, mentions)
-		}
-
-		return utils.Reply(ctx, client, evt, answer)
+		return nil
 	}
 }
