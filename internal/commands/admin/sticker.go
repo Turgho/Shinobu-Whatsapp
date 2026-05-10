@@ -18,9 +18,7 @@ func StickerCommand() commands.HandlerFunc {
 			return utils.Reply(ctx, client, evt, "Hmph... qual sticker, tolo? Use: !sticker <nome>")
 		}
 
-		name := args[0]
-
-		if err := sticker.Send(ctx, client, evt, name); err != nil {
+		if err := sticker.Send(ctx, client, evt, args[0]); err != nil {
 			return utils.Reply(ctx, client, evt, "❌ Sticker não encontrado ou falha ao enviar.")
 		}
 
