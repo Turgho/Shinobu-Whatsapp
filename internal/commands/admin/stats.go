@@ -1,9 +1,14 @@
+// internal/admin/stats.go
 package admin
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"os"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/Turgho/YuukoWhatsapp/internal/utils"
@@ -13,19 +18,59 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-func StatsCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
-	uptime := time.Since(utils.SinceUptime()).Round(time.Second)
+type remoteStats struct {
+	Uptime     string  `json:"uptime"`
+	CPUUsage   float64 `json:"cpu_usage"`
+	CPUTemp    string  `json:"cpu_temp"`
+	RAMUsed    float64 `json:"ram_used_mb"`
+	RAMTotal   float64 `json:"ram_total_mb"`
+	RAMPercent float64 `json:"ram_percent"`
+	DiskUsed   float64 `json:"disk_used_gb"`
+	DiskTotal  float64 `json:"disk_total_gb"`
+	DiskFree   float64 `json:"disk_free_gb"`
+	Goroutines int     `json:"goroutines"`
+	CPUCores   int     `json:"cpu_cores"`
+}
 
+func fetchNotebookStats() (*remoteStats, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(os.Getenv("MUSIC_SERVER_URL") + "/stats")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var stats remoteStats
+	if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
+		return nil, err
+	}
+	return &stats, nil
+}
+
+func StatsCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+	// Busca stats do notebook em paralelo com os stats locais da Square Cloud
+	var (
+		notebook *remoteStats
+		nbErr    error
+		wg       sync.WaitGroup
+	)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		notebook, nbErr = fetchNotebookStats()
+	}()
+
+	// Stats locais (Square Cloud) — coleta enquanto aguarda o notebook
+	uptime := time.Since(utils.SinceUptime()).Round(time.Second)
 	cpuPercent, _ := cpu.Percent(time.Second, false)
 	cpuUsage := 0.0
 	if len(cpuPercent) > 0 {
 		cpuUsage = cpuPercent[0]
 	}
 
-	// Temperatura da CPU
 	cpuTemp := "N/A"
-	temps, err := host.SensorsTemperatures()
-	if err == nil {
+	if temps, err := host.SensorsTemperatures(); err == nil {
 		for _, t := range temps {
 			if t.Temperature > 0 {
 				cpuTemp = fmt.Sprintf("%.1f°C", t.Temperature)
@@ -37,14 +82,45 @@ func StatsCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Mes
 	var botMem runtime.MemStats
 	runtime.ReadMemStats(&botMem)
 
+	wg.Wait() // aguarda o notebook terminar
+
+	// Monta bloco do notebook
+	notebookBlock := ""
+	if nbErr != nil {
+		notebookBlock = "❌ *Offline / sem resposta*"
+	} else {
+		notebookBlock = fmt.Sprintf(
+			"⏱ *Uptime:* %s\n"+
+				"🧵 *Goroutines:* %d\n"+
+				"⚙ *CPU cores:* %d\n"+
+				"🖥 *CPU uso:* %.1f%%\n"+
+				"🌡 *CPU temp:* %s\n"+
+				"💾 *RAM:* %.0f MB / %.0f MB (%.1f%%)\n"+
+				"💿 *Disco:* %.1f GB livres de %.1f GB",
+			notebook.Uptime,
+			notebook.Goroutines,
+			notebook.CPUCores,
+			notebook.CPUUsage,
+			notebook.CPUTemp,
+			notebook.RAMUsed, notebook.RAMTotal, notebook.RAMPercent,
+			notebook.DiskFree, notebook.DiskTotal,
+		)
+	}
+
 	msg := fmt.Sprintf(`
 📊 *Bot Status*
+
+☁️ *Square Cloud*
 ⏱ *Uptime:* %s
 🧵 *Goroutines:* %d
 ⚙ *CPU cores:* %d
 🖥 *CPU uso:* %.1f%%
 🌡 *CPU temp:* %s
 📦 *RAM bot:* %.2f MB
+
+——————————————
+🖥 *Notebook (yt-dlp)*
+%s
 `,
 		uptime,
 		runtime.NumGoroutine(),
@@ -52,6 +128,7 @@ func StatsCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Mes
 		cpuUsage,
 		cpuTemp,
 		float64(botMem.Alloc)/1024/1024,
+		notebookBlock,
 	)
 
 	return utils.Reply(ctx, client, evt, msg)
