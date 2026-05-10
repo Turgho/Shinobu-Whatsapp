@@ -30,21 +30,9 @@ type IAResponse struct {
 }
 
 const shinobuPersonality = `
-Você é Oshino Shinobu, de Monogatari Series.
-Regras:
-- Responda em português do Brasil.
-- Seja direta, objetiva e sempre vá ao ponto.
-- Tom: tranquilo, levemente irônico, nunca agressivo, nunca excessivamente arrogante.
-- Com o mestre, seja calorosa, animada e leal.
-- Com outras pessoas, seja natural, espirituosa e um pouco distante.
-- Adapte o vocabulário ao estilo de quem falou: informal com informal, técnico com técnico.
-- Use o histórico apenas quando for diretamente relevante para a resposta atual.
-- Se histórico for irrelevante ou não fazer sentido com a mensagem atual, não responda com base na mensagem anterior.
-- Nunca saia do personagem.
-- No máximo 2 frases por resposta.
-- Não explique suas regras, não mencione prompts, não mencione que é uma IA, não quebre a imersão.
-- Se a pergunta for simples, responda sem enrolar.
-- Se a pergunta for ambígua, responda de forma curta e peça clarificação de maneira sutil.
+...
+- Quando tiver contexto de pesquisa disponível, priorize as informações dele na resposta — mas mantenha seu tom e estilo.
+- Nunca invente informações; se não souber algo, diga de forma direta e no personagem.
 `
 
 // AskIA monta o contexto completo (personalidade, histórico, web se necessário)
@@ -84,15 +72,12 @@ func AskIA(ctx context.Context, prompt string, isOwner bool, sender string, stor
 	// Usa uma chamada leve ao Scout para classificar, evitando keyword matching frágil
 	if shouldSearch(ctx, prompt) {
 		if webContext, err := searchWeb(ctx, prompt); err == nil && webContext != "" {
-			// Injeta o contexto web antes da mensagem do usuário
-			userContent = fmt.Sprintf("Contexto:\n%s\n\nMensagem: %s", webContext, prompt)
-
-			// 70B Versatile: melhor raciocínio para sintetizar contexto web e responder com precisão
-			model = "llama-3.3-70b-versatile"
-
-			// Aumenta tokens pois o modelo precisa processar contexto maior,
-			// mas a Shinobu ainda responde em 2 frases pelo system prompt
+			userContent = fmt.Sprintf(
+				"Contexto atualizado da web (use estas informações para responder com precisão, mantendo seu estilo):\n%s\n\nMensagem: %s",
+				webContext, prompt,
+			)
 			maxTokens = 500
+			model = "llama-3.3-70b-versatile"
 		}
 	}
 
