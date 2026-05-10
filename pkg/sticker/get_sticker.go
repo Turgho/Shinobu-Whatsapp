@@ -111,11 +111,6 @@ func List() []string {
 // ─── Handler de DM ────────────────────────────────────────────────────────────
 
 // HandleStickerDM processa comandos de sticker somente em DM.
-// Uso:
-//
-//	!sticker salvar <nome>   -> com sticker citado/reply
-//	!sticker remover <nome>
-//	!sticker lista
 func HandleStickerDM(client *whatsmeow.Client, evt *events.Message, ownerNumber string) {
 	if evt == nil || evt.Message == nil {
 		return
@@ -142,7 +137,7 @@ func HandleStickerDM(client *whatsmeow.Client, evt *events.Message, ownerNumber 
 		return
 	}
 
-	if strings.ToLower(parts[0]) != "!sticker" {
+	if strings.ToLower(parts[0]) != "!fig" {
 		return
 	}
 
@@ -151,7 +146,7 @@ func HandleStickerDM(client *whatsmeow.Client, evt *events.Message, ownerNumber 
 	switch cmd {
 	case "salvar":
 		if len(parts) < 3 {
-			sendText(client, evt, "❌ Use: `!sticker salvar <nome>` respondendo/citando um sticker.")
+			sendText(client, evt, "❌ Use: `!fig salvar <nome>` respondendo/citando um sticker.")
 			return
 		}
 
@@ -178,7 +173,7 @@ func HandleStickerDM(client *whatsmeow.Client, evt *events.Message, ownerNumber 
 
 	case "remover":
 		if len(parts) < 3 {
-			sendText(client, evt, "❌ Use: `!sticker remover <nome>`")
+			sendText(client, evt, "❌ Use: `!fig remover <nome>`")
 			return
 		}
 
