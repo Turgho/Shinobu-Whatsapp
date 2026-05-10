@@ -78,6 +78,7 @@ func saveStore(store StickerStore) error {
 	if err != nil {
 		return err
 	}
+
 	return os.WriteFile(stickerFile, data, 0644)
 }
 
