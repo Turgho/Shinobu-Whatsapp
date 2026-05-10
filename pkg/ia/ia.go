@@ -72,11 +72,15 @@ func AskIA(ctx context.Context, prompt string, isOwner bool, sender string, stor
 	// Usa uma chamada leve ao Scout para classificar, evitando keyword matching frágil
 	if shouldSearch(ctx, prompt) {
 		if webContext, err := searchWeb(ctx, prompt); err == nil && webContext != "" {
+			// Limita o contexto antes de injetar
+			if len(webContext) > 600 {
+				webContext = webContext[:600]
+			}
 			userContent = fmt.Sprintf(
-				"Contexto atualizado da web (use estas informações para responder com precisão, mantendo seu estilo):\n%s\n\nMensagem: %s",
+				"Contexto da web:\n%s\n\nMensagem: %s\n\nIMPORTANTE: Responda em no máximo 2 frases usando as informações acima.",
 				webContext, prompt,
 			)
-			maxTokens = 1000
+			maxTokens = 300
 			model = "llama-3.3-70b-versatile"
 		}
 	}
