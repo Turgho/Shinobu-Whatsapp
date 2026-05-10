@@ -15,14 +15,9 @@ import (
 
 const bannerPath = "assets/images/shinobu_banner.png"
 
-// MenuCommand retorna um handler que envia o banner seguido da lista de comandos públicos.
+// MenuCommand retorna um handler que envia o banner com o menu como legenda.
 func MenuCommand(r *commands.Router) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
-		// Envia o banner se o arquivo existir; falha silenciosa para não bloquear o menu.
-		if err := sendBanner(ctx, client, evt); err != nil {
-			fmt.Println("[menu] banner não enviado:", err)
-		}
-
 		metas := r.Commands()
 		sort.Slice(metas, func(i, j int) bool {
 			return metas[i].Name < metas[j].Name
@@ -38,7 +33,6 @@ func MenuCommand(r *commands.Router) commands.HandlerFunc {
 				continue
 			}
 
-			// Nome e argumentos do comando.
 			sb.WriteString(fmt.Sprintf("◈ *%s%s*", r.Prefix(), meta.Name))
 			for _, arg := range meta.Args {
 				if arg.Required {
@@ -49,7 +43,6 @@ func MenuCommand(r *commands.Router) commands.HandlerFunc {
 			}
 			sb.WriteString("\n")
 
-			// Descrição indentada abaixo do comando.
 			if meta.Description != "" {
 				sb.WriteString(fmt.Sprintf("  ╰ %s\n", meta.Description))
 			}
@@ -60,12 +53,13 @@ func MenuCommand(r *commands.Router) commands.HandlerFunc {
 		sb.WriteString("─────────────────────\n")
 		sb.WriteString("💬 Me chame pelo nome para conversar!")
 
-		return utils.SendText(ctx, client, evt, sb.String(), true)
+		return sendBannerWithCaption(ctx, client, evt, sb.String())
 	}
 }
 
-// sendBanner faz upload e envia o banner como imagem sem citação.
-func sendBanner(ctx context.Context, client *whatsmeow.Client, evt *events.Message) error {
+// sendBannerWithCaption faz upload do banner e envia com o texto do menu como legenda.
+// reply=true: cita a mensagem quem usou o comando
+func sendBannerWithCaption(ctx context.Context, client *whatsmeow.Client, evt *events.Message, caption string) error {
 	data, err := os.ReadFile(bannerPath)
 	if err != nil {
 		return fmt.Errorf("ler banner: %w", err)
@@ -76,6 +70,5 @@ func sendBanner(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		return fmt.Errorf("upload banner: %w", err)
 	}
 
-	// reply=false: banner vai solto, sem ficar preso na citação da mensagem original.
-	return utils.SendImage(ctx, client, evt, &uploaded, "", false)
+	return utils.SendImage(ctx, client, evt, &uploaded, caption, true)
 }
