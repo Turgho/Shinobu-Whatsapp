@@ -1,113 +1,85 @@
 package ia
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"net/http"
 	"os"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/Turgho/YuukoWhatsapp/pkg/history"
 )
 
-// shouldSearch decide se a pergunta precisa de busca web.
-// Primeiro verifica keywords óbvias para evitar chamada extra ao modelo.
-// Se não encaixar em nenhuma keyword, usa o Scout para classificar.
-func shouldSearch(ctx context.Context, prompt string) bool {
+// maxRunesSearchClassifier limita o texto enviado ao classificador (só precisa do tema da pergunta).
+const maxRunesSearchClassifier = 400
+
+// shouldSearchWeb decide se vale tentar Tavily antes da resposta principal.
+// Fluxo: palavras-chave → heurística “trivial” (pula Groq) → classificador mínimo no Scout.
+func shouldSearchWeb(ctx context.Context, prompt string) bool {
 	lower := strings.ToLower(prompt)
-
-	// Keywords que indicam necessidade de informação atual sem precisar chamar o modelo
-	keywords := []string{
-		// Tempo/data
-		"hoje", "agora", "ontem", "amanhã", "amanha", "essa semana", "esse mês", "esse ano",
-		"atual", "atualmente", "recente", "recentemente", "últimas horas", "ultimas horas",
-
-		// Notícias e eventos
-		"notícia", "noticia", "novidade", "aconteceu", "acontecendo",
-		"anunciou", "anunciaram", "confirmou", "cancelou", "adiou",
-
-		// Preços e mercado
-		"preço", "preco", "valor", "cotação", "cotacao", "dólar", "dolar", "euro", "bitcoin",
-		"criptomoeda", "bolsa", "inflação", "inflacao",
-
-		// Clima
-		"clima", "tempo", "chuva", "temperatura", "previsão", "previsao",
-
-		// Esportes
-		"placar", "resultado", "ganhou", "perdeu", "classificação", "classificacao",
-		"campeonato", "copa", "jogo de hoje", "rodada",
-
-		// Entretenimento/lançamentos
-		"lançou", "lancou", "lançamento", "lancamento", "estreou", "estreia",
-		"temporada", "episódio", "episodio", "album", "álbum", "música nova", "musica nova",
-
-		// Busca explícita
-		"pesquisa", "pesquise", "busca", "busque", "procura", "procure",
-		"me fala sobre", "me conta sobre", "o que é", "o que foi", "quem é", "quem foi",
+	if hasWebSearchCue(lower) {
+		return true
 	}
-	for _, kw := range keywords {
-		if strings.Contains(lower, kw) {
+	if trivialWithoutSearch(lower) {
+		return false
+	}
+	return classifyNeedsWebSearch(ctx, prompt)
+}
+
+// trivialWithoutSearch evita gastar tokens em cumprimentos e réplicas curtas sem interrogação.
+// Não bloqueia quando já existe sinal forte de web (hasWebSearchCue), tratado antes.
+func trivialWithoutSearch(lower string) bool {
+	s := strings.TrimSpace(lower)
+	if s == "" {
+		return true
+	}
+	acks := []string{
+		"oi", "olá", "ola", "eae", "eai", "hey", "hi", "hello",
+		"kkk", "kkkk", "rsrs", "haha", "blz", "beleza", "vlw", "valeu",
+		"obrigado", "obrigada", "obg", "brigado", "brigada",
+		"sim", "não", "nao", "ok", "okay", "certo",
+		"tá", "ta", "bom dia", "boa tarde", "boa noite",
+	}
+	for _, a := range acks {
+		if s == a {
 			return true
 		}
 	}
-
-	// Sem keyword óbvia — chama o Scout para classificar
-	return shouldSearchLLM(ctx, prompt)
+	// Frase mínima sem interrogação: só trata como trivial com até 2 tokens (evita bloquear perguntas curtas factuais).
+	if !strings.Contains(s, "?") && utf8.RuneCountInString(s) <= 20 && len(strings.Fields(s)) <= 2 {
+		return !hasWebSearchCue(s)
+	}
+	return false
 }
 
-// shouldSearchLLM faz uma chamada leve ao Scout para decidir se a pergunta
-// precisa de informações atuais da internet. Retorna true se sim.
-// MaxTokens=5 e Temperature=0 garantem resposta mínima e determinística.
-func shouldSearchLLM(ctx context.Context, prompt string) bool {
-	groqURL := os.Getenv("GROQ_URL")
-	groqKey := os.Getenv("GROQ_API_KEY")
+// classifyNeedsWebSearch é uma chamada barata ao Scout: system curto, poucos tokens de saída.
+func classifyNeedsWebSearch(ctx context.Context, prompt string) bool {
+	groqURL := strings.TrimSpace(os.Getenv("GROQ_URL"))
+	groqKey := strings.TrimSpace(os.Getenv("GROQ_API_KEY"))
+	if groqURL == "" || groqKey == "" {
+		return false
+	}
 
-	body, err := json.Marshal(IARequest{
-		Model: "meta-llama/llama-4-scout-17b-16e-instruct",
+	promptCut := truncateText(strings.TrimSpace(prompt), maxRunesSearchClassifier)
+
+	req := IARequest{
+		Model: modelScoutFast,
 		Messages: []history.IAMessage{
 			{
 				Role: "system",
-				Content: "Responda apenas com 'sim' ou 'nao'. Sem pontuação, sem explicação. " +
-					"Responda 'sim' somente se a pergunta depender de informação atual, externa, específica da internet, preços, notícias, clima, esportes, lançamentos ou dados que podem estar desatualizados. " +
-					"Caso contrário, responda 'nao'.",
+				Content: "Responda só sim ou nao. sim = precisa de dados atuais da internet (preço, notícia, clima, esporte, lançamento, fatos que mudam). " +
+					"nao = conversa geral, opinião, conhecimento estável.",
 			},
-			{Role: "user", Content: prompt},
+			{Role: "user", Content: promptCut},
 		},
 		Stream:      false,
-		Temperature: 0, // Determinístico: sem criatividade na classificação
-		MaxTokens:   5, // Só precisa de "sim" ou "nao"
-	})
+		Temperature: 0,
+		MaxTokens:   3,
+	}
+
+	resp, err := groqChat(ctx, groqURL, groqKey, req)
 	if err != nil {
 		return false
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, groqURL, bytes.NewBuffer(body))
-	if err != nil {
-		return false
-	}
-	req.Header.Set("Authorization", "Bearer "+groqKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return false
-	}
-
-	var iaResp IAResponse
-	if err := json.NewDecoder(resp.Body).Decode(&iaResp); err != nil {
-		return false
-	}
-
-	if len(iaResp.Choices) == 0 {
-		return false
-	}
-
-	answer := strings.ToLower(strings.TrimSpace(iaResp.Choices[0].Message.Content))
+	answer := strings.ToLower(strings.TrimSpace(resp.Choices[0].Message.Content))
 	return strings.HasPrefix(answer, "sim")
 }

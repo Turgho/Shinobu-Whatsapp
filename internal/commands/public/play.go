@@ -10,49 +10,40 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
+// PlayCommand baixa áudio a partir do texto ou URL nos args e envia como mensagem de voz.
 func PlayCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
-	// Valida antes de iniciar processamento pesado.
 	if len(args) == 0 {
-		return utils.Reply(ctx, client, evt,
-			"🎵 Informe o nome ou URL da música.\nExemplo: !play imagine dragons")
+		return utils.SendText(ctx, client, evt,
+			"🎵 Informe o nome ou URL da música.\nExemplo: !play imagine dragons", true)
 	}
 
-	// Resposta imediata para o usuário.
-	_ = utils.Reply(ctx, client, evt, "⏳ Processando sua música...")
+	_ = utils.SendText(ctx, client, evt, "⏳ Processando sua música...", true)
 
-	// Junta os argumentos em uma única busca.
 	query := strings.Join(args, " ")
-
 	audio, ext, err := music.DownloadAudio(ctx, query)
 	if err != nil {
-		return utils.Reply(ctx, client, evt,
-			"❌ Não consegui baixar essa música.")
-	}
-
-	// Define o mimetype de acordo com a extensão.
-	mimetype := "audio/mpeg"
-	if ext == "ogg" || ext == "opus" {
-		mimetype = "audio/ogg; codecs=opus"
+		return utils.SendText(ctx, client, evt, "❌ Não consegui baixar essa música.", true)
 	}
 
 	uploaded, err := client.Upload(ctx, audio, whatsmeow.MediaAudio)
 	if err != nil {
-		return utils.Reply(ctx, client, evt,
-			"❌ Não consegui enviar o áudio.")
+		return playSendAudioErr(ctx, client, evt)
 	}
 
-	if err := utils.SendAudio(
-		ctx,
-		client,
-		evt,
-		&uploaded,
-		mimetype,
-		false,
-		true,
-	); err != nil {
-		return utils.Reply(ctx, client, evt,
-			"❌ Não consegui enviar o áudio.")
+	if err := utils.SendAudio(ctx, client, evt, &uploaded, audioMimetype(ext), false, true); err != nil {
+		return playSendAudioErr(ctx, client, evt)
 	}
-
 	return nil
+}
+
+// audioMimetype mapeia extensão retornada pelo downloader para o MIME esperado pelo WhatsApp.
+func audioMimetype(ext string) string {
+	if ext == "ogg" || ext == "opus" {
+		return "audio/ogg; codecs=opus"
+	}
+	return "audio/mpeg"
+}
+
+func playSendAudioErr(ctx context.Context, client *whatsmeow.Client, evt *events.Message) error {
+	return utils.SendText(ctx, client, evt, "❌ Não consegui enviar o áudio.", true)
 }

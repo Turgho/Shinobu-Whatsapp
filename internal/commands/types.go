@@ -8,11 +8,12 @@ import (
 )
 
 // HandlerFunc é a assinatura de um handler de comando.
-// Recebe contexto para permitir cancelamento e timeouts.
+// O contexto vem do Router (timeouts); args exclui o nome do comando.
 type HandlerFunc func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error
 
-// Middleware decide se um comando deve ser executado.
-// Retorna true para continuar, false para bloquear.
+// Middleware decide se o fluxo segue para o handler.
+// O parâmetro cmd é o nome lógico do comando ("shinobu" no atalho por menção, ou o token após o prefixo).
+// Retorna true para continuar, false para bloquear sem executar o handler.
 type Middleware func(cmd string, evt *events.Message) bool
 
 // ArgMeta descreve um argumento de um comando para exibição no menu.
@@ -21,7 +22,7 @@ type ArgMeta struct {
 	Required bool   // true = obrigatório (<cidade>), false = opcional ([cidade])
 }
 
-// CommandType define a categoria do comando.
+// CommandType agrupa comandos para exibição e filtros no menu.
 type CommandType string
 
 const (
@@ -39,14 +40,14 @@ const (
 // CommandMeta contém os metadados de um comando.
 // É usado para registro, validação de permissões e geração automática do menu.
 type CommandMeta struct {
-	Name        string      // chave do comando, ex: "weather"
+	Name        string      // chave do comando, ex: "clima"
 	Description string      // descrição exibida no menu
 	Type        CommandType // categoria do comando
 	Args        []ArgMeta   // argumentos esperados, em ordem
 	Private     bool        // se true, apenas owner/admins podem executar
 }
 
-// command é o tipo interno que junta meta + handler.
+// command acopla metadados públicos ao HandlerFunc registrado no Router.
 type command struct {
 	Meta    CommandMeta
 	Handler HandlerFunc

@@ -11,6 +11,12 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	handlerTimeoutMention = 30 * time.Second
+	handlerTimeoutCommand = 60 * time.Second
+)
+
+// Router associa prefixo, handlers, middlewares e o store compartilhado (ex.: histórico da IA).
 type Router struct {
 	commands    map[string]command
 	middlewares []Middleware
@@ -20,6 +26,7 @@ type Router struct {
 	store       *history.Store
 }
 
+// NewRouter cria um router vazio; use RegisterCommand e Use antes de HandleMessage.
 func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *history.Store) *Router {
 	return &Router{
 		commands: make(map[string]command),
@@ -39,7 +46,7 @@ func (r *Router) RegisterCommand(meta CommandMeta, handler HandlerFunc) {
 	)
 }
 
-// Use adiciona um middleware ao pipeline.
+// Use adiciona um middleware ao pipeline (ordem de registro = ordem de execução).
 func (r *Router) Use(m Middleware) {
 	r.middlewares = append(r.middlewares, m)
 }
@@ -70,43 +77,18 @@ func (r *Router) Prefix() string {
 	return r.prefix
 }
 
-// HandleMessage é o ponto de entrada para eventos de mensagem do WhatsApp.
+// HandleMessage despacha texto de mensagem: atalho por menção "shinobu" ou comando !nome.
 func (r *Router) HandleMessage(evt *events.Message) {
 	msg := getTextMessage(evt)
 	if msg == "" {
 		return
 	}
 
-	// Caminho 1: menção pelo nome — responde sem precisar do prefixo
 	if isMentioned(msg) {
-		// Roda middlewares (filtra bot, mensagens antigas, etc)
-		for _, m := range r.middlewares {
-			if !m("shinobu", evt) {
-				return
-			}
-		}
-
-		cmd, ok := r.commands["shinobu"]
-		if !ok {
-			return
-		}
-
-		r.log.Info("Shinobu mencionada",
-			zap.String("user", evt.Info.Sender.User),
-			zap.String("msg", msg),
-		)
-
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
-		args := []string{msg} // passa a mensagem inteira como argumento
-		if err := cmd.Handler(ctx, r.client, evt, args); err != nil {
-			r.log.Error("Erro ao responder menção", zap.Error(err))
-		}
+		r.handleShinobuMention(evt, msg)
 		return
 	}
 
-	// Caminho 2: comando com prefixo — fluxo normal
 	if !strings.HasPrefix(msg, r.prefix) {
 		return
 	}
@@ -116,18 +98,50 @@ func (r *Router) HandleMessage(evt *events.Message) {
 		return
 	}
 
-	cmdName := strings.ToLower(parts[0]) // Comando para ToLower facilita na hora de executar o comando
-	args := parts[1:]
+	cmdName := strings.ToLower(parts[0])
+	r.handlePrefixedCommand(evt, cmdName, parts[1:])
+}
 
-	// Middlewares rodam antes do log — mensagens antigas e do próprio bot
-	// são descartadas aqui sem aparecer no terminal
+// runMiddlewares executa a cadeia; o nome do comando alimenta middlewares que dependem dele (ex.: privado).
+func (r *Router) runMiddlewares(cmdName string, evt *events.Message) bool {
 	for _, m := range r.middlewares {
 		if !m(cmdName, evt) {
-			return
+			return false
 		}
 	}
+	return true
+}
 
-	// Só loga mensagens que passaram em todos os filtros
+func (r *Router) handleShinobuMention(evt *events.Message, msg string) {
+	if !r.runMiddlewares("shinobu", evt) {
+		return
+	}
+
+	cmd, ok := r.commands["shinobu"]
+	if !ok {
+		return
+	}
+
+	r.log.Info("Shinobu mencionada",
+		zap.String("user", evt.Info.Sender.User),
+		zap.String("msg", msg),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), handlerTimeoutMention)
+	defer cancel()
+
+	args := []string{msg}
+	if err := cmd.Handler(ctx, r.client, evt, args); err != nil {
+		r.log.Error("Erro ao responder menção", zap.Error(err))
+	}
+}
+
+func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args []string) {
+	// Middlewares antes do log: mensagens filtradas não poluem o terminal.
+	if !r.runMiddlewares(cmdName, evt) {
+		return
+	}
+
 	r.log.Info("Comando recebido",
 		zap.String("command", cmdName),
 		zap.String("user", evt.Info.Sender.User),
@@ -139,11 +153,10 @@ func (r *Router) HandleMessage(evt *events.Message) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), handlerTimeoutCommand)
 	defer cancel()
 
 	start := time.Now()
-
 	if err := cmd.Handler(ctx, r.client, evt, args); err != nil {
 		r.log.Error("Erro no comando",
 			zap.String("command", cmdName),
@@ -160,7 +173,7 @@ func (r *Router) HandleMessage(evt *events.Message) {
 	)
 }
 
-// getTextMessage extrai o texto de uma mensagem, suportando vários tipos.
+// getTextMessage extrai texto útil da mensagem (corpo, legenda ou caption de mídia).
 func getTextMessage(evt *events.Message) string {
 	if evt.Message == nil {
 		return ""
@@ -184,7 +197,7 @@ func getTextMessage(evt *events.Message) string {
 	return strings.TrimSpace(msg)
 }
 
+// isMentioned detecta atalho por palavra-chave (case-insensitive), sem depender do prefixo.
 func isMentioned(msg string) bool {
-	msg = strings.ToLower(msg)
-	return strings.Contains(msg, "shinobu")
+	return strings.Contains(strings.ToLower(msg), "shinobu")
 }

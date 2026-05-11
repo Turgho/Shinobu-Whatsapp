@@ -1,12 +1,8 @@
+// Package ia integra Groq (persona Shinobu), decisão de busca web e Tavily.
 package ia
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -14,6 +10,7 @@ import (
 	"github.com/Turgho/YuukoWhatsapp/pkg/history"
 )
 
+// IARequest é o corpo JSON enviado à API compatível com OpenAI (Groq).
 type IARequest struct {
 	Model       string              `json:"model"`
 	Messages    []history.IAMessage `json:"messages"`
@@ -22,101 +19,64 @@ type IARequest struct {
 	MaxTokens   int                 `json:"max_tokens"`
 }
 
+// IAResponse é o formato mínimo de resposta usado após Decode.
 type IAResponse struct {
 	Choices []struct {
 		Message history.IAMessage `json:"message"`
 	} `json:"choices"`
 }
 
-// AskIA monta o contexto completo (personalidade, histórico, web se necessário)
-// e envia para o modelo adequado no Groq.
-// Usa Scout 17B para conversa casual e 70B Versatile quando há contexto web.
-// chat = chave da conversa (use o JID do privado ou do grupo).
+// AskIA monta contexto (personalidade, histórico opcional, Tavily opcional) e chama o Groq.
+//
+// Ordem de decisão (economia de tokens e I/O):
+//  1. Palavras-chave fortes → tenta Tavily direto, sem classificador Groq.
+//  2. Mensagens triviais (cumprimento curto) → sem busca nem classificador.
+//  3. Caso contrário → classificador leve no Scout (prompt truncado, system mínimo).
+//  4. Histórico do SQLite só entra se não houver contexto web (evita ler dados que seriam descartados).
+//
+// chat = chave da conversa (JID do privado ou do grupo).
 func AskIA(ctx context.Context, chat, prompt string, isOwner bool, sender string, store *history.Store) (string, bool, error) {
 	groqURL := os.Getenv("GROQ_URL")
 	groqKey := os.Getenv("GROQ_API_KEY")
 
 	prompt = cleanPrompt(prompt)
+	styleMode := classifyPromptMode(prompt)
 
-	mode := classifyPromptMode(prompt)
-
-	// Monta mensagens com personalidade base da Shinobu
-	messages := []history.IAMessage{
-		{Role: "system", Content: buildSystemPrompt(mode)},
-	}
-
-	// Injeta contexto especial quando for o dono do bot
-	if isOwner {
-		messages = append(messages, history.IAMessage{
-			Role:    "system",
-			Content: "Você está falando com seu mestre. Seja calorosa e animada.",
-		})
-	}
-
-	// Injeta resumo persistente da conversa, se existir
-	if store != nil && chat != "" {
-		if summary, err := store.GetSummary(ctx, chat); err == nil && strings.TrimSpace(summary) != "" {
-			summary = truncateText(strings.TrimSpace(summary), 1200)
-			messages = append(messages, history.IAMessage{
-				Role: "system",
-				Content: "Resumo persistente da conversa anterior:\n" +
-					summary,
-			})
-		}
-	}
-
-	// Injeta histórico recente para manter continuidade da conversa
-	if store != nil && chat != "" {
-		if recent, err := store.RecentMessages(ctx, chat, 10, 12*time.Hour); err == nil {
-			messages = append(messages, recent...)
-		}
-	}
-
-	// Modelo e tokens padrão para conversa casual
-	// Scout 17B: rápido e eficiente para respostas curtas do dia a dia
-	model := "meta-llama/llama-4-scout-17b-16e-instruct"
-	maxTokens := 150 // Suficiente para 2 frases em PT-BR com folga
-	temperature := 0.7
-	userContent := buildUserContent(prompt, mode, "")
-	usedSearch := false
-
-	// Decide dinamicamente se a pergunta precisa de busca web
-	// Primeiro tenta keywords óbvias — sem chamada extra ao modelo
-	// Se não encaixar, usa o Scout para classificar
-	if shouldSearch(ctx, prompt) {
-		if webContext, err := searchWeb(ctx, prompt); err == nil && webContext != "" {
+	// 1–3: decisão de busca antes de tocar no histórico.
+	needSearch := shouldSearchWeb(ctx, prompt)
+	var webContext string
+	var usedSearch bool
+	if needSearch {
+		if wc, err := searchWeb(ctx, prompt); err == nil && strings.TrimSpace(wc) != "" {
 			usedSearch = true
-			mode = ModeWeb
-
-			// Limita o contexto antes de injetar — evita prompt gigante mas mantém informação suficiente
-			webContext = truncateText(webContext, 1500)
-
-			// Histórico irrelevante quando tem contexto web — remove pra não confundir
-			messages = []history.IAMessage{
-				{Role: "system", Content: buildSystemPrompt(mode)},
-			}
-			if isOwner {
-				messages = append(messages, history.IAMessage{
-					Role:    "system",
-					Content: "Você está falando com seu mestre. Seja calorosa e animada.",
-				})
-			}
-
-			userContent = buildUserContent(prompt, mode, webContext)
-			maxTokens = 600 // Espaço suficiente para respostas completas com contexto web
-			temperature = 0.5
-			model = "llama-3.3-70b-versatile"
+			webContext = truncateText(strings.TrimSpace(wc), 1500)
 		}
 	}
 
+	// Monta o modo de resposta
+	mode := styleMode
+	if usedSearch {
+		mode = ModeWeb
+	}
+
+	// Monta o sistema base de mensagens
+	messages := baseSystemMessages(mode, isOwner)
+	if !usedSearch {
+		messages = appendPersistentAndRecent(ctx, messages, chat, store)
+	}
+
+	// Monta o conteúdo do usuário
+	userContent := buildUserContent(prompt, mode, webContext)
 	messages = append(messages, history.IAMessage{Role: "user", Content: userContent})
 
-	answer, err := callGroq(ctx, groqURL, groqKey, model, messages, temperature, maxTokens)
+	// Chama o Groq
+	params := mainAnswerParams(mode, usedSearch)
+	answer, err := callGroq(ctx, groqURL, groqKey, params.model, messages, params.temperature, params.maxTokens)
 	if err != nil {
 		return "", usedSearch, err
 	}
 
-	// Atualiza o resumo da conversa em segundo plano para melhorar o contexto futuro
+	// Atualiza o resumo da conversa
 	if store != nil && chat != "" {
 		go refreshChatSummary(chat, prompt, answer, store)
 	}
@@ -124,16 +84,49 @@ func AskIA(ctx context.Context, chat, prompt string, isOwner bool, sender string
 	return answer, usedSearch, nil
 }
 
-// callGroq faz a chamada ao Groq e devolve o texto da primeira resposta.
-func callGroq(ctx context.Context, groqURL, groqKey, model string, messages []history.IAMessage, temperature float64, maxTokens int) (string, error) {
-	if groqURL == "" {
-		return "", fmt.Errorf("GROQ_URL não definido")
+// baseSystemMessages monta system prompt da Shinobu e, se for o dono, instrução extra de tom.
+func baseSystemMessages(mode ResponseMode, isOwner bool) []history.IAMessage {
+	msgs := []history.IAMessage{
+		{Role: "system", Content: buildSystemPrompt(mode)},
 	}
-	if groqKey == "" {
-		return "", fmt.Errorf("GROQ_API_KEY não definido")
+	if isOwner {
+		msgs = append(msgs, history.IAMessage{
+			Role:    "system",
+			Content: "Você está falando com seu mestre. Seja calorosa e animada.",
+		})
 	}
+	return msgs
+}
 
-	body, err := json.Marshal(IARequest{
+// appendPersistentAndRecent acrescenta resumo salvo e últimas mensagens ao slice (fluxo sem web).
+func appendPersistentAndRecent(ctx context.Context, messages []history.IAMessage, chat string, store *history.Store) []history.IAMessage {
+	if store == nil || chat == "" {
+		return messages
+	}
+	// Acrescenta o resumo persistente da conversa
+	if summary, err := store.GetSummary(ctx, chat); err == nil && strings.TrimSpace(summary) != "" {
+		summary = truncateText(strings.TrimSpace(summary), 1200)
+		messages = append(messages, history.IAMessage{
+			Role:    "system",
+			Content: "Resumo persistente da conversa anterior:\n" + summary,
+		})
+	}
+	// Transcrição compacta (1× system) em vez de várias mensagens user/assistant: menos overhead
+	// de roles e marcas temporais ajudam o modelo a situar o que é recente.
+	if tr, err := store.TranscriptRecent(ctx, chat, 14, 12*time.Hour); err == nil && strings.TrimSpace(tr) != "" {
+		tr = truncateText(tr, 2200)
+		messages = append(messages, history.IAMessage{
+			Role: "system",
+			Content: "Últimas mensagens neste chat (antigas → recentes; use para continuidade, não copie de graça):\n" +
+				tr,
+		})
+	}
+	return messages
+}
+
+// callGroq envia mensagens ao modelo indicado e devolve o texto da primeira resposta.
+func callGroq(ctx context.Context, groqURL, groqKey, model string, messages []history.IAMessage, temperature float64, maxTokens int) (string, error) {
+	resp, err := groqChat(ctx, groqURL, groqKey, IARequest{
 		Model:       model,
 		Messages:    messages,
 		Stream:      false,
@@ -141,35 +134,7 @@ func callGroq(ctx context.Context, groqURL, groqKey, model string, messages []hi
 		MaxTokens:   maxTokens,
 	})
 	if err != nil {
-		return "", fmt.Errorf("erro ao serializar request: %w", err)
+		return "", err
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, groqURL, bytes.NewBuffer(body))
-	if err != nil {
-		return "", fmt.Errorf("erro ao criar request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+groqKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("erro ao chamar Groq: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("groq retornou status %d: %s", resp.StatusCode, string(b))
-	}
-
-	var iaResp IAResponse
-	if err := json.NewDecoder(resp.Body).Decode(&iaResp); err != nil {
-		return "", fmt.Errorf("erro ao decodificar resposta: %w", err)
-	}
-
-	if len(iaResp.Choices) == 0 {
-		return "", fmt.Errorf("resposta vazia do groq")
-	}
-
-	return iaResp.Choices[0].Message.Content, nil
+	return resp.Choices[0].Message.Content, nil
 }

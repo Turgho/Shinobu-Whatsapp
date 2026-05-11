@@ -12,6 +12,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
+// WeatherCommand resolve o nome da cidade, busca clima atual e responde com um resumo formatado.
 func WeatherCommand(
 	ctx context.Context,
 	client *whatsmeow.Client,
@@ -21,33 +22,38 @@ func WeatherCommand(
 	weatherClient *weather.WeatherClient,
 ) error {
 	if len(args) == 0 {
-		return utils.Reply(ctx, client, evt, "Por favor, informe o nome da cidade.")
+		return utils.SendText(ctx, client, evt, "Por favor, informe o nome da cidade.", true)
 	}
 
 	query := strings.Join(args, " ")
 
-	results, err := geo.Lookup(query, 1)
+	results, err := geo.Lookup(ctx, query, 1)
 	if err != nil || len(results) == 0 {
-		if replyErr := utils.Reply(ctx, client, evt, "Não consegui encontrar a cidade."); replyErr != nil {
-			return replyErr
-		}
-		return err
+		return replyOrUnderlying(ctx, client, evt, "Não consegui encontrar a cidade.", err)
 	}
 
 	loc := results[0]
-
-	// Buscar clima
-	weatherData, err := weatherClient.GetCurrentWeather(loc.Latitude, loc.Longitude)
+	weatherData, err := weatherClient.GetCurrentWeather(ctx, loc.Latitude, loc.Longitude)
 	if err != nil {
-		if replyErr := utils.Reply(ctx, client, evt, "Não consegui pegar o clima."); replyErr != nil {
-			return replyErr
-		}
-		return err
+		return replyOrUnderlying(ctx, client, evt, "Não consegui pegar o clima.", err)
 	}
 
 	msg := buildWeatherMessage(loc, weatherData)
+	return utils.SendText(ctx, client, evt, msg, true)
+}
 
-	return utils.Reply(ctx, client, evt, msg)
+// replyOrUnderlying notifica o usuário com reply; se o envio falhar devolve esse erro, senão o erro original (pode ser nil).
+func replyOrUnderlying(
+	ctx context.Context,
+	client *whatsmeow.Client,
+	evt *events.Message,
+	userMsg string,
+	underlying error,
+) error {
+	if replyErr := utils.Reply(ctx, client, evt, userMsg); replyErr != nil {
+		return replyErr
+	}
+	return underlying
 }
 
 func buildWeatherMessage(loc geocoding.GeoResult, w *weather.WeatherResult) string {
@@ -71,6 +77,8 @@ func buildWeatherMessage(loc geocoding.GeoResult, w *weather.WeatherResult) stri
 	)
 }
 
+// splitLocation interpreta DisplayName no estilo Nominatim ("cidade, estado, país, ...").
+// Com três ou mais segmentos, o país é o último token (regiões intermediárias variam).
 func splitLocation(displayName string) (cidade, estado, pais string) {
 	parts := strings.Split(displayName, ",")
 	for i := range parts {
