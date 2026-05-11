@@ -192,7 +192,7 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 	}, public.ShinobuCommand(store))
 
 	r.RegisterCommand(commands.CommandMeta{
-		Name:        "aniversario",
+		Name:        "aniversário",
 		Description: "Gerencia aniversário de grupos",
 		Type:        commands.CommandTypeGroup,
 	}, public.BirthdayCommand(cfg.UsersJID.Owner))
