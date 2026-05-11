@@ -32,7 +32,7 @@ func HandleDM(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	parts := strings.Fields(text)
 
 	// Espera pelo menos: !aniversário <cmd>
-	if len(parts) < 2 || strings.ToLower(parts[0]) != "!aniversario" {
+	if len(parts) < 2 || !isAnniversaryCmd(parts[0]) {
 		return
 	}
 
@@ -218,4 +218,10 @@ func senderName(evt *events.Message) string {
 		return evt.Info.PushName
 	}
 	return evt.Info.Sender.ToNonAD().User
+}
+
+// isAnniversaryCmd aceita o prefixo com ou sem acento.
+func isAnniversaryCmd(s string) bool {
+	s = strings.ToLower(s)
+	return s == "!aniversário" || s == "!aniversario"
 }

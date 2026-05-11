@@ -15,6 +15,7 @@ import (
 	"github.com/Turgho/YuukoWhatsapp/internal/configs"
 	"github.com/Turgho/YuukoWhatsapp/internal/database"
 	"github.com/Turgho/YuukoWhatsapp/internal/utils"
+	"github.com/Turgho/YuukoWhatsapp/pkg/birthday"
 	"github.com/Turgho/YuukoWhatsapp/pkg/geocoding"
 	"github.com/Turgho/YuukoWhatsapp/pkg/history"
 	"github.com/Turgho/YuukoWhatsapp/pkg/weather"
@@ -79,6 +80,8 @@ func Run() error {
 
 	// Cadastra comandos privados
 	registerAdminCommands(r, cfg)
+
+	birthday.StartScheduler(client.WAClient)
 
 	// Inicializa o handler
 	handler := bot.NewHandler(client.WAClient, r)
