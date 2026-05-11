@@ -21,13 +21,29 @@ type ArgMeta struct {
 	Required bool   // true = obrigatório (<cidade>), false = opcional ([cidade])
 }
 
+// CommandType define a categoria do comando.
+type CommandType string
+
+const (
+	CommandTypeUtility  CommandType = "utility"
+	CommandTypeFun      CommandType = "fun"
+	CommandTypeAI       CommandType = "ai"
+	CommandTypeMedia    CommandType = "media"
+	CommandTypeDownload CommandType = "download"
+	CommandTypeAdmin    CommandType = "admin"
+	CommandTypeOwner    CommandType = "owner"
+	CommandTypeGroup    CommandType = "group"
+	CommandTypeNSFW     CommandType = "nsfw"
+)
+
 // CommandMeta contém os metadados de um comando.
 // É usado para registro, validação de permissões e geração automática do menu.
 type CommandMeta struct {
-	Name        string    // chave do comando, ex: "weather"
-	Description string    // descrição exibida no menu
-	Args        []ArgMeta // argumentos esperados, em ordem
-	Private     bool      // se true, apenas owner/admins podem executar
+	Name        string      // chave do comando, ex: "weather"
+	Description string      // descrição exibida no menu
+	Type        CommandType // categoria do comando
+	Args        []ArgMeta   // argumentos esperados, em ordem
+	Private     bool        // se true, apenas owner/admins podem executar
 }
 
 // command é o tipo interno que junta meta + handler.
