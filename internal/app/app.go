@@ -124,49 +124,58 @@ func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logge
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "menu",
 		Description: "Lista todos os comandos disponíveis",
+		Type:        commands.CommandTypeUtility,
 	}, public.MenuCommand(r))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "ping",
 		Description: "Verifica se o bot está online",
+		Type:        commands.CommandTypeUtility,
 	}, public.PingCommand)
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "clima",
 		Description: "Mostra o clima atual de uma cidade",
+		Type:        commands.CommandTypeUtility,
 		Args:        []commands.ArgMeta{{Name: "cidade", Required: true}},
 	}, weatherHandler(geoClient, weatherClient))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "sticker",
 		Description: "Gera uma figurinha com base em uma imagem ou vídeo",
+		Type:        commands.CommandTypeUtility,
 	}, public.StickerCommand)
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "play",
 		Description: "Busca por uma música via nome ou URL",
+		Type:        commands.CommandTypeDownload,
 		Args:        []commands.ArgMeta{{Name: "nome da música ou URL", Required: true}},
 	}, public.PlayCommand)
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "mambo",
 		Description: "M A M B O 🏇",
+		Type:        commands.CommandTypeFun,
 	}, public.MamboAudioCommand)
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "dio",
 		Description: "Talvez o tempo pare...",
+		Type:        commands.CommandTypeFun,
 	}, public.DioAudioCommand)
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "cafe",
 		Description: "Não importa a hora!",
+		Type:        commands.CommandTypeFun,
 	}, public.HoraCafeAudioCommand)
 
 	// Shinobu: IA com personalidade, histórico por usuário e busca web sob demanda
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "shinobu",
 		Description: "converse com shinobu",
+		Type:        commands.CommandTypeAI,
 		Args:        []commands.ArgMeta{{Name: "escreva algo", Required: false}},
 	}, public.ShinobuCommand(store))
 
@@ -175,18 +184,21 @@ func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logge
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "stats",
 		Description: "Exibe estatísticas de runtime do bot",
+		Type:        commands.CommandTypeAdmin,
 		Private:     true,
 	}, admin.StatsCommand)
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "shutdown",
 		Description: "Desliga o bot",
+		Type:        commands.CommandTypeAdmin,
 		Private:     true,
 	}, admin.ShutdownCommand)
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "fig",
 		Description: "Gerencia stickers salvos. Uso em DM: !fig salvar <nome>, !fig remover <nome>, !sticker lista. Uso normal: !fig <nome>",
+		Type:        commands.CommandTypeAdmin,
 		Args: []commands.ArgMeta{
 			{Name: "nome", Required: false},
 		},
