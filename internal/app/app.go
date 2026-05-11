@@ -132,7 +132,7 @@ func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logge
 	}, public.PingCommand)
 
 	r.RegisterCommand(commands.CommandMeta{
-		Name:        "weather",
+		Name:        "clima",
 		Description: "Mostra o clima atual de uma cidade",
 		Args:        []commands.ArgMeta{{Name: "cidade", Required: true}},
 	}, weatherHandler(geoClient, weatherClient))
