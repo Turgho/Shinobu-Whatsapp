@@ -74,7 +74,7 @@ func MenuCommand(r *commands.Router) commands.HandlerFunc {
 				continue
 			}
 
-			sb.WriteString(fmt.Sprintf("┌── %s ──\n\n", labels[category]))
+			sb.WriteString(fmt.Sprintf("━━━━━ %s ━━━━━\n\n", labels[category]))
 
 			for _, meta := range cmds {
 				sb.WriteString(fmt.Sprintf("◈ *%s%s*", r.Prefix(), meta.Name))
