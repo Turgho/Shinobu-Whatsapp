@@ -3,6 +3,7 @@ package ia
 import (
 	"context"
 	"os"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -39,10 +40,8 @@ func trivialWithoutSearch(lower string) bool {
 		"sim", "não", "nao", "ok", "okay", "certo",
 		"tá", "ta", "bom dia", "boa tarde", "boa noite",
 	}
-	for _, a := range acks {
-		if s == a {
-			return true
-		}
+	if slices.Contains(acks, s) {
+		return true
 	}
 	// Frase mínima sem interrogação: só trata como trivial com até 2 tokens (evita bloquear perguntas curtas factuais).
 	if !strings.Contains(s, "?") && utf8.RuneCountInString(s) <= 20 && len(strings.Fields(s)) <= 2 {
