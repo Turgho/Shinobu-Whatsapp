@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -10,6 +11,25 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
 )
+
+const mimetypeOggOpus = "audio/ogg; codecs=opus"
+
+// SendBundledOggVoice lê um ficheiro OGG Opus local, faz upload e envia como nota de voz (PTT) citando a mensagem.
+// Em falha responde ao utilizador com Reply e devolve o mesmo erro (para o handler poder dar return).
+func SendBundledOggVoice(ctx context.Context, client *whatsmeow.Client, evt *events.Message, path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Reply(ctx, client, evt, "❌ Não consegui carregar o áudio.")
+	}
+	uploaded, err := client.Upload(ctx, data, whatsmeow.MediaAudio)
+	if err != nil {
+		return Reply(ctx, client, evt, "❌ Não consegui preparar o áudio.")
+	}
+	if err := SendAudio(ctx, client, evt, &uploaded, mimetypeOggOpus, true, true); err != nil {
+		return Reply(ctx, client, evt, "❌ Não consegui enviar o áudio.")
+	}
+	return nil
+}
 
 // SendAudio sends an audio file (music, voice note, etc).
 //

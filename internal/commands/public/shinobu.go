@@ -45,7 +45,7 @@ func ShinobuCommand(store *history.Store) commands.HandlerFunc {
 			return utils.Reply(ctx, client, evt, "❌ Falha ao consultar a Shinobu.")
 		}
 
-		_ = store.Save(ctx, chat, "Shinobu", answer)
+		_ = store.Save(ctx, chat, history.AssistantSenderName, answer)
 
 		if len(mentions) > 0 {
 			if err := utils.ReplyWithMentions(ctx, client, evt, answer, mentions); err != nil {

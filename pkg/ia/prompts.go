@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 )
 
+// ResponseMode indica o estilo de resposta (curto, padrão ou enriquecido com contexto web).
 type ResponseMode string
 
 const (
@@ -53,13 +54,12 @@ Modo de resposta curta:
 `)
 	case ModeWeb:
 		b.WriteString(`
-Modo de pesquisa:
-- Use o contexto fornecido como base principal.
-- Priorize fatos do contexto.
-- Responda em até 5 frases.
-- Seja objetiva, direta e factual.
-- Não invente dados.
-- Se faltar informação, diga isso de forma curta.
+Modo pesquisa (contexto externo foi anexado):
+- Use o contexto como fonte principal; não invente fatos fora dele.
+- Priorize dados atuais e precisos; se faltar algo, diga de forma curta.
+- Até 5 frases, objetivas.
+- Mantenha a voz da Shinobu (seca, leve ironia, natural) — factual não significa robótica.
+- Não liste URLs longas a menos que o usuário peça fonte.
 `)
 	default:
 		b.WriteString(`
@@ -93,19 +93,7 @@ Regras:
 
 	case ModeWeb:
 		return fmt.Sprintf(
-			`Contexto da pesquisa:
-%s
-
-Pergunta:
-%s
-
-Regras:
-- Use o contexto como fonte principal.
-- Responda em até 5 frases.
-- Seja objetiva e direta.
-- Não faça introdução nem explicação longa.
-- Se faltar informação, diga isso de forma curta.
-- Não invente dados.`,
+			"Contexto (use como base; não extrapole):\n%s\n\nPergunta:\n%s",
 			webContext, prompt,
 		)
 

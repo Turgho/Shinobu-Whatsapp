@@ -9,6 +9,22 @@ import (
 	"go.uber.org/zap"
 )
 
+// sendMiddlewareNotice envia texto ao usuário e registra falha de envio sem alterar o fluxo do middleware.
+func sendMiddlewareNotice(
+	ctx context.Context,
+	r *Router,
+	evt *events.Message,
+	cmd, logUser, msg, warn string,
+) {
+	if err := utils.SendText(ctx, r.client, evt, msg, true); err != nil {
+		r.log.Warn(warn,
+			zap.String("command", cmd),
+			zap.String("user", logUser),
+			zap.Error(err),
+		)
+	}
+}
+
 // IgnoreSelfMiddleware ignora mensagens enviadas pelo próprio bot.
 func IgnoreSelfMiddleware(cmd string, evt *events.Message) bool {
 	return !evt.Info.IsFromMe
@@ -29,13 +45,7 @@ func CommandNotFoundMiddleware(r *Router) Middleware {
 		}
 		ctx := context.Background()
 		msg := "❌ Comando não encontrado. Use *" + r.Prefix() + "menu* para ver os disponíveis."
-		if err := utils.Reply(ctx, r.client, evt, msg); err != nil {
-			r.log.Warn("Falha ao notificar comando não encontrado",
-				zap.String("command", cmd),
-				zap.String("user", evt.Info.Sender.User),
-				zap.Error(err),
-			)
-		}
+		sendMiddlewareNotice(ctx, r, evt, cmd, evt.Info.Sender.User, msg, "Falha ao notificar comando não encontrado")
 		return false
 	}
 }
@@ -52,13 +62,8 @@ func PrivateCommandsMiddleware(r *Router, owner string, admins []string) Middlew
 			return true
 		}
 		ctx := context.Background()
-		if err := utils.Reply(ctx, r.client, evt, "🔒 Você não tem permissão para usar este comando."); err != nil {
-			r.log.Warn("Falha ao notificar acesso negado",
-				zap.String("command", cmd),
-				zap.String("user", jid),
-				zap.Error(err),
-			)
-		}
+		msg := "🔒 Você não tem permissão para usar este comando."
+		sendMiddlewareNotice(ctx, r, evt, cmd, jid, msg, "Falha ao notificar acesso negado")
 		return false
 	}
 }

@@ -1,10 +1,10 @@
+// Package app monta logger, banco, histórico, cliente WhatsApp, router e handlers.
 package app
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"os/exec"
 	"time"
 
@@ -23,7 +23,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Run é o ponto de entrada da aplicação.
+// Run inicializa dependências, conecta ao WhatsApp e bloqueia em Listen até encerrar.
 func Run() error {
 	utils.StartUptime()
 
@@ -34,6 +34,7 @@ func Run() error {
 
 	cfg := configs.Load()
 
+	// Logger
 	logger, err := buildLogger()
 	if err != nil {
 		return fmt.Errorf("erro ao inicializar logger: %w", err)
@@ -42,6 +43,7 @@ func Run() error {
 
 	ctx := context.Background()
 
+	// Database SQLite para o Whatsmeow
 	db, err := connectDatabase(cfg, logger)
 	if err != nil {
 		return err
@@ -51,27 +53,38 @@ func Run() error {
 	// Histórico de mensagens por usuário — usado pela IA para contexto de conversa
 	store, err := history.NewStore("storage/message_history.db")
 	if err != nil {
-		log.Fatal("erro ao abrir history", zap.Error(err))
+		logger.Error("erro ao abrir history", zap.Error(err))
+		return fmt.Errorf("erro ao abrir history: %w", err)
 	}
 	defer store.Close()
 
 	store.StartCleanup(ctx, 24*time.Hour) // apaga mensagens com mais de 24h
 
+	// Inicializa o cliente WhatsApp
 	client, err := bot.NewClient(ctx, db)
 	if err != nil {
 		return fmt.Errorf("erro ao criar client WhatsApp: %w", err)
 	}
 
+	// Conecta ao WhatsApp
 	if err := client.Connect(ctx); err != nil {
 		return fmt.Errorf("erro ao conectar no WhatsApp: %w", err)
 	}
 
+	// Inicializa o router
 	r := buildRouter(cfg, client.WAClient, logger, store)
-	registerCommands(r, cfg, logger, store)
 
+	// Cadastra comandos públicos
+	registerPublicCommands(r, cfg, logger, store)
+
+	// Cadastra comandos privados
+	registerAdminCommands(r, cfg)
+
+	// Inicializa o handler
 	handler := bot.NewHandler(client.WAClient, r)
 	client.RegisterHandlers(handler.EventHandler)
 
+	// Bloqueia em Listen até encerrar
 	client.Listen()
 	return nil
 }
@@ -109,17 +122,13 @@ func buildRouter(cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Lo
 	return r
 }
 
-// registerCommands é o único lugar onde comandos são cadastrados.
+// registerPublicCommands cadastra comandos abertos a qualquer usuário autorizado pelo middleware.
 //
-// Para adicionar um novo comando:
-//  1. Crie o handler em internal/commands/public/ ou admin/
-//  2. Chame r.RegisterCommand com os metadados e o handler
-//  3. O comando aparece automaticamente no !menu — sem mais nada.
-func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logger, store *history.Store) {
+// Para adicionar um comando público: crie o handler em internal/commands/public/,
+// chame r.RegisterCommand aqui; o !menu lista automaticamente.
+func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logger, store *history.Store) {
 	geoClient := geocoding.NewGeoCoding(cfg.ApiURLs.Geocoding, logger.Named("GEOCODING"))
 	weatherClient := weather.NewWeatherClient(cfg.ApiURLs.Weather, logger.Named("WEATHER"))
-
-	// ─── Públicos ──────────────────────────────────────────────────────────
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "menu",
@@ -157,19 +166,19 @@ func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logge
 		Name:        "mambo",
 		Description: "M A M B O 🏇",
 		Type:        commands.CommandTypeFun,
-	}, public.MamboAudioCommand)
+	}, public.FixedBundledAudioCommand("assets/audios/mambo.ogg", ""))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "dio",
 		Description: "Talvez o tempo pare...",
 		Type:        commands.CommandTypeFun,
-	}, public.DioAudioCommand)
+	}, public.FixedBundledAudioCommand("assets/audios/zawarudo.ogg", "zawarudo"))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "cafe",
 		Description: "Não importa a hora!",
 		Type:        commands.CommandTypeFun,
-	}, public.HoraCafeAudioCommand)
+	}, public.FixedBundledAudioCommand("assets/audios/hora_cafe.ogg", "hora_cafe"))
 
 	// Shinobu: IA com personalidade, histórico por usuário e busca web sob demanda
 	r.RegisterCommand(commands.CommandMeta{
@@ -178,9 +187,10 @@ func registerCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logge
 		Type:        commands.CommandTypeAI,
 		Args:        []commands.ArgMeta{{Name: "escreva algo", Required: false}},
 	}, public.ShinobuCommand(store))
+}
 
-	// ─── Privados (apenas owner/admins) ───────────────────────────────────
-
+// registerAdminCommands cadastra comandos com Private: true (owner/admins no middleware).
+func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "stats",
 		Description: "Exibe estatísticas de runtime do bot",
@@ -215,13 +225,18 @@ func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) command
 }
 
 func checkDeps() error {
-	if _, err := exec.LookPath("./bin/ffmpeg"); err != nil {
-		return fmt.Errorf("ffmpeg não encontrado no PATH")
+	// Caminhos relativos ao cwd do processo (mesmo layout usado em runtime).
+	deps := []struct {
+		path string
+		name string
+	}{
+		{"./bin/ffmpeg", "ffmpeg"},
+		{"./bin/webpmux", "webpmux"},
 	}
-
-	if _, err := exec.LookPath("./bin/webpmux"); err != nil {
-		return fmt.Errorf("webpmux não encontrado no PATH")
+	for _, d := range deps {
+		if _, err := exec.LookPath(d.path); err != nil {
+			return fmt.Errorf("%s não encontrado em %s (execute a partir da raiz do projeto ou ajuste o path)", d.name, d.path)
+		}
 	}
-
 	return nil
 }

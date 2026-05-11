@@ -112,7 +112,15 @@ func reply(ctx context.Context, client *whatsmeow.Client, evt *events.Message, t
 
 // stickerFromQuoted extrai um sticker de uma mensagem citada/respondida.
 func stickerFromQuoted(evt *events.Message) *waE2E.StickerMessage {
-	quoted := evt.Message.GetExtendedTextMessage().GetContextInfo().GetQuotedMessage()
+	ext := evt.Message.GetExtendedTextMessage()
+	if ext == nil {
+		return nil
+	}
+	ci := ext.GetContextInfo()
+	if ci == nil {
+		return nil
+	}
+	quoted := ci.GetQuotedMessage()
 	if quoted == nil {
 		return nil
 	}

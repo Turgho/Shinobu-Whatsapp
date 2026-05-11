@@ -51,7 +51,7 @@ func searchWeb(ctx context.Context, query string) (string, error) {
 		Query:             query,
 		APIKey:            tavilyKey,
 		SearchDepth:       "advanced", // mais preciso que "basic"
-		Topic:             detectTopic(query),
+		Topic:             tavilyTopicFromQuery(query),
 		MaxResults:        maxResults,
 		IncludeAnswer:     true,
 		IncludeRawContent: true,
@@ -119,18 +119,10 @@ func formatResults(result tavilyResponse) string {
 	return strings.TrimSpace(sb.String())
 }
 
-// detectTopic escolhe o índice de busca do Tavily com base na query.
-// Queries sobre eventos recentes usam "news" para dados mais frescos.
-func detectTopic(query string) string {
-	newsKeywords := []string{
-		"hoje", "agora", "notícia", "news", "aconteceu",
-		"último", "recente", "atualidade", "breaking",
-	}
-	q := strings.ToLower(query)
-	for _, kw := range newsKeywords {
-		if strings.Contains(q, kw) {
-			return "news"
-		}
+// tavilyTopicFromQuery escolhe "news" vs "general" com base nas mesmas pistas de atualidade do pacote.
+func tavilyTopicFromQuery(query string) string {
+	if prefersNewsTavilyTopic(strings.ToLower(query)) {
+		return "news"
 	}
 	return "general"
 }
