@@ -187,6 +187,12 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Type:        commands.CommandTypeAI,
 		Args:        []commands.ArgMeta{{Name: "escreva algo", Required: false}},
 	}, public.ShinobuCommand(store))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "aniversario",
+		Description: "Gerencia aniversário de grupos",
+		Type:        commands.CommandTypeGroup,
+	}, public.BirthdayCommand(cfg.UsersJID.Owner))
 }
 
 // registerAdminCommands cadastra comandos com Private: true (owner/admins no middleware).
