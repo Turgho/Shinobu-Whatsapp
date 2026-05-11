@@ -14,5 +14,5 @@ import (
 func PingCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	latency := time.Since(evt.Info.Timestamp).Milliseconds()
 
-	return utils.SendText(ctx, client, evt, fmt.Sprintf("🏓 Pong!\n📡 Latência: `%dms`", latency), true)
+	return utils.Reply(ctx, client, evt, fmt.Sprintf("🏓 Pong!\n📡 Latência: `%dms`", latency))
 }

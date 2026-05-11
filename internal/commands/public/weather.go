@@ -22,7 +22,7 @@ func WeatherCommand(
 	weatherClient *weather.WeatherClient,
 ) error {
 	if len(args) == 0 {
-		return utils.SendText(ctx, client, evt, "Por favor, informe o nome da cidade.", true)
+		return utils.Reply(ctx, client, evt, "Por favor, informe o nome da cidade.")
 	}
 
 	query := strings.Join(args, " ")
@@ -39,7 +39,7 @@ func WeatherCommand(
 	}
 
 	msg := buildWeatherMessage(loc, weatherData)
-	return utils.SendText(ctx, client, evt, msg, true)
+	return utils.Reply(ctx, client, evt, msg)
 }
 
 // replyOrUnderlying notifica o usuário com reply; se o envio falhar devolve esse erro, senão o erro original (pode ser nil).
