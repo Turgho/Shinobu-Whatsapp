@@ -201,7 +201,10 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Name:        "efeito",
 		Description: "Aplica efeitos em um áudio. Use !efeito para ver os disponíveis.",
 		Type:        commands.CommandTypeMedia,
-		Args:        []commands.ArgMeta{{Name: "efeito", Required: false}},
+		Args: []commands.ArgMeta{
+			{Name: "efeito", Required: false},
+			{Name: "intensidade", Required: false},
+		},
 	}, public.AudioEffectsCommand)
 }
 
