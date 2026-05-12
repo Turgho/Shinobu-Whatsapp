@@ -2,6 +2,7 @@ package public
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/Turgho/YuukoWhatsapp/internal/utils"
@@ -14,15 +15,11 @@ import (
 //
 // Uso:
 //
-//	!efeito reverb     — reverb + slowed clássico
-//	!efeito deep       — mais lento e grave
-//	!efeito echo       — eco pronunciado
-//	!efeito nightcore  — mais rápido e agudo
-//	!efeito bass       — boost de grave
-//	!efeito lofi       — lofi com ruído e reverb leve
-//	!efeito            — lista os efeitos disponíveis
+//	!efeito                  — lista os efeitos disponíveis
+//	!efeito reverb           — intensidade média (padrão)
+//	!efeito reverb leve      — intensidade leve
+//	!efeito reverb forte     — intensidade forte
 func AudioEffectsCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
-	// Sem args ou "lista" → mostra efeitos disponíveis.
 	if len(args) == 0 || strings.ToLower(args[0]) == "lista" {
 		return utils.SendText(ctx, client, evt, music.EffectList(), true)
 	}
@@ -34,7 +31,15 @@ func AudioEffectsCommand(ctx context.Context, client *whatsmeow.Client, evt *eve
 			"❌ Efeito não encontrado.\n\n"+music.EffectList(), true)
 	}
 
-	_ = utils.SendText(ctx, client, evt, "⏳ Aplicando efeito *"+effectName+"*...", true)
+	// Segundo arg opcional: intensidade (leve, medio, forte)
+	intensity := music.IntensityMedium
+	if len(args) >= 2 {
+		intensity = music.ParseIntensity(strings.ToLower(args[1]))
+	}
+
+	intensityLabel := []string{"leve", "médio", "forte"}[intensity]
+	_ = utils.SendText(ctx, client, evt,
+		fmt.Sprintf("⏳ Aplicando *%s* (%s)...", effectName, intensityLabel), true)
 
 	audio, err := utils.DownloadFromEvent(ctx, client, evt, utils.FilterAudioOnly)
 	if err != nil {
@@ -42,7 +47,7 @@ func AudioEffectsCommand(ctx context.Context, client *whatsmeow.Client, evt *eve
 			"📎 Envie um áudio e chame `!efeito <nome>`, ou responda a um áudio com o comando.", true)
 	}
 
-	result, err := music.Apply(ctx, audio.Data, audio.Ext, effectName)
+	result, err := music.Apply(ctx, audio.Data, audio.Ext, effectName, intensity)
 	if err != nil {
 		return utils.SendText(ctx, client, evt,
 			"❌ Não consegui processar o áudio. Certifique-se de que é um áudio válido.", true)
