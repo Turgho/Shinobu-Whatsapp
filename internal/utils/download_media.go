@@ -27,15 +27,16 @@ type Media struct {
 
 // Filter define quais tipos de mídia aceitar no download.
 type Filter struct {
-	Image bool
-	Video bool
-	Audio bool
+	Image    bool
+	Video    bool
+	Audio    bool
+	Document bool // mp3/arquivo enviado como documento
 }
 
 var (
-	FilterAll       = Filter{Image: true, Video: true, Audio: true}
+	FilterAll       = Filter{Image: true, Video: true, Audio: true, Document: true}
 	FilterVisual    = Filter{Image: true, Video: true}
-	FilterAudioOnly = Filter{Audio: true}
+	FilterAudioOnly = Filter{Audio: true, Document: true} // aceita áudio e mp3 como arquivo
 )
 
 // DownloadFromEvent encontra e baixa a mídia de um evento de mensagem.
@@ -72,7 +73,13 @@ type downloadable struct {
 func extractDownloadable(evt *events.Message, f Filter) (*downloadable, error) {
 	msg := evt.Message
 
-	if d := fromDirect(msg.GetImageMessage(), msg.GetVideoMessage(), msg.GetAudioMessage(), f); d != nil {
+	if d := fromDirect(
+		msg.GetImageMessage(),
+		msg.GetVideoMessage(),
+		msg.GetAudioMessage(),
+		msg.GetDocumentMessage(), // mp3 enviado como arquivo
+		f,
+	); d != nil {
 		return d, nil
 	}
 
@@ -81,19 +88,27 @@ func extractDownloadable(evt *events.Message, f Filter) (*downloadable, error) {
 		return nil, fmt.Errorf("nenhuma mídia encontrada na mensagem ou na citação")
 	}
 
-	if d := fromDirect(quoted.GetImageMessage(), quoted.GetVideoMessage(), quoted.GetAudioMessage(), f); d != nil {
+	if d := fromDirect(
+		quoted.GetImageMessage(),
+		quoted.GetVideoMessage(),
+		quoted.GetAudioMessage(),
+		quoted.GetDocumentMessage(),
+		f,
+	); d != nil {
 		return d, nil
 	}
 
 	return nil, fmt.Errorf("tipo de mídia não suportado pelo comando")
 }
 
-// type imageMsg interface {
-// 	whatsmeow.DownloadableMessage
-// }
-
-// fromDirect tenta extrair uma mídia aceita pelo Filter a partir dos três tipos possíveis.
-func fromDirect(img whatsmeow.DownloadableMessage, vid whatsmeow.DownloadableMessage, aud whatsmeow.DownloadableMessage, f Filter) *downloadable {
+// fromDirect tenta extrair uma mídia aceita pelo Filter a partir dos tipos possíveis.
+func fromDirect(
+	img whatsmeow.DownloadableMessage,
+	vid whatsmeow.DownloadableMessage,
+	aud whatsmeow.DownloadableMessage,
+	doc whatsmeow.DownloadableMessage,
+	f Filter,
+) *downloadable {
 	if f.Image && !isNil(img) {
 		return &downloadable{source: img, ext: ".jpg", animated: false, mediaType: TypeImage}
 	}
@@ -103,6 +118,9 @@ func fromDirect(img whatsmeow.DownloadableMessage, vid whatsmeow.DownloadableMes
 	if f.Audio && !isNil(aud) {
 		return &downloadable{source: aud, ext: ".m4a", animated: false, mediaType: TypeAudio}
 	}
+	if f.Document && !isNil(doc) {
+		return &downloadable{source: doc, ext: ".mp3", animated: false, mediaType: TypeAudio}
+	}
 	return nil
 }
 
@@ -111,7 +129,6 @@ func isNil(d whatsmeow.DownloadableMessage) bool {
 	if d == nil {
 		return true
 	}
-	// interfaces com valor nil concreto ainda satisfazem a interface
 	switch v := d.(type) {
 	case interface{ GetDirectPath() string }:
 		return v.GetDirectPath() == ""
