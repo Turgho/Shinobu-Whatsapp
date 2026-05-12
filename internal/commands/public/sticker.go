@@ -15,7 +15,7 @@ import (
 func StickerCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	_ = utils.Reply(ctx, client, evt, "⏳ Processando sua figurinha...")
 
-	media, err := sticker.DownloadFromEvent(ctx, client, evt)
+	media, err := utils.DownloadFromEvent(ctx, client, evt, utils.FilterVisual)
 	if err != nil {
 		return utils.Reply(ctx, client, evt,
 			"📎 Envie uma imagem ou vídeo com a legenda `!sticker`, ou responda a uma mídia com `!sticker`.")

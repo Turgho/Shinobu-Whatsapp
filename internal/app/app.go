@@ -196,6 +196,12 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Description: "Gerencia aniversário de grupos",
 		Type:        commands.CommandTypeGroup,
 	}, public.BirthdayCommand(cfg.UsersJID.Owner))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "reverb_slowed",
+		Description: "Deixa um áudio em slowed + reverb.",
+		Type:        commands.CommandTypeMedia,
+	}, public.AudioEffectsCommand)
 }
 
 // registerAdminCommands cadastra comandos com Private: true (owner/admins no middleware).
@@ -203,14 +209,14 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "stats",
 		Description: "Exibe estatísticas de runtime do bot",
-		Type:        commands.CommandTypeAdmin,
+		Type:        commands.CommandTypeOwner,
 		Private:     true,
 	}, admin.StatsCommand)
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "shutdown",
 		Description: "Desliga o bot",
-		Type:        commands.CommandTypeAdmin,
+		Type:        commands.CommandTypeOwner,
 		Private:     true,
 	}, admin.ShutdownCommand)
 
