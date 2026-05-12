@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/Turgho/YuukoWhatsapp/pkg/ffmpeg"
 )
 
 // ConvertToWebP converte os bytes de entrada (imagem ou vídeo) em WebP
@@ -83,7 +85,7 @@ func runFFmpeg(ctx context.Context, input, output string, animated bool) error {
 	}
 
 	var stderr bytes.Buffer
-	cmd := ffmpegCmd(ctx, args...)
+	cmd := ffmpeg.FfmpegCmd(ctx, args...)
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
