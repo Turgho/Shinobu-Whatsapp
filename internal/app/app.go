@@ -198,9 +198,10 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 	}, public.BirthdayCommand(cfg.UsersJID.Owner))
 
 	r.RegisterCommand(commands.CommandMeta{
-		Name:        "reverb_slowed",
-		Description: "Deixa um áudio em slowed + reverb.",
+		Name:        "efeito",
+		Description: "Aplica efeitos em um áudio. Use !efeito para ver os disponíveis.",
 		Type:        commands.CommandTypeMedia,
+		Args:        []commands.ArgMeta{{Name: "efeito", Required: false}},
 	}, public.AudioEffectsCommand)
 }
 
