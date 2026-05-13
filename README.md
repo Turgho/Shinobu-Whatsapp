@@ -1,27 +1,43 @@
-# Shinobu — WhatsApp Bot
+# Shinobu
 
-[![Status](https://img.shields.io/badge/status-em%20desenvolvimento-red)](https://github.com/Turgho/Shinobu-Whatsapp)
-[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)](https://go.dev)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
-[![Último commit](https://img.shields.io/github/last-commit/Turgho/Shinobu-Whatsapp)](https://github.com/Turgho/Shinobu-Whatsapp/commits/main)
+[![Status](https://img.shields.io/badge/status-em%20desenvolvimento-orange?style=flat-square)](https://github.com/Turgho/Shinobu-Whatsapp)
+[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
+[![Último commit](https://img.shields.io/github/last-commit/Turgho/Shinobu-Whatsapp?style=flat-square)](https://github.com/Turgho/Shinobu-Whatsapp/commits/main)
 
-Bot de WhatsApp em Go (**whatsmeow**), com router de comandos, middlewares e dependências explícitas no arranque. Inclui IA via **Groq** (personalidade Oshino Shinobu), histórico por utilizador, busca web opcional (**Tavily**), aniversários em grupo com lembrete diário, efeitos de áudio (**ffmpeg**) e música via servidor remoto (**yt-dlp** no lado do servidor).
+Bot de WhatsApp escrito em Go, construído sobre **whatsmeow**. Possui router de comandos com middlewares, IA com personalidade via **Groq**, histórico de conversa por usuário, busca web via **Tavily**, gerenciamento de aniversários em grupo, efeitos de áudio com **ffmpeg** e reprodução de música via servidor remoto com **yt-dlp**.
 
-**Módulo Go:** `github.com/Turgho/YuukoWhatsapp` — nos `import` use sempre este caminho (o clone do Git pode chamar-se `Shinobu-Whatsapp`).
+> **Módulo Go:** `github.com/Turgho/Shinobu-Whatsapp`
+> O repositório pode ser clonado como `Shinobu-Whatsapp` — use sempre o caminho do módulo nos imports.
+
+---
+
+## Sumário
+
+- [Requisitos](#requisitos)
+- [Instalação](#instalação)
+- [Configuração](#configuração)
+- [Execução](#execução)
+- [Comandos](#comandos)
+- [IA — Oshino Shinobu](#ia--oshino-shinobu)
+- [Aniversários](#aniversários)
+- [Estrutura do projeto](#estrutura-do-projeto)
+- [Criando um novo comando](#criando-um-novo-comando)
 
 ---
 
 ## Requisitos
 
-| Item | Detalhe |
-|------|---------|
-| **Go** | 1.25+ (ver `go.mod`) |
-| **ffmpeg** e **webpmux** | Arranque valida `./bin/ffmpeg` e `./bin/webpmux` relativos ao diretório de trabalho — execute `go run` a partir da **raiz do repositório** ou coloque os binários em `./bin/` |
-| **Servidor de música** | `!play` e `!stats` usam `MUSIC_SERVER_URL` (ver abaixo) |
-| **Groq** | Obrigatório para `!shinobu` / menção “shinobu” |
-| **Tavily** | Opcional; sem chave a IA não faz busca web |
+| Dependência | Detalhe |
+|-------------|---------|
+| **Go 1.25+** | Ver `go.mod` |
+| **ffmpeg** | Necessário para `!sticker` e `!efeito`. O binário deve estar em `./bin/ffmpeg` relativo à raiz do projeto |
+| **webpmux** | Necessário para injetar metadados nos stickers. Binário em `./bin/webpmux` |
+| **Servidor de música** | `!play` e `!stats` dependem de `MUSIC_SERVER_URL` (servidor com yt-dlp) |
+| **Groq** | Obrigatório para `!shinobu` e menções à IA |
+| **Tavily** | Opcional — habilita busca web na IA |
 
-### Instalar ffmpeg (sistema)
+### Instalando ffmpeg
 
 ```bash
 # Ubuntu / Debian
@@ -31,14 +47,14 @@ sudo apt install ffmpeg
 sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
 sudo dnf install ffmpeg
 
-# Arch Linux / CachyOS / Manjaro
+# Arch / Manjaro / CachyOS
 sudo pacman -S ffmpeg
 
 # macOS
 brew install ffmpeg
 ```
 
-O pacote **libwebp** costuma incluir o utilitário `webpmux`; copie ou linke para `./bin/webpmux` se não estiver no `PATH` global.
+O pacote **libwebp** geralmente inclui o `webpmux`. Copie ou crie um link simbólico para `./bin/webpmux` caso não esteja no `PATH` global.
 
 ---
 
@@ -50,37 +66,42 @@ cd Shinobu-Whatsapp
 go mod tidy
 ```
 
-### `config.yaml`
+---
+
+## Configuração
+
+### config.yaml
 
 ```bash
 cp config.example.yaml config.yaml
 ```
 
-O ficheiro de exemplo define `bot`, `database`, `log`, `usersJID` e `apiUrls`. O carregamento está em `internal/infra/configs/config.go` (**Viper** + `.env`): campos podem ser sobrescritos por variáveis de ambiente (por exemplo `OWNER_JID`, `COMMAND_PREFIX`, `DB_DSN`).
+O arquivo cobre `bot`, `database`, `log`, `usersJID` e `apiUrls`. Os campos podem ser sobrescritos por variáveis de ambiente via **Viper** (ex: `OWNER_JID`, `COMMAND_PREFIX`, `DB_DSN`).
 
-### `.env` — credenciais e URLs
+### .env
 
 ```env
-# IA — Groq (obrigatório para !shinobu)
+# Groq — obrigatório para a IA
 GROQ_URL=https://api.groq.com/openai/v1/chat/completions
 GROQ_API_KEY=gsk_sua_chave_aqui
 
-# Busca web — Tavily (opcional)
+# Tavily — opcional, habilita busca web
 TAVILY_API_KEY=tvly-sua-chave-aqui
 
-# Número do dono (sem + ou espaços), usado em fluxos que comparam por número
+# Número do dono (somente dígitos)
 OWNER_NUMBER=5511999999999
 
-# Servidor de música: !play → POST /play (corpo texto = query)
-# !stats → GET {MUSIC_SERVER_URL}/stats (JSON com stats remotas, se configurado)
+# Servidor de música (yt-dlp)
+# POST /play  → baixa e retorna áudio
+# GET  /stats → métricas do servidor remoto
 MUSIC_SERVER_URL=http://seu-servidor:porta
 ```
 
-> **JID do dono:** inicie o bot, envie uma mensagem e use o JID que aparece nos logs em `usersJID.owner` no `config.yaml`.
-
-> **Groq:** [console.groq.com](https://console.groq.com) — API key gratuita.
-
-> **Tavily:** [tavily.com](https://tavily.com) — plano free com limite mensal de buscas.
+> **JID do dono:** inicie o bot, envie uma mensagem e copie o JID que aparece nos logs. Cole em `usersJID.owner` no `config.yaml`.
+>
+> **Groq:** obtenha uma API key gratuita em [console.groq.com](https://console.groq.com).
+>
+> **Tavily:** plano free disponível em [tavily.com](https://tavily.com).
 
 ---
 
@@ -90,47 +111,75 @@ MUSIC_SERVER_URL=http://seu-servidor:porta
 go run cmd/bot/main.go
 ```
 
-Na primeira execução, escaneie o QR Code. A sessão WhatsApp fica em SQLite conforme `database.dsn` (por defeito `storage/storage.db`). O histórico auxiliar da IA usa `storage/message_history.db`.
+Na primeira execução, escaneie o QR Code exibido no terminal. A sessão WhatsApp é persistida em SQLite conforme `database.dsn` (padrão: `storage/storage.db`). O histórico da IA usa `storage/message_history.db`.
 
 ---
 
 ## Comandos
 
-| Comando | Descrição | Permissão |
-|---------|-----------|------------|
-| `!menu` | Lista comandos a partir dos metadados registados | Pública |
-| `!ping` | Latência / disponibilidade | Pública |
-| `!clima <cidade>` | Clima (Nominatim + Open-Meteo) | Pública |
-| `!sticker` | Imagem ou vídeo → figurinha (ffmpeg) | Pública |
-| `!play <nome ou URL>` | Áudio via `MUSIC_SERVER_URL` (servidor com yt-dlp) | Pública |
-| `!efeito` / `!efeito <nome> [intensidade]` | Lista ou aplica efeito num áudio (enviar ou citar áudio). Intensidades: `leve`, `medio`, `forte` | Pública |
-| `!shinobu <texto>` | Conversa com a IA | Pública |
-| Menção **“shinobu”** no texto | Atalho sem prefixo (mesmo handler que `!shinobu`) | Pública |
-| `!aniversário` | **Grupo:** `DD/MM`, `lista`, `remover`, `salvar @pessoa DD/MM` (dono/admin), `remover @pessoa` (dono/admin) | Pública |
-| `!mambo`, `!dio`, `!cafe` | Áudios OGG em `assets/audios/` (+ figurinhas salvas onde aplicável) | Pública |
-| `!stats` | Stats locais + opcionalmente `GET …/stats` no mesmo host que a música | Admin |
-| `!shutdown` | Encerra o processo do bot | Admin |
-| `!fig` | Chat: `!fig <nome>`. **DM dono:** `!fig salvar <nome>`, `!fig remover <nome>`, `!fig lista` | Admin |
+### Públicos
 
-### Cookies (yt-dlp no servidor de música)
+| Comando | Descrição |
+|---------|-----------|
+| `!menu` | Lista todos os comandos registrados |
+| `!ping` | Verifica latência e disponibilidade |
+| `!clima <cidade>` | Clima atual via Nominatim + Open-Meteo |
+| `!sticker` | Converte imagem ou vídeo em figurinha |
+| `!play <nome ou URL>` | Reproduz música via servidor remoto (yt-dlp) |
+| `!efeito [nome] [intensidade]` | Aplica efeito em um áudio. Sem args, lista os disponíveis. Intensidades: `leve`, `medio`, `forte` |
+| `!shinobu <texto>` | Conversa com a IA |
+| Menção **"shinobu"** | Atalho para o mesmo handler do `!shinobu` |
+| `!aniversário` | Gerencia aniversários do grupo (ver abaixo) |
+| `!mambo`, `!dio`, `!cafe` | Reproduz áudios OGG de `assets/audios/` |
 
-O servidor que atende `!play` pode usar `cookies.txt` para o YouTube. Não partilhe nem commite esse ficheiro. [FAQ yt-dlp — cookies](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp).
+### `!aniversário` — detalhamento
+
+| Uso | Quem pode |
+|-----|-----------|
+| `!aniversário DD/MM` | Qualquer membro — salva o próprio |
+| `!aniversário lista` | Qualquer membro |
+| `!aniversário remover` | Qualquer membro — remove o próprio |
+| `!aniversário salvar @pessoa DD/MM` | Dono / admin |
+| `!aniversário remover @pessoa` | Dono / admin |
+
+### Administrativos
+
+| Comando | Descrição |
+|---------|-----------|
+| `!stats` | Métricas de runtime do bot + servidor remoto |
+| `!shutdown` | Encerra o processo |
+| `!fig <nome>` | Envia figurinha salva |
+| `!fig salvar <nome>` | Salva figurinha (enviar ou citar) |
+| `!fig remover <nome>` | Remove figurinha salva |
+| `!fig lista` | Lista figurinhas salvas |
+
+> Comandos administrativos exigem que o remetente seja owner ou admin configurado em `usersJID`.
+
+### Efeitos de áudio disponíveis
+
+| Efeito | Descrição |
+|--------|-----------|
+| `reverb` | Slowed + reverb |
+| `deep` | Mais lento e grave |
+| `echo` | Eco pronunciado |
+| `nightcore` | Mais rápido e agudo |
+| `bass` | Boost de graves |
+| `lofi` | Lofi com filtro e reverb leve |
 
 ---
 
 ## IA — Oshino Shinobu
 
-- System prompt com personalidade.
-- Histórico por utilizador (SQLite, limpeza periódica).
-- Resumo persistente entre sessões.
-- Busca web (Tavily) quando a pergunta exige dados atuais.
-- Decisão de busca: keywords locais → classificador leve (Groq com poucos tokens).
+- Personalidade definida via system prompt.
+- Histórico por usuário armazenado em SQLite com limpeza periódica.
+- Resumo de conversa persistido entre sessões.
+- Busca web via Tavily acionada automaticamente quando a pergunta exige dados atuais.
 - Tom diferenciado para o owner.
 
-### Modelos (referência em `internal/domain/ia`)
+### Modelos
 
-| Situação | Modelo |
-|----------|--------|
+| Uso | Modelo |
+|-----|--------|
 | Conversa e resumo | `meta-llama/llama-4-scout-17b-16e-instruct` |
 | Resposta com contexto web | `llama-3.3-70b-versatile` |
 | Classificação de busca | Scout com `MaxTokens` reduzido |
@@ -139,66 +188,132 @@ O servidor que atende `!play` pode usar `cookies.txt` para o YouTube. Não parti
 
 ## Aniversários
 
-- Dados persistidos pelo pacote `internal/domain/birthday`.
-- **Scheduler:** todos os dias às **08:00** (hora local do processo), notifica grupos com aniversariantes — `internal/domain/birthday/scheduler.go`.
+Dados persistidos em JSON pelo pacote `internal/domain/birthday`.
+
+O scheduler roda em background e notifica os grupos com aniversariantes todos os dias às **08:00** (horário local do processo), mencionando os aniversariantes e todos do grupo.
 
 ---
 
 ## Estrutura do projeto
 
-O código em `internal/` está agrupado em **`domain/`** (negócio do bot), **`infra/`** (config, DB, ferramentas, tempo de vida do processo) e **`integration/`** (envio e download no WhatsApp). A raiz de `internal/` mantém só `app`, `bot` e `commands`.
-
 ```text
 .
 ├── cmd/bot/
 │   └── main.go                              # Entry point — chama app.Run()
-├── config.example.yaml                      # Modelo de configuração (copiar para config.yaml)
-├── dependencies.sh                          # Script auxiliar de dependências (se existir no teu clone)
-├── go.mod                                   # Módulo github.com/Turgho/YuukoWhatsapp
-├── go.sum                                   # Checksums de dependências
-├── LICENSE
-├── README.md
-├── assets/audios/                           # OGG para !mambo, !dio, !cafe (nomes referenciados em app.go)
-├── storage/                                 # Criado em runtime: storage.db (WhatsApp), message_history.db, stickers, etc.
+├── config.example.yaml                      # Modelo de configuração
+├── dependencies.sh                          # Instala ffmpeg e webpmux em ./bin/
+├── go.mod                                   # Módulo: github.com/Turgho/YuukoWhatsapp
 │
-├── internal/
-│   ├── app/                                 # Arranque: deps, router, registo de comandos
-│   │   └── app.go
-│   ├── bot/                                 # Cliente whatsmeow (sessão, eventos)
-│   │   ├── client.go
-│   │   └── handler.go
-│   ├── commands/                            # Handlers !comando, router, middleware, tipos
-│   │   ├── admin/
-│   │   ├── public/
-│   │   ├── middleware.go
-│   │   ├── router.go
-│   │   └── types.go
-│   ├── domain/                              # Funcionalidades e serviços do bot (regras de negócio)
-│   │   ├── birthday/                        # !aniversário — store, DM, scheduler 8h
-│   │   ├── geocoding/                       # Nominatim
-│   │   ├── history/                         # Histórico SQLite por JID (IA)
-│   │   ├── ia/                              # Groq, Tavily, prompts, busca, resumo
-│   │   ├── music/                           # !play remoto, efeitos, MIME
-│   │   ├── sticker/                         # WebP, store, DM !fig
-│   │   └── weather/                         # Open-Meteo + códigos WMO
-│   ├── infra/                               # Configuração, persistência, ferramentas, relógio de processo
-│   │   ├── configs/                         # Viper + .env
-│   │   ├── database/                        # SQLite credenciais whatsmeow
-│   │   ├── ffmpeg/                          # Exec ffmpeg (sticker, efeitos)
-│   │   ├── logger/                          # Zap (cliente)
-│   │   └── uptime/                          # Início do processo (!stats, mensagens antigas)
-│   └── integration/                         # Adaptadores WhatsApp (envio + download de mídia)
-│       ├── media/                           # DownloadFromEvent
-│       └── whatsapp/                        # SendText, Reply, stickers, texto visível no evento, …
+├── assets/
+│   ├── audios/                              # OGGs estáticos (!mambo, !dio, !cafe)
+│   │   ├── hora_cafe.ogg
+│   │   ├── mambo.ogg
+│   │   └── zawarudo.ogg
+│   ├── images/                              # Imagens estáticas (ex: banner do !menu)
+│   │   └── shinobu_banner.png
+│   ├── stickers/                            # JSON do store de figurinhas salvas
+│   └── videos/                              # Vídeos estáticos (uso futuro)
+│
+├── storage/                                 # Gerado em runtime — não commitar
+│   └── message_history.db                   # Histórico SQLite da IA por JID
+│
+└── internal/
+    ├── app/
+    │   └── app.go                           # Inicialização de deps, router e handlers
+    │
+    ├── bot/
+    │   ├── client.go                        # Sessão whatsmeow (QR, reconexão)
+    │   └── handler.go                       # Dispatcher de eventos do WhatsApp
+    │
+    ├── commands/                            # Camada de comandos
+    │   ├── router.go                        # Roteamento por prefixo + middlewares
+    │   ├── middleware.go                    # IgnoreOld, NotFound, PrivateCommands
+    │   ├── types.go                         # CommandMeta, HandlerFunc, ArgMeta
+    │   ├── admin/
+    │   │   ├── save_sticker.go              # !fig — gerencia figurinhas salvas
+    │   │   ├── shutdown.go                  # !shutdown
+    │   │   └── stats.go                     # !stats — runtime + servidor remoto
+    │   └── public/
+    │       ├── audio_effects.go             # !efeito — reverb, lofi, nightcore, etc.
+    │       ├── birthday.go                  # !aniversário — wrapper do domain
+    │       ├── bundled_audio.go             # !mambo, !dio, !cafe
+    │       ├── menu.go                      # !menu — banner + lista de comandos
+    │       ├── ping.go                      # !ping
+    │       ├── play.go                      # !play — encaminha para servidor yt-dlp
+    │       ├── shinobu.go                   # !shinobu / menção — IA com personalidade
+    │       ├── sticker.go                   # !sticker — imagem/vídeo → figurinha
+    │       └── weather.go                   # !clima
+    │
+    ├── domain/                             # Regras de negócio
+    │   ├── birthday/
+    │   │   ├── handler.go                   # Subcomandos do grupo (salvar, remover, lista)
+    │   │   ├── scheduler.go                 # Loop diário às 08:00 — notifica grupos
+    │   │   └── store.go                     # Persistência JSON + helpers (parseDate, etc.)
+    │   ├── geocoding/
+    │   │   └── geocode.go                   # Nominatim — coordenadas por nome de cidade
+    │   ├── history/
+    │   │   └── message_history.go           # Histórico por JID em SQLite (contexto da IA)
+    │   ├── ia/
+    │   │   ├── groq.go                      # Client HTTP Groq
+    │   │   ├── ia.go                        # Orquestração: histórico, busca, resposta
+    │   │   ├── keywords.go                  # Detecção de intent de busca web
+    │   │   ├── models.go                    # Constantes de modelos e parâmetros
+    │   │   ├── prompts.go                   # System prompts da Shinobu
+    │   │   ├── search.go                    # Busca web via Tavily
+    │   │   ├── summary.go                   # Resumo persistente por usuário
+    │   │   ├── tavily.go                    # Client HTTP Tavily
+    │   │   └── utils.go                     # Helpers internos da IA
+    │   ├── music/
+    │   │   ├── audio_effects.go             # Efeitos ffmpeg (reverb, lofi, nightcore…)
+    │   │   ├── mimetype.go                  # Resolução de MIME por extensão
+    │   │   └── ytdlp_request.go             # Requisição HTTP ao servidor de música
+    │   ├── sticker/
+    │   │   ├── convert.go                   # ffmpeg → WebP + injeção de metadados EXIF
+    │   │   ├── handler.go                   # Subcomandos !fig (salvar, remover, lista)
+    │   │   ├── send.go                      # Envio de figurinha salva
+    │   │   └── store.go                     # Persistência JSON das figurinhas
+    │   └── weather/
+    │       ├── weather.go                   # Open-Meteo — previsão por coordenadas
+    │       └── weather_code.go              # Mapeamento de códigos WMO para texto
+    │
+    ├── infra/                              # Infraestrutura transversal
+    │   ├── configs/
+    │   │   └── config.go                    # Viper + .env — carregamento de configuração
+    │   ├── database/
+    │   │   └── database.go                  # Conexão SQLite para o whatsmeow
+    │   ├── ffmpeg/
+    │   │   ├── ffmpeg_exec.go               # exec.Cmd para ./bin/ffmpeg
+    │   │   └── linux_process.go             # SysProcAttr — prioridade baixa no Linux
+    │   ├── logger/
+    │   │   └── logger.go                    # Zap — configuração de log
+    │   └── uptime/
+    │       └── uptime.go                    # Timestamp de início do processo (!stats)
+    │
+    └── integration/                        # Adaptadores WhatsApp
+        ├── media/
+        │   ├── doc.go                       # Documentação do pacote
+        │   └── download.go                  # DownloadFromEvent — imagem, vídeo, áudio, doc
+        └── whatsapp/
+            ├── audio.go                     # SendAudio
+            ├── context.go                   # buildContext, replyContext, mentionContext
+            ├── doc.go                       # Documentação do pacote
+            ├── document.go                  # SendDocument
+            ├── image.go                     # SendImage + geração de thumbnail JPEG
+            ├── location.go                  # SendLocation
+            ├── message_text.go              # PlainTextFromProto — extrai texto da mensagem
+            ├── presence.go                  # withTyping — indicador de digitação
+            ├── reaction.go                  # SendReaction
+            ├── reply.go                     # Reply (atalho com quote)
+            ├── sticker.go                   # SendSticker
+            ├── text.go                      # SendText, SendTextWithMentions, SendTextToJID
+            └── video.go                     # SendVideo
 ```
-
-Ficheiros em `storage/` e `config.yaml` costumam estar no `.gitignore`; use `config.example.yaml` como base. **`internal/domain`** agrupa funcionalidades (IA, stickers, clima, música, aniversários, histórico). **`internal/infra`** cobre configuração (`configs`), SQLite do cliente (`database`), `ffmpeg`, `logger` e `uptime`. **`internal/integration`** concentra o que fala com a API WhatsApp: envio de mensagens (`whatsapp`) e download de anexos (`media`).
 
 ---
 
-## Criar um novo comando
+## Criando um novo comando
 
-**1.** Ficheiro em `internal/commands/public/` ou `internal/commands/admin/`:
+**1.** Crie o handler em `internal/commands/public/` ou `internal/commands/admin/`:
 
 ```go
 package public
@@ -216,7 +331,7 @@ func HelloCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Mes
 }
 ```
 
-**2.** Registo em `internal/app/app.go` em `registerPublicCommands` ou `registerAdminCommands`:
+**2.** Registre em `internal/app/app.go`:
 
 ```go
 r.RegisterCommand(commands.CommandMeta{
@@ -226,7 +341,7 @@ r.RegisterCommand(commands.CommandMeta{
 }, public.HelloCommand)
 ```
 
-O `!menu` lista automaticamente. Comando só para owner/admins: `Private: true` no `CommandMeta`.
+O `!menu` lista automaticamente. Para restringir a owner/admins, adicione `Private: true` no `CommandMeta`.
 
 ---
 
