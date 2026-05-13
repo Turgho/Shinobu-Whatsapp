@@ -117,7 +117,8 @@ func StatsCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Mes
 
 	msg := fmt.Sprintf(
 		"📊 *Bot Status*\n\n"+
-			"☁️ *Square Cloud* — `%s`\n"+
+			"☁️ *Square Cloud*"+
+			"🏷 *Versão:* `%s`\n"+
 			"⏱ *Uptime:* %s\n"+
 			"🧵 *Goroutines:* %d\n"+
 			"⚙ *CPU cores:* %d\n"+
