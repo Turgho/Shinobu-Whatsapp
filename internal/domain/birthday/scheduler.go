@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 )

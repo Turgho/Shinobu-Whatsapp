@@ -1,4 +1,4 @@
-module github.com/Turgho/YuukoWhatsapp
+module github.com/Turgho/Shinobu-Whatsapp
 
 go 1.25.7
 

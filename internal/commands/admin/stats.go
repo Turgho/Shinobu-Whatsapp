@@ -11,8 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/infra/uptime"
-	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/uptime"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/version"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/host"
 	"go.mau.fi/whatsmeow"
@@ -31,10 +32,11 @@ type remoteStats struct {
 	DiskFree   float64 `json:"disk_free_gb"`
 	Goroutines int     `json:"goroutines"`
 	CPUCores   int     `json:"cpu_cores"`
+	Version    string  `json:"version"`
 }
 
 func fetchNotebookStats() (*remoteStats, error) {
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Get(os.Getenv("MUSIC_SERVER_URL") + "/stats")
 	if err != nil {
 		return nil, err
@@ -49,7 +51,6 @@ func fetchNotebookStats() (*remoteStats, error) {
 }
 
 func StatsCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
-	// Busca stats do notebook em paralelo com os stats locais da Square Cloud
 	var (
 		notebook *remoteStats
 		nbErr    error
@@ -83,21 +84,27 @@ func StatsCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Mes
 	var botMem runtime.MemStats
 	runtime.ReadMemStats(&botMem)
 
-	wg.Wait() // aguarda o notebook terminar
+	wg.Wait()
 
 	// Monta bloco do notebook
 	notebookBlock := ""
 	if nbErr != nil {
 		notebookBlock = "❌ *Offline / sem resposta*"
 	} else {
+		notebookVersion := notebook.Version
+		if notebookVersion == "" {
+			notebookVersion = "unknown"
+		}
 		notebookBlock = fmt.Sprintf(
-			"⏱ *Uptime:* %s\n"+
+			"🏷 *Versão:* `%s`\n"+
+				"⏱ *Uptime:* %s\n"+
 				"🧵 *Goroutines:* %d\n"+
 				"⚙ *CPU cores:* %d\n"+
 				"🖥 *CPU uso:* %.1f%%\n"+
 				"🌡 *CPU temp:* %s\n"+
 				"💾 *RAM:* %.0f MB / %.0f MB (%.1f%%)\n"+
 				"💿 *Disco:* %.1f GB livres de %.1f GB",
+			notebookVersion,
 			notebook.Uptime,
 			notebook.Goroutines,
 			notebook.CPUCores,
@@ -108,21 +115,19 @@ func StatsCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Mes
 		)
 	}
 
-	msg := fmt.Sprintf(`
-📊 *Bot Status*
-
-☁️ *Square Cloud*
-⏱ *Uptime:* %s
-🧵 *Goroutines:* %d
-⚙ *CPU cores:* %d
-🖥 *CPU uso:* %.1f%%
-🌡 *CPU temp:* %s
-📦 *RAM bot:* %.2f MB
-
-——————————————
-🖥 *Notebook (yt-dlp)*
-%s
-`,
+	msg := fmt.Sprintf(
+		"📊 *Bot Status*\n\n"+
+			"☁️ *Square Cloud* — `%s`\n"+
+			"⏱ *Uptime:* %s\n"+
+			"🧵 *Goroutines:* %d\n"+
+			"⚙ *CPU cores:* %d\n"+
+			"🖥 *CPU uso:* %.1f%%\n"+
+			"🌡 *CPU temp:* %s\n"+
+			"📦 *RAM bot:* %.2f MB\n\n"+
+			"——————————————\n"+
+			"🖥 *Notebook (yt-dlp)*\n"+
+			"%s",
+		version.Version,
 		uptimeStr,
 		runtime.NumGoroutine(),
 		runtime.NumCPU(),

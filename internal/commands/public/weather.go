@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
-	"github.com/Turgho/YuukoWhatsapp/internal/domain/geocoding"
-	"github.com/Turgho/YuukoWhatsapp/internal/domain/weather"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/geocoding"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/weather"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )

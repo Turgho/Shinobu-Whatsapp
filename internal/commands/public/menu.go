@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/commands"
-	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/commands"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/domain/history"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 )
 
 // refreshChatSummary atualiza a memória resumida da conversa em segundo plano.
