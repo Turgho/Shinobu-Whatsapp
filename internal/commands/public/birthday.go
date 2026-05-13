@@ -3,43 +3,31 @@ package public
 import (
 	"context"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
 	"github.com/Turgho/YuukoWhatsapp/internal/domain/birthday"
+	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-// BirthdayCommand gerencia aniversários do grupo.
+// BirthdayCommand gerencia aniversários — apenas em grupos.
 //
-// Em DM (apenas o dono):
+// Qualquer membro:
 //
-//	!aniversário salvar @pessoa DD/MM — salva aniversário de outra pessoa
-//	!aniversário remover @pessoa      — remove aniversário de outra pessoa
+//	!aniversario DD/MM            — salva o próprio aniversário
+//	!aniversario lista            — lista aniversários do grupo
+//	!aniversario remover          — remove o próprio aniversário
 //
-// Em grupos:
+// Dono/admins:
 //
-//	!aniversário DD/MM   — salva o próprio aniversário
-//	!aniversário lista   — lista aniversários do grupo
-//	!aniversário remover — remove o próprio aniversário
-func BirthdayCommand(ownerNumber string) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+//	!aniversario salvar @pessoa DD/MM — salva de outra pessoa
+//	!aniversario remover @pessoa      — remove de outra pessoa
+func BirthdayCommand(ownerNumber string, admins []string) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
-		// HandleDM já filtra por DM, dono e prefixo !aniversário.
-		birthday.HandleDM(ctx, client, evt, ownerNumber)
-
 		if !evt.Info.IsGroup {
-			return nil
-		}
-
-		if len(args) == 0 {
 			return whatsapp.SendText(ctx, client, evt,
-				"🎂 *Uso:*\n"+
-					"!aniversário DD/MM — salva seu aniversário\n"+
-					"!aniversário lista — lista aniversários do grupo\n"+
-					"!aniversário remover — remove seu aniversário",
-				true,
-			)
+				"❌ Este comando só funciona em grupos.", true)
 		}
 
-		return birthday.HandleGroup(ctx, client, evt, args)
+		return birthday.HandleGroup(ctx, client, evt, args, ownerNumber, admins)
 	}
 }
