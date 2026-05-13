@@ -15,6 +15,7 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/birthday"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/geocoding"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ia"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/weather"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/configs"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/database"
@@ -82,6 +83,10 @@ func Run() error {
 	registerAdminCommands(r, cfg)
 
 	birthday.StartScheduler(client.WAClient)
+
+	registry := ia.NewToolRegistry()
+	registry.RegisterFromRouter(r)
+	ia.SetRegistry(registry)
 
 	// Inicializa o handler
 	handler := bot.NewHandler(client.WAClient, r)

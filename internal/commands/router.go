@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 	"go.uber.org/zap"
@@ -101,6 +101,16 @@ func (r *Router) HandleMessage(evt *events.Message) {
 
 	cmdName := strings.ToLower(parts[0])
 	r.handlePrefixedCommand(evt, cmdName, parts[1:])
+}
+
+// Handler retorna o HandlerFunc de um comando pelo nome, ou nil se não existir.
+// Usado pelo ToolRegistry da IA para executar comandos via tool calling.
+func (r *Router) Handler(name string) HandlerFunc {
+	cmd, ok := r.commands[name]
+	if !ok {
+		return nil
+	}
+	return cmd.Handler
 }
 
 // runMiddlewares executa a cadeia; o nome do comando alimenta middlewares que dependem dele (ex.: privado).
