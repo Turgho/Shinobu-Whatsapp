@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/infra/ffmpeg"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/ffmpeg"
 )
 
 // ConvertToWebP converte os bytes de entrada (imagem ou vídeo) em WebP

@@ -1,7 +1,7 @@
 package bot
 
 import (
-	"github.com/Turgho/YuukoWhatsapp/internal/commands"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/commands"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )

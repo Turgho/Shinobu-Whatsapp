@@ -3,9 +3,9 @@ package public
 import (
 	"context"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/integration/media"
-	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
-	"github.com/Turgho/YuukoWhatsapp/internal/domain/sticker"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/media"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/sticker"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )

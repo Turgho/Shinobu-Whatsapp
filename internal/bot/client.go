@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/infra/logger"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/logger"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"slices"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/infra/uptime"
-	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/uptime"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow/types/events"
 	"go.uber.org/zap"
 )

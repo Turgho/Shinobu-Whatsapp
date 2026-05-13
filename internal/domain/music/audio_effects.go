@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/infra/ffmpeg"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/ffmpeg"
 )
 
 // Intensity representa a intensidade do efeito.

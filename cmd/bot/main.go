@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/app"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/app"
 )
 
 func main() {

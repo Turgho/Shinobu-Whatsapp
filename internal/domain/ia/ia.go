@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/domain/history"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 )
 
 // IARequest é o corpo JSON enviado à API compatível com OpenAI (Groq).

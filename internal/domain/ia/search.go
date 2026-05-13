@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/domain/history"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 )
 
 // maxRunesSearchClassifier limita o texto enviado ao classificador (só precisa do tema da pergunta).
