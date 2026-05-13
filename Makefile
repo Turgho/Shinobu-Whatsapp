@@ -4,9 +4,9 @@ COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DATE    := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 LDFLAGS := -ldflags "\
-  -X '$(MODULE)/version.Version=$(VERSION)' \
-  -X '$(MODULE)/version.Commit=$(COMMIT)' \
-  -X '$(MODULE)/version.Date=$(DATE)'"
+  -X '$(MODULE)/internal/infra/version.Version=$(VERSION)' \
+  -X '$(MODULE)/internal/infra/version.Commit=$(COMMIT)' \
+  -X '$(MODULE)/internal/infra/version.Date=$(DATE)'"
 
 build:
 	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o Shinobu ./cmd/bot/main.go
