@@ -106,7 +106,7 @@ Na primeira execução, escaneie o QR Code. A sessão WhatsApp fica em SQLite co
 | `!efeito` / `!efeito <nome> [intensidade]` | Lista ou aplica efeito num áudio (enviar ou citar áudio). Intensidades: `leve`, `medio`, `forte` | Pública |
 | `!shinobu <texto>` | Conversa com a IA | Pública |
 | Menção **“shinobu”** no texto | Atalho sem prefixo (mesmo handler que `!shinobu`) | Pública |
-| `!aniversário` | **Grupo:** `DD/MM`, `lista`, `remover`. **DM (dono):** `!aniversário salvar @pessoa DD/MM`, `remover @pessoa` | Pública / DM dono |
+| `!aniversário` | **Grupo:** `DD/MM`, `lista`, `remover`, `salvar @pessoa DD/MM` (dono/admin), `remover @pessoa` (dono/admin) | Pública |
 | `!mambo`, `!dio`, `!cafe` | Áudios OGG em `assets/audios/` (+ figurinhas salvas onde aplicável) | Pública |
 | `!stats` | Stats locais + opcionalmente `GET …/stats` no mesmo host que a música | Admin |
 | `!shutdown` | Encerra o processo do bot | Admin |
