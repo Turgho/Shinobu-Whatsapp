@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/Turgho/YuukoWhatsapp/internal/commands"
-	"github.com/Turgho/YuukoWhatsapp/internal/utils"
+	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -117,5 +117,5 @@ func sendBannerWithCaption(ctx context.Context, client *whatsmeow.Client, evt *e
 		return fmt.Errorf("upload banner: %w", err)
 	}
 
-	return utils.SendImage(ctx, client, evt, &uploaded, data, caption, true)
+	return whatsapp.SendImage(ctx, client, evt, &uploaded, data, caption, true)
 }

@@ -5,7 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Turgho/YuukoWhatsapp/pkg/history"
+	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
+	"github.com/Turgho/YuukoWhatsapp/internal/domain/history"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 	"go.uber.org/zap"
@@ -79,7 +80,7 @@ func (r *Router) Prefix() string {
 
 // HandleMessage despacha texto de mensagem: atalho por menção "shinobu" ou comando !nome.
 func (r *Router) HandleMessage(evt *events.Message) {
-	msg := getTextMessage(evt)
+	msg := whatsapp.VisibleTextFromEvent(evt)
 	if msg == "" {
 		return
 	}
@@ -171,30 +172,6 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 		zap.Duration("duration", time.Since(start)),
 		zap.String("date", time.Now().Format("2006-01-02 15:04:05")),
 	)
-}
-
-// getTextMessage extrai texto útil da mensagem (corpo, legenda ou caption de mídia).
-func getTextMessage(evt *events.Message) string {
-	if evt.Message == nil {
-		return ""
-	}
-
-	msg := evt.Message.GetConversation()
-
-	if msg == "" && evt.Message.GetExtendedTextMessage() != nil {
-		msg = evt.Message.GetExtendedTextMessage().GetText()
-	}
-	if msg == "" && evt.Message.GetImageMessage() != nil {
-		msg = evt.Message.GetImageMessage().GetCaption()
-	}
-	if msg == "" && evt.Message.GetVideoMessage() != nil {
-		msg = evt.Message.GetVideoMessage().GetCaption()
-	}
-	if msg == "" && evt.Message.GetDocumentMessage() != nil {
-		msg = evt.Message.GetDocumentMessage().GetCaption()
-	}
-
-	return strings.TrimSpace(msg)
 }
 
 // isMentioned detecta atalho por palavra-chave (case-insensitive), sem depender do prefixo.

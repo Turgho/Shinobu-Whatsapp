@@ -3,8 +3,8 @@ package public
 import (
 	"context"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/utils"
-	"github.com/Turgho/YuukoWhatsapp/pkg/sticker"
+	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
+	"github.com/Turgho/YuukoWhatsapp/internal/domain/sticker"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -13,7 +13,7 @@ import (
 // audioPath é relativo ao diretório de trabalho do processo (ex.: assets/audios/mambo.ogg).
 func FixedBundledAudioCommand(audioPath, stickerName string) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
-		if err := utils.SendBundledOggVoice(ctx, client, evt, audioPath); err != nil {
+		if err := whatsapp.SendBundledOggVoice(ctx, client, evt, audioPath); err != nil {
 			return err
 		}
 		if stickerName != "" {
