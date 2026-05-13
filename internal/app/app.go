@@ -12,13 +12,13 @@ import (
 	"github.com/Turgho/YuukoWhatsapp/internal/commands"
 	"github.com/Turgho/YuukoWhatsapp/internal/commands/admin"
 	"github.com/Turgho/YuukoWhatsapp/internal/commands/public"
-	"github.com/Turgho/YuukoWhatsapp/internal/configs"
-	"github.com/Turgho/YuukoWhatsapp/internal/database"
-	"github.com/Turgho/YuukoWhatsapp/internal/utils"
-	"github.com/Turgho/YuukoWhatsapp/pkg/birthday"
-	"github.com/Turgho/YuukoWhatsapp/pkg/geocoding"
-	"github.com/Turgho/YuukoWhatsapp/pkg/history"
-	"github.com/Turgho/YuukoWhatsapp/pkg/weather"
+	"github.com/Turgho/YuukoWhatsapp/internal/infra/configs"
+	"github.com/Turgho/YuukoWhatsapp/internal/infra/database"
+	"github.com/Turgho/YuukoWhatsapp/internal/infra/uptime"
+	"github.com/Turgho/YuukoWhatsapp/internal/domain/birthday"
+	"github.com/Turgho/YuukoWhatsapp/internal/domain/geocoding"
+	"github.com/Turgho/YuukoWhatsapp/internal/domain/history"
+	"github.com/Turgho/YuukoWhatsapp/internal/domain/weather"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 	"go.uber.org/zap"
@@ -26,7 +26,7 @@ import (
 
 // Run inicializa dependências, conecta ao WhatsApp e bloqueia em Listen até encerrar.
 func Run() error {
-	utils.StartUptime()
+	uptime.Start()
 
 	// Verifica dependências externas antes de qualquer conexão
 	if err := checkDeps(); err != nil {
@@ -226,7 +226,7 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "fig",
-		Description: "Gerencia stickers salvos. Uso em DM: !fig salvar <nome>, !fig remover <nome>, !sticker lista. Uso normal: !fig <nome>",
+		Description: "Gerencia stickers salvos. Uso em DM: !fig salvar <nome>, !fig remover <nome>, !fig lista. Uso normal: !fig <nome>",
 		Type:        commands.CommandTypeAdmin,
 		Args: []commands.ArgMeta{
 			{Name: "nome", Required: false},
@@ -243,8 +243,9 @@ func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) command
 	}
 }
 
+// checkDeps garante que o processo encontra ffmpeg/webpmux nos caminhos usados
+// pelo internal/infra/ffmpeg e internal/domain/sticker (execução típica: cwd = raiz do repositório).
 func checkDeps() error {
-	// Caminhos relativos ao cwd do processo (mesmo layout usado em runtime).
 	deps := []struct {
 		path string
 		name string

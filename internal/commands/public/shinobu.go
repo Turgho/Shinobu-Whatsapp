@@ -6,10 +6,10 @@ import (
 	"strings"
 
 	"github.com/Turgho/YuukoWhatsapp/internal/commands"
-	"github.com/Turgho/YuukoWhatsapp/internal/utils"
-	"github.com/Turgho/YuukoWhatsapp/pkg/history"
-	"github.com/Turgho/YuukoWhatsapp/pkg/ia"
-	"github.com/Turgho/YuukoWhatsapp/pkg/sticker"
+	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
+	"github.com/Turgho/YuukoWhatsapp/internal/domain/history"
+	"github.com/Turgho/YuukoWhatsapp/internal/domain/ia"
+	"github.com/Turgho/YuukoWhatsapp/internal/domain/sticker"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -29,7 +29,7 @@ func ShinobuCommand(store *history.Store) commands.HandlerFunc {
 		)
 
 		if len(args) == 0 || prompt == "" {
-			return utils.Reply(ctx, client, evt, "Hmph... fala logo, tolo.")
+			return whatsapp.Reply(ctx, client, evt, "Hmph... fala logo, tolo.")
 		}
 
 		// Menções
@@ -42,13 +42,13 @@ func ShinobuCommand(store *history.Store) commands.HandlerFunc {
 
 		answer, usedSearch, err := ia.AskIA(ctx, chat, prompt, isOwner, sender, store)
 		if err != nil {
-			return utils.Reply(ctx, client, evt, "❌ Falha ao consultar a Shinobu.")
+			return whatsapp.Reply(ctx, client, evt, "❌ Falha ao consultar a Shinobu.")
 		}
 
 		_ = store.Save(ctx, chat, history.AssistantSenderName, answer)
 
 		if len(mentions) > 0 {
-			if err := utils.ReplyWithMentions(ctx, client, evt, answer, mentions); err != nil {
+			if err := whatsapp.ReplyWithMentions(ctx, client, evt, answer, mentions); err != nil {
 				return err
 			}
 
@@ -60,7 +60,7 @@ func ShinobuCommand(store *history.Store) commands.HandlerFunc {
 			return nil
 		}
 
-		if err := utils.Reply(ctx, client, evt, answer); err != nil {
+		if err := whatsapp.Reply(ctx, client, evt, answer); err != nil {
 			return err
 		}
 

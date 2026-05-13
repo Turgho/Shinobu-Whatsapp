@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/utils"
-	"github.com/Turgho/YuukoWhatsapp/pkg/music"
+	"github.com/Turgho/YuukoWhatsapp/internal/integration/media"
+	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
+	"github.com/Turgho/YuukoWhatsapp/internal/domain/music"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -21,13 +22,13 @@ import (
 //	!efeito reverb forte     — intensidade forte
 func AudioEffectsCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	if len(args) == 0 || strings.ToLower(args[0]) == "lista" {
-		return utils.SendText(ctx, client, evt, music.EffectList(), true)
+		return whatsapp.SendText(ctx, client, evt, music.EffectList(), true)
 	}
 
 	effectName := strings.ToLower(args[0])
 
 	if _, ok := music.Effects[effectName]; !ok {
-		return utils.SendText(ctx, client, evt,
+		return whatsapp.SendText(ctx, client, evt,
 			"❌ Efeito não encontrado.\n\n"+music.EffectList(), true)
 	}
 
@@ -37,29 +38,29 @@ func AudioEffectsCommand(ctx context.Context, client *whatsmeow.Client, evt *eve
 		intensity = music.ParseIntensity(strings.ToLower(args[1]))
 	}
 
-	intensityLabel := []string{"leve", "médio", "forte"}[intensity]
-	_ = utils.SendText(ctx, client, evt,
+	intensityLabel := music.IntensityLabel(intensity)
+	_ = whatsapp.SendText(ctx, client, evt,
 		fmt.Sprintf("⏳ Aplicando *%s* (%s)...", effectName, intensityLabel), true)
 
-	audio, err := utils.DownloadFromEvent(ctx, client, evt, utils.FilterAudioOnly)
+	dl, err := media.DownloadFromEvent(ctx, client, evt, media.FilterAudioOnly)
 	if err != nil {
-		return utils.SendText(ctx, client, evt,
+		return whatsapp.SendText(ctx, client, evt,
 			"📎 Envie um áudio e chame `!efeito <nome>`, ou responda a um áudio com o comando.", true)
 	}
 
-	result, err := music.Apply(ctx, audio.Data, audio.Ext, effectName, intensity)
+	result, err := music.Apply(ctx, dl.Data, dl.Ext, effectName, intensity)
 	if err != nil {
-		return utils.SendText(ctx, client, evt,
+		return whatsapp.SendText(ctx, client, evt,
 			"❌ Não consegui processar o áudio. Certifique-se de que é um áudio válido.", true)
 	}
 
 	uploaded, err := client.Upload(ctx, result, whatsmeow.MediaAudio)
 	if err != nil {
-		return utils.SendText(ctx, client, evt, "❌ Falha ao enviar o áudio modificado.", true)
+		return whatsapp.SendText(ctx, client, evt, "❌ Falha ao enviar o áudio modificado.", true)
 	}
 
-	if err := utils.SendAudio(ctx, client, evt, &uploaded, "audio/mpeg", false, true); err != nil {
-		return utils.SendText(ctx, client, evt, "❌ Falha ao enviar o áudio.", true)
+	if err := whatsapp.SendAudio(ctx, client, evt, &uploaded, "audio/mpeg", false, true); err != nil {
+		return whatsapp.SendText(ctx, client, evt, "❌ Falha ao enviar o áudio.", true)
 	}
 
 	return nil

@@ -4,7 +4,8 @@ import (
 	"context"
 	"slices"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/utils"
+	"github.com/Turgho/YuukoWhatsapp/internal/infra/uptime"
+	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow/types/events"
 	"go.uber.org/zap"
 )
@@ -16,7 +17,7 @@ func sendMiddlewareNotice(
 	evt *events.Message,
 	cmd, logUser, msg, warn string,
 ) {
-	if err := utils.SendText(ctx, r.client, evt, msg, true); err != nil {
+	if err := whatsapp.SendText(ctx, r.client, evt, msg, true); err != nil {
 		r.log.Warn(warn,
 			zap.String("command", cmd),
 			zap.String("user", logUser),
@@ -33,7 +34,7 @@ func IgnoreSelfMiddleware(cmd string, evt *events.Message) bool {
 // IgnoreOldMessagesMiddleware ignora mensagens anteriores ao início do bot.
 // Evita reagir a mensagens antigas ao reiniciar.
 func IgnoreOldMessagesMiddleware(cmd string, evt *events.Message) bool {
-	return evt.Info.Timestamp.After(utils.SinceUptime())
+	return evt.Info.Timestamp.After(uptime.ProcessStartTime())
 }
 
 // CommandNotFoundMiddleware notifica o usuário quando o comando não existe.

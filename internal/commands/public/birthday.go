@@ -3,8 +3,8 @@ package public
 import (
 	"context"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/utils"
-	"github.com/Turgho/YuukoWhatsapp/pkg/birthday"
+	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
+	"github.com/Turgho/YuukoWhatsapp/internal/domain/birthday"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -31,7 +31,7 @@ func BirthdayCommand(ownerNumber string) func(ctx context.Context, client *whats
 		}
 
 		if len(args) == 0 {
-			return utils.SendText(ctx, client, evt,
+			return whatsapp.SendText(ctx, client, evt,
 				"🎂 *Uso:*\n"+
 					"!aniversário DD/MM — salva seu aniversário\n"+
 					"!aniversário lista — lista aniversários do grupo\n"+

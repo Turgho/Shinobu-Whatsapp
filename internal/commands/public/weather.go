@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/utils"
-	"github.com/Turgho/YuukoWhatsapp/pkg/geocoding"
-	"github.com/Turgho/YuukoWhatsapp/pkg/weather"
+	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
+	"github.com/Turgho/YuukoWhatsapp/internal/domain/geocoding"
+	"github.com/Turgho/YuukoWhatsapp/internal/domain/weather"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -22,7 +22,7 @@ func WeatherCommand(
 	weatherClient *weather.WeatherClient,
 ) error {
 	if len(args) == 0 {
-		return utils.Reply(ctx, client, evt, "Por favor, informe o nome da cidade.")
+		return whatsapp.Reply(ctx, client, evt, "Por favor, informe o nome da cidade.")
 	}
 
 	query := strings.Join(args, " ")
@@ -39,7 +39,7 @@ func WeatherCommand(
 	}
 
 	msg := buildWeatherMessage(loc, weatherData)
-	return utils.Reply(ctx, client, evt, msg)
+	return whatsapp.Reply(ctx, client, evt, msg)
 }
 
 // replyOrUnderlying notifica o usuário com reply; se o envio falhar devolve esse erro, senão o erro original (pode ser nil).
@@ -50,7 +50,7 @@ func replyOrUnderlying(
 	userMsg string,
 	underlying error,
 ) error {
-	if replyErr := utils.Reply(ctx, client, evt, userMsg); replyErr != nil {
+	if replyErr := whatsapp.Reply(ctx, client, evt, userMsg); replyErr != nil {
 		return replyErr
 	}
 	return underlying

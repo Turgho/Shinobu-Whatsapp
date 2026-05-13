@@ -11,7 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Turgho/YuukoWhatsapp/internal/utils"
+	"github.com/Turgho/YuukoWhatsapp/internal/infra/uptime"
+	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/host"
 	"go.mau.fi/whatsmeow"
@@ -62,7 +63,7 @@ func StatsCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Mes
 	}()
 
 	// Stats locais (Square Cloud) — coleta enquanto aguarda o notebook
-	uptime := time.Since(utils.SinceUptime()).Round(time.Second)
+	uptimeStr := time.Since(uptime.ProcessStartTime()).Round(time.Second)
 	cpuPercent, _ := cpu.Percent(time.Second, false)
 	cpuUsage := 0.0
 	if len(cpuPercent) > 0 {
@@ -122,7 +123,7 @@ func StatsCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Mes
 🖥 *Notebook (yt-dlp)*
 %s
 `,
-		uptime,
+		uptimeStr,
 		runtime.NumGoroutine(),
 		runtime.NumCPU(),
 		cpuUsage,
@@ -131,5 +132,5 @@ func StatsCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Mes
 		notebookBlock,
 	)
 
-	return utils.Reply(ctx, client, evt, msg)
+	return whatsapp.Reply(ctx, client, evt, msg)
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/Turgho/YuukoWhatsapp/internal/commands"
-	"github.com/Turgho/YuukoWhatsapp/internal/utils"
-	"github.com/Turgho/YuukoWhatsapp/pkg/sticker"
+	"github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
+	"github.com/Turgho/YuukoWhatsapp/internal/domain/sticker"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -28,7 +28,7 @@ func SaveStickerCommand(ownerNumber string) commands.HandlerFunc {
 
 		// Enviar sticker salvo pelo nome.
 		if len(args) == 0 {
-			return utils.SendText(ctx, client, evt,
+			return whatsapp.SendText(ctx, client, evt,
 				"❌ Uso:\n"+
 					"!fig salvar <nome>\n"+
 					"!fig remover <nome>\n"+
@@ -39,7 +39,7 @@ func SaveStickerCommand(ownerNumber string) commands.HandlerFunc {
 		}
 
 		if err := sticker.Send(ctx, client, evt, args[0], true); err != nil {
-			return utils.SendText(ctx, client, evt, "❌ Sticker não encontrado ou falha ao enviar.", true)
+			return whatsapp.SendText(ctx, client, evt, "❌ Sticker não encontrado ou falha ao enviar.", true)
 		}
 
 		return nil
