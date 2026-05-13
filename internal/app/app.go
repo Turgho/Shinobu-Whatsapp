@@ -12,13 +12,13 @@ import (
 	"github.com/Turgho/YuukoWhatsapp/internal/commands"
 	"github.com/Turgho/YuukoWhatsapp/internal/commands/admin"
 	"github.com/Turgho/YuukoWhatsapp/internal/commands/public"
-	"github.com/Turgho/YuukoWhatsapp/internal/infra/configs"
-	"github.com/Turgho/YuukoWhatsapp/internal/infra/database"
-	"github.com/Turgho/YuukoWhatsapp/internal/infra/uptime"
 	"github.com/Turgho/YuukoWhatsapp/internal/domain/birthday"
 	"github.com/Turgho/YuukoWhatsapp/internal/domain/geocoding"
 	"github.com/Turgho/YuukoWhatsapp/internal/domain/history"
 	"github.com/Turgho/YuukoWhatsapp/internal/domain/weather"
+	"github.com/Turgho/YuukoWhatsapp/internal/infra/configs"
+	"github.com/Turgho/YuukoWhatsapp/internal/infra/database"
+	"github.com/Turgho/YuukoWhatsapp/internal/infra/uptime"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 	"go.uber.org/zap"
@@ -195,7 +195,7 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Name:        "aniversário",
 		Description: "Gerencia aniversário de grupos",
 		Type:        commands.CommandTypeGroup,
-	}, public.BirthdayCommand(cfg.UsersJID.Owner))
+	}, public.BirthdayCommand(cfg.UsersJID.Owner, cfg.UsersJID.Admins))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "efeito",
