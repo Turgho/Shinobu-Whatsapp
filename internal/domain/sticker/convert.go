@@ -56,7 +56,7 @@ func runFFmpeg(ctx context.Context, input, output string, animated bool) error {
 	if animated {
 		args = []string{
 			"-ss", "0",
-			"-t", "6",
+			"-t", "10",
 			"-i", input,
 			"-vf", scaleFilter + ",fps=15",
 			"-vcodec", "libwebp",
