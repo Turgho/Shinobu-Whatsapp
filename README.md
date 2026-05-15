@@ -201,7 +201,8 @@ O scheduler roda em background e notifica os grupos com aniversariantes todos os
 ├── cmd/bot/
 │   └── main.go                              # Entry point — chama app.Run()
 ├── config.example.yaml                      # Modelo de configuração
-├── dependencies.sh                          # Instala ffmpeg e webpmux em ./bin/
+├── scripts
+│   └── setup.sh                             # Instala ffmpeg e webpmux em ./bin/
 ├── go.mod                                   # Módulo: github.com/Turgho/YuukoWhatsapp
 │
 ├── assets/

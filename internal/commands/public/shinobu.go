@@ -6,10 +6,10 @@ import (
 	"strings"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands"
-	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ia"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/sticker"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )
