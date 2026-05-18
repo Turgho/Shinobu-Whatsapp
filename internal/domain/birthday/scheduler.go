@@ -17,10 +17,18 @@ const notifyHour = 0 // 12h da manhã
 // Deve ser chamado uma vez no main após o cliente conectar.
 func StartScheduler(client *whatsmeow.Client) {
 	go func() {
+		loc, err := time.LoadLocation("America/Sao_Paulo")
+		if err != nil {
+			panic(err)
+		}
+
 		for {
-			now := time.Now()
+			now := time.Now().In(loc)
+
 			next := nextTrigger(now, notifyHour)
-			fmt.Printf("[birthday] próxima verificação: %s\n", next.Format("02/01 15:04"))
+
+			fmt.Printf("[birthday] próxima verificação: %s\n",
+				next.Format("02/01 15:04"))
 
 			<-time.After(time.Until(next))
 			checkAndNotify(client)
@@ -40,7 +48,13 @@ func nextTrigger(now time.Time, hour int) time.Time {
 
 // checkAndNotify verifica aniversariantes do dia e envia mensagem em cada grupo.
 func checkAndNotify(client *whatsmeow.Client) {
-	now := time.Now()
+	loc, err := time.LoadLocation("America/Sao_Paulo")
+	if err != nil {
+		fmt.Println("[birthday] erro timezone:", err)
+		return
+	}
+
+	now := time.Now().In(loc)
 	birthdays := TodayEntries(now.Day(), int(now.Month()))
 
 	if len(birthdays) == 0 {
