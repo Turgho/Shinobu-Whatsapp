@@ -11,7 +11,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 )
 
-const notifyHour = 8 // 8h da manhã
+const notifyHour = 0 // 12h da manhã
 
 // StartScheduler inicia o loop em background que verifica aniversários todo dia às 8h.
 // Deve ser chamado uma vez no main após o cliente conectar.
