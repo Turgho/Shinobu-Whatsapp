@@ -25,8 +25,11 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("music/download: query vazia")
 	}
 
-	if serverURL := os.Getenv("MUSIC_SERVER_URL"); serverURL != "" {
-		return downloadViaTunnel(ctx, serverURL, query)
+	apiToken := os.Getenv("API_AUTH_TOKEN")
+	serverURL := os.Getenv("MUSIC_SERVER_URL")
+
+	if serverURL != "" && apiToken != "" {
+		return downloadViaTunnel(ctx, serverURL, apiToken, query)
 	}
 
 	if _, err := os.Stat("./bin/ytdlp"); err == nil {
@@ -37,9 +40,7 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 }
 
 // downloadViaTunnel usa o servidor local exposto via Cloudflare Tunnel.
-func downloadViaTunnel(ctx context.Context, serverURL, query string) ([]byte, string, error) {
-	apiToken := os.Getenv("API_AUTH_TOKEN")
-
+func downloadViaTunnel(ctx context.Context, serverURL, apiToken, query string) ([]byte, string, error) {
 	endpoint := strings.TrimRight(serverURL, "/") + "/play"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewBufferString(query))
