@@ -38,6 +38,8 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 
 // downloadViaTunnel usa o servidor local exposto via Cloudflare Tunnel.
 func downloadViaTunnel(ctx context.Context, serverURL, query string) ([]byte, string, error) {
+	apiToken := os.Getenv("API_AUTH_TOKEN")
+
 	endpoint := strings.TrimRight(serverURL, "/") + "/play"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewBufferString(query))
@@ -45,6 +47,7 @@ func downloadViaTunnel(ctx context.Context, serverURL, query string) ([]byte, st
 		return nil, "", fmt.Errorf("music/tunnel: erro ao criar requisição: %w", err)
 	}
 	req.Header.Set("Content-Type", "text/plain")
+	req.Header.Set("Authorization", "Bearer "+apiToken)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
