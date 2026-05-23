@@ -37,7 +37,16 @@ type remoteStats struct {
 
 func fetchNotebookStats() (*remoteStats, error) {
 	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get(os.Getenv("MUSIC_SERVER_URL") + "/stats")
+	apiToken := os.Getenv("API_AUTH_TOKEN")
+
+	req, err := http.NewRequest("GET", os.Getenv("MUSIC_SERVER_URL")+"/stats", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+apiToken)
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -47,6 +56,7 @@ func fetchNotebookStats() (*remoteStats, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
 		return nil, err
 	}
+
 	return &stats, nil
 }
 
