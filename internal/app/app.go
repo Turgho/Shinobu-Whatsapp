@@ -209,6 +209,13 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
 	}, admin.ShutdownCommand)
 
 	r.RegisterCommand(commands.CommandMeta{
+		Name:        "restart",
+		Description: "Reinicia o bot",
+		Type:        commands.CommandTypeOwner,
+		Private:     true,
+	}, admin.RestartCommand)
+
+	r.RegisterCommand(commands.CommandMeta{
 		Name:        "fig",
 		Description: "Gerencia stickers salvos. Uso em DM: !fig salvar <nome>, !fig remover <nome>, !fig lista. Uso normal: !fig <nome>",
 		Type:        commands.CommandTypeAdmin,
