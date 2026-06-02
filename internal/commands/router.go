@@ -3,9 +3,11 @@ package commands
 import (
 	"context"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ignore"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
@@ -17,7 +19,11 @@ const (
 	handlerTimeoutCommand = 60 * time.Second
 )
 
-// Router associa prefixo, handlers, middlewares e o store compartilhado (ex.: histórico da IA).
+type rateLimitEntry struct {
+	count    int
+	resetAt  time.Time
+}
+
 type Router struct {
 	commands    map[string]command
 	middlewares []Middleware
@@ -25,20 +31,62 @@ type Router struct {
 	client      *whatsmeow.Client
 	log         *zap.Logger
 	store       *history.Store
+
+	rateLimitMu    sync.Mutex
+	rateLimitMap   map[string]*rateLimitEntry
+	rateLimitMax   int
+	rateLimitEvery time.Duration
+
+	botJID string
 }
 
-// NewRouter cria um router vazio; use RegisterCommand e Use antes de HandleMessage.
 func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *history.Store) *Router {
 	return &Router{
-		commands: make(map[string]command),
-		prefix:   prefix,
-		client:   client,
-		log:      log,
-		store:    store,
+		commands:       make(map[string]command),
+		prefix:         prefix,
+		client:         client,
+		log:            log,
+		store:          store,
+		rateLimitMap:   make(map[string]*rateLimitEntry),
+		rateLimitMax:   10,
+		rateLimitEvery: time.Minute,
 	}
 }
 
-// RegisterCommand registra um comando com seus metadados e handler.
+func (r *Router) SetRateLimit(max int, every time.Duration) {
+	r.rateLimitMax = max
+	r.rateLimitEvery = every
+}
+
+func (r *Router) SetBotJID(jid string) {
+	r.botJID = jid
+}
+
+// checkRateLimit implementa rate limiting por chave (sender JID).
+// Usa janela fixa: cada chave tem um contador e resetAt.
+// Quando resetAt passa, o contador é zerado.
+// Se o contador excede o máximo, a requisição é bloqueada.
+func (r *Router) checkRateLimit(key string) bool {
+	r.rateLimitMu.Lock()
+	defer r.rateLimitMu.Unlock()
+
+	now := time.Now()
+	entry, ok := r.rateLimitMap[key]
+	if !ok || now.After(entry.resetAt) {
+		r.rateLimitMap[key] = &rateLimitEntry{
+			count:   1,
+			resetAt: now.Add(r.rateLimitEvery),
+		}
+		return true
+	}
+
+	entry.count++
+	if entry.count > r.rateLimitMax {
+		return false
+	}
+	return true
+}
+
 func (r *Router) RegisterCommand(meta CommandMeta, handler HandlerFunc) {
 	r.commands[meta.Name] = command{Meta: meta, Handler: handler}
 	r.log.Info("Comando registrado",
@@ -47,12 +95,10 @@ func (r *Router) RegisterCommand(meta CommandMeta, handler HandlerFunc) {
 	)
 }
 
-// Use adiciona um middleware ao pipeline (ordem de registro = ordem de execução).
 func (r *Router) Use(m Middleware) {
 	r.middlewares = append(r.middlewares, m)
 }
 
-// Commands retorna os metadados de todos os comandos registrados.
 func (r *Router) Commands() []CommandMeta {
 	metas := make([]CommandMeta, 0, len(r.commands))
 	for _, cmd := range r.commands {
@@ -61,31 +107,44 @@ func (r *Router) Commands() []CommandMeta {
 	return metas
 }
 
-// HasCommand verifica se um comando está registrado.
 func (r *Router) HasCommand(name string) bool {
 	_, ok := r.commands[name]
 	return ok
 }
 
-// IsPrivate verifica se um comando registrado está marcado como privado.
 func (r *Router) IsPrivate(name string) bool {
 	cmd, ok := r.commands[name]
 	return ok && cmd.Meta.Private
 }
 
-// Prefix retorna o prefixo configurado no router.
 func (r *Router) Prefix() string {
 	return r.prefix
 }
 
-// HandleMessage despacha texto de mensagem: atalho por menção "shinobu" ou comando !nome.
+// HandleMessage processa cada mensagem no pipeline:
+// 1. Extrai texto visível
+// 2. Verifica se o remetente está na lista de ignorados
+// 3. Verifica rate limit
+// 4. Se é menção → IA via handleShinobuMention
+// 5. Se é comando prefixado → handlePrefixedCommand
 func (r *Router) HandleMessage(evt *events.Message) {
 	msg := whatsapp.VisibleTextFromEvent(evt)
 	if msg == "" {
 		return
 	}
 
-	if isMentioned(msg) {
+	sender := evt.Info.Sender.String()
+	senderUser := evt.Info.Sender.User
+	if ignore.IsIgnored(sender) || ignore.IsIgnored(senderUser) {
+		r.log.Debug("Mensagem ignorada", zap.String("sender", sender))
+		return
+	}
+
+	if !r.checkRateLimit(sender) {
+		return
+	}
+
+	if isMentioned(msg, r.botJID) {
 		r.handleShinobuMention(evt, msg)
 		return
 	}
@@ -103,8 +162,6 @@ func (r *Router) HandleMessage(evt *events.Message) {
 	r.handlePrefixedCommand(evt, cmdName, parts[1:])
 }
 
-// Handler retorna o HandlerFunc de um comando pelo nome, ou nil se não existir.
-// Usado pelo ToolRegistry da IA para executar comandos via tool calling.
 func (r *Router) Handler(name string) HandlerFunc {
 	cmd, ok := r.commands[name]
 	if !ok {
@@ -113,7 +170,8 @@ func (r *Router) Handler(name string) HandlerFunc {
 	return cmd.Handler
 }
 
-// runMiddlewares executa a cadeia; o nome do comando alimenta middlewares que dependem dele (ex.: privado).
+// runMiddlewares executa a cadeia de middlewares em ordem.
+// Se algum retornar false, o pipeline é interrompido.
 func (r *Router) runMiddlewares(cmdName string, evt *events.Message) bool {
 	for _, m := range r.middlewares {
 		if !m(cmdName, evt) {
@@ -123,6 +181,8 @@ func (r *Router) runMiddlewares(cmdName string, evt *events.Message) bool {
 	return true
 }
 
+// handleShinobuMention executa o handler shinobu (IA) quando o bot é mencionado.
+// Tem timeout menor (30s) porque menções em grupo precisam de resposta rápida.
 func (r *Router) handleShinobuMention(evt *events.Message, msg string) {
 	if !r.runMiddlewares("shinobu", evt) {
 		return
@@ -147,8 +207,9 @@ func (r *Router) handleShinobuMention(evt *events.Message, msg string) {
 	}
 }
 
+// handlePrefixedCommand executa um comando registrado com prefixo.
+// Passa pelos middlewares, executa com timeout e loga duração.
 func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args []string) {
-	// Middlewares antes do log: mensagens filtradas não poluem o terminal.
 	if !r.runMiddlewares(cmdName, evt) {
 		return
 	}
@@ -184,7 +245,16 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 	)
 }
 
-// isMentioned detecta atalho por palavra-chave (case-insensitive), sem depender do prefixo.
-func isMentioned(msg string) bool {
-	return strings.Contains(strings.ToLower(msg), "shinobu")
+// isMentioned verifica se a mensagem menciona a Shinobu.
+// Usa dois critérios: o nome "shinobu" (case insensitive) e
+// a menção explícita via @jid (para grupos).
+func isMentioned(msg, botJID string) bool {
+	lower := strings.ToLower(msg)
+	if strings.Contains(lower, "shinobu") {
+		return true
+	}
+	if botJID != "" && strings.Contains(msg, botJID) {
+		return true
+	}
+	return false
 }

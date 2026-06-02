@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/phone"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
@@ -203,12 +204,12 @@ func usage(ctx context.Context, client *whatsmeow.Client, evt *events.Message) e
 
 // isPrivileged verifica se o remetente é o dono ou um dos admins.
 func isPrivileged(evt *events.Message, ownerNumber string, admins []string) bool {
-	sender := NormalizeNumber(evt.Info.Sender.ToNonAD().User)
-	if sender == NormalizeNumber(ownerNumber) {
+	sender := phone.NormalizeNumber(evt.Info.Sender.ToNonAD().User)
+	if sender == phone.NormalizeNumber(ownerNumber) {
 		return true
 	}
 	for _, admin := range admins {
-		if sender == NormalizeNumber(admin) {
+		if sender == phone.NormalizeNumber(admin) {
 			return true
 		}
 	}

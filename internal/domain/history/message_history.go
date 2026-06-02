@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
 	_ "modernc.org/sqlite"
 )
 
@@ -68,7 +69,7 @@ func NewStore(path string) (*Store, error) {
 
 // StartCleanup apaga mensagens mais antigas que maxAge, a cada hora, até ctx cancelar.
 func (s *Store) StartCleanup(ctx context.Context, maxAge time.Duration) {
-	go func() {
+	gosafe.Go(func() {
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 
@@ -83,7 +84,7 @@ func (s *Store) StartCleanup(ctx context.Context, maxAge time.Duration) {
 				return
 			}
 		}
-	}()
+	})
 }
 
 // Save grava uma mensagem de chat.

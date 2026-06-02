@@ -8,6 +8,8 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
+const MaxDownloadSize = 50 * 1024 * 1024
+
 // Type representa o tipo de mídia encontrada.
 type Type int
 
@@ -49,6 +51,12 @@ func DownloadFromEvent(ctx context.Context, client *whatsmeow.Client, evt *event
 	data, err := client.Download(ctx, info.source)
 	if err != nil {
 		return nil, fmt.Errorf("media: falha ao baixar mídia: %w", err)
+	}
+
+	// Checagem pós-download: a API do WhatsApp não expõe o tamanho do arquivo
+	// de forma confiável antes de baixar (alguns tipos de mídia não têm o campo).
+	if len(data) > MaxDownloadSize {
+		return nil, fmt.Errorf("media: mídia muito grande (%d bytes, máximo %d)", len(data), MaxDownloadSize)
 	}
 
 	return &Media{

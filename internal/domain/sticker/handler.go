@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/phone"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -22,7 +23,7 @@ func HandleDM(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	if evt == nil || evt.Message == nil || evt.Info.IsGroup {
 		return
 	}
-	if NormalizeNumber(evt.Info.Sender.User) != NormalizeNumber(ownerNumber) {
+	if phone.NormalizeNumber(evt.Info.Sender.User) != phone.NormalizeNumber(ownerNumber) {
 		return
 	}
 

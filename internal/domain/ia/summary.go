@@ -3,70 +3,72 @@ package ia
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
 )
 
-// refreshChatSummary atualiza a memória resumida da conversa em segundo plano.
-func refreshChatSummary(chat, lastUserPrompt, lastAssistantAnswer string, store *history.Store) {
-	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
-	defer cancel()
+// refreshChatSummary atualiza o resumo persistente da conversa de forma ASSÍNCRONA
+// (goroutine separada com recover). Só gera novo resumo se store.NeedsSummary
+// indicar que passou tempo ou mensagens suficientes desde a última atualização.
+// Não bloqueia a resposta da IA para o usuário.
+func refreshChatSummary(cfg *Config, chat, lastUserPrompt, lastAssistantAnswer string, store *history.Store) {
+	gosafe.Go(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+		defer cancel()
 
-	// Só resume quando a conversa já cresceu o suficiente.
-	need, err := store.NeedsSummary(ctx, chat, 30, 24*time.Hour)
-	if err != nil || !need {
-		return
-	}
+		need, err := store.NeedsSummary(ctx, chat, 30, 24*time.Hour)
+		if err != nil || !need {
+			return
+		}
 
-	currentSummary, err := store.GetSummary(ctx, chat)
-	if err != nil {
-		currentSummary = ""
-	}
+		currentSummary, err := store.GetSummary(ctx, chat)
+		if err != nil {
+			currentSummary = ""
+		}
 
-	recent, err := store.RecentMessages(ctx, chat, 20, 24*time.Hour)
-	if err != nil {
-		return
-	}
+		recent, err := store.RecentMessages(ctx, chat, 20, 24*time.Hour)
+		if err != nil {
+			return
+		}
 
-	summary, err := generateConversationSummary(
-		ctx,
-		currentSummary,
-		recent,
-		lastUserPrompt,
-		lastAssistantAnswer,
-	)
-	if err != nil {
-		return
-	}
+		summary, err := generateConversationSummary(
+			ctx,
+			cfg,
+			currentSummary,
+			recent,
+			lastUserPrompt,
+			lastAssistantAnswer,
+		)
+		if err != nil {
+			return
+		}
 
-	summary = strings.TrimSpace(summary)
-	summary = strings.TrimPrefix(summary, "```")
-	summary = strings.TrimSuffix(summary, "```")
-	summary = strings.TrimSpace(summary)
+		summary = strings.TrimSpace(summary)
+		summary = strings.TrimPrefix(summary, "```")
+		summary = strings.TrimSuffix(summary, "```")
+		summary = strings.TrimSpace(summary)
 
-	if summary == "" || strings.EqualFold(summary, "vazio") {
-		return
-	}
+		if summary == "" || strings.EqualFold(summary, "vazio") {
+			return
+		}
 
-	summary = truncateText(summary, 1400)
+		summary = truncateText(summary, 1400)
 
-	_ = store.SetSummary(ctx, chat, summary)
+		_ = store.SetSummary(ctx, chat, summary)
+	})
 }
 
-// generateConversationSummary pede para a IA atualizar o resumo persistente da conversa.
 func generateConversationSummary(
 	ctx context.Context,
+	cfg *Config,
 	currentSummary string,
 	recent []history.IAMessage,
 	lastUserPrompt string,
 	lastAssistantAnswer string,
 ) (string, error) {
-	groqURL := os.Getenv("GROQ_URL")
-	groqKey := os.Getenv("GROQ_API_KEY")
-
 	recentText := formatMessagesForSummary(recent)
 
 	userContent := fmt.Sprintf(
@@ -111,10 +113,9 @@ Regras:
 		},
 	}
 
-	return callGroq(ctx, groqURL, groqKey, "meta-llama/llama-4-scout-17b-16e-instruct", msgs, 0, 220)
+	return callGroq(ctx, cfg.GroqURL, cfg.GroqKey, "meta-llama/llama-4-scout-17b-16e-instruct", msgs, 0, 220)
 }
 
-// formatMessagesForSummary converte mensagens recentes em texto curto para o prompt de resumo.
 func formatMessagesForSummary(msgs []history.IAMessage) string {
 	if len(msgs) == 0 {
 		return "(sem mensagens recentes)"

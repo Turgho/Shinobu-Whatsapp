@@ -6,27 +6,26 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 	"unicode/utf8"
+
 )
 
 const (
 	tavilyURL       = "https://api.tavily.com/search"
-	maxContentChars = 900 // por resultado — suficiente sem explodir o contexto
-	maxResults      = 6   // mais fontes = resposta mais embasada
+	maxContentChars = 900
+	maxResults      = 6
 )
 
-// tavilyRequest é o payload enviado à API do Tavily.
 type tavilyRequest struct {
 	Query             string `json:"query"`
 	APIKey            string `json:"api_key"`
-	SearchDepth       string `json:"search_depth"` // "basic" ou "advanced"
-	Topic             string `json:"topic"`        // "general" ou "news"
+	SearchDepth       string `json:"search_depth"`
+	Topic             string `json:"topic"`
 	MaxResults        int    `json:"max_results"`
-	IncludeAnswer     bool   `json:"include_answer"`      // resumo automático do Tavily
-	IncludeRawContent bool   `json:"include_raw_content"` // conteúdo completo das páginas
+	IncludeAnswer     bool   `json:"include_answer"`
+	IncludeRawContent bool   `json:"include_raw_content"`
 }
 
 type tavilyResponse struct {
@@ -35,22 +34,19 @@ type tavilyResponse struct {
 		Title   string  `json:"title"`
 		Content string  `json:"content"`
 		URL     string  `json:"url"`
-		Score   float64 `json:"score"` // relevância (0-1)
+		Score   float64 `json:"score"`
 	} `json:"results"`
 }
 
-// searchWeb busca informações na web via Tavily e retorna um contexto
-// formatado para ser incluído no prompt da IA.
-func searchWeb(ctx context.Context, query string) (string, error) {
-	tavilyKey := os.Getenv("TAVILY_API_KEY")
-	if tavilyKey == "" {
+func searchWeb(ctx context.Context, apiKey, query string) (string, error) {
+	if apiKey == "" {
 		return "", fmt.Errorf("TAVILY_API_KEY não configurada")
 	}
 
 	req := tavilyRequest{
 		Query:             query,
-		APIKey:            tavilyKey,
-		SearchDepth:       "advanced", // mais preciso que "basic"
+		APIKey:            apiKey,
+		SearchDepth:       "advanced",
 		Topic:             tavilyTopicFromQuery(query),
 		MaxResults:        maxResults,
 		IncludeAnswer:     true,
@@ -87,28 +83,27 @@ func searchWeb(ctx context.Context, query string) (string, error) {
 	return formatResults(result), nil
 }
 
-// formatResults monta o contexto que vai para o prompt da IA.
-// Prioriza o resumo automático do Tavily; usa os resultados individuais como complemento.
+// formatResults monta o contexto web como bloco de texto: resumo + fontes ranqueadas.
+// Filtra resultados com score < 0.3 e trunca conteúdo longo para 900 caracteres.
 func formatResults(result tavilyResponse) string {
 	var sb strings.Builder
 
-	// Resumo automático do Tavily — geralmente já é suficiente.
 	if result.Answer != "" {
 		sb.WriteString("Resumo: ")
 		sb.WriteString(result.Answer)
 		sb.WriteString("\n\n")
 	}
 
-	// Resultados individuais filtrados por relevância mínima.
 	sb.WriteString("Fontes:\n")
 	for i, r := range result.Results {
-		if r.Score < 0.3 { // descarta resultados pouco relevantes
+		// Filtra resultados com score baixo (Tavily retorna de 0 a 1).
+		// 0.3 é um threshold empírico que elimina ruído sem perder fontes boas.
+		if r.Score < 0.3 {
 			continue
 		}
 
 		content := r.Content
 		if utf8.RuneCountInString(content) > maxContentChars {
-			// Trunca respeitando caracteres multibyte (emojis, acentos).
 			runes := []rune(content)
 			content = string(runes[:maxContentChars]) + "…"
 		}
@@ -119,7 +114,6 @@ func formatResults(result tavilyResponse) string {
 	return strings.TrimSpace(sb.String())
 }
 
-// tavilyTopicFromQuery escolhe "news" vs "general" com base nas mesmas pistas de atualidade do pacote.
 func tavilyTopicFromQuery(query string) string {
 	if prefersNewsTavilyTopic(strings.ToLower(query)) {
 		return "news"

@@ -2,7 +2,6 @@ package ia
 
 import (
 	"context"
-	"os"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -10,12 +9,13 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 )
 
-// maxRunesSearchClassifier limita o texto enviado ao classificador (só precisa do tema da pergunta).
 const maxRunesSearchClassifier = 400
 
-// shouldSearchWeb decide se vale tentar Tavily antes da resposta principal.
-// Fluxo: palavras-chave → heurística “trivial” (pula Groq) → classificador mínimo no Scout.
-func shouldSearchWeb(ctx context.Context, prompt string) bool {
+// shouldSearchWeb decide em 3 estágios se o prompt precisa de busca web:
+// 1. Palavras-chave explícitas (preço, notícia, clima, etc.) → sim.
+// 2. Frases triviais curtas sem '?' → não precisa.
+// 3. Classificador Groq (modelo rápido, temperature 0) → sim/nao.
+func shouldSearchWeb(ctx context.Context, cfg *Config, prompt string) bool {
 	lower := strings.ToLower(prompt)
 	if hasWebSearchCue(lower) {
 		return true
@@ -23,11 +23,11 @@ func shouldSearchWeb(ctx context.Context, prompt string) bool {
 	if trivialWithoutSearch(lower) {
 		return false
 	}
-	return classifyNeedsWebSearch(ctx, prompt)
+	return classifyNeedsWebSearch(ctx, cfg, prompt)
 }
 
-// trivialWithoutSearch evita gastar tokens em cumprimentos e réplicas curtas sem interrogação.
-// Não bloqueia quando já existe sinal forte de web (hasWebSearchCue), tratado antes.
+// trivialWithoutSearch retorna true para saudações, acenos, confirmações curtas
+// que não fazem sentido buscar na internet. Evita chamada desnecessária à Groq.
 func trivialWithoutSearch(lower string) bool {
 	s := strings.TrimSpace(lower)
 	if s == "" {
@@ -43,18 +43,17 @@ func trivialWithoutSearch(lower string) bool {
 	if slices.Contains(acks, s) {
 		return true
 	}
-	// Frase mínima sem interrogação: só trata como trivial com até 2 tokens (evita bloquear perguntas curtas factuais).
 	if !strings.Contains(s, "?") && utf8.RuneCountInString(s) <= 20 && len(strings.Fields(s)) <= 2 {
 		return !hasWebSearchCue(s)
 	}
 	return false
 }
 
-// classifyNeedsWebSearch é uma chamada barata ao Scout: system curto, poucos tokens de saída.
-func classifyNeedsWebSearch(ctx context.Context, prompt string) bool {
-	groqURL := strings.TrimSpace(os.Getenv("GROQ_URL"))
-	groqKey := strings.TrimSpace(os.Getenv("GROQ_API_KEY"))
-	if groqURL == "" || groqKey == "" {
+// classifyNeedsWebSearch usa um modelo Groq rápido (llama-3.1-8b) com temperature 0
+// para classificar se o prompt precisa de dados atualizados da internet.
+// Trunca o prompt para 400 runes para evitar gastar tokens desnecessariamente.
+func classifyNeedsWebSearch(ctx context.Context, cfg *Config, prompt string) bool {
+	if cfg.GroqURL == "" || cfg.GroqKey == "" {
 		return false
 	}
 
@@ -75,7 +74,7 @@ func classifyNeedsWebSearch(ctx context.Context, prompt string) bool {
 		MaxTokens:   3,
 	}
 
-	resp, err := groqChat(ctx, groqURL, groqKey, req)
+	resp, err := groqChat(ctx, cfg.GroqURL, cfg.GroqKey, req)
 	if err != nil {
 		return false
 	}

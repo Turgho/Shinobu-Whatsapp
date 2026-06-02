@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/httpclient"
 )
 
-// groqChat envia um IARequest ao endpoint Groq e devolve o corpo decodificado.
-// Centraliza HTTP + JSON para evitar duplicar lógica entre callGroq e classificadores leves.
 func groqChat(ctx context.Context, groqURL, groqKey string, req IARequest) (IAResponse, error) {
 	var zero IAResponse
 	if groqURL == "" {
@@ -32,7 +32,7 @@ func groqChat(ctx context.Context, groqURL, groqKey string, req IARequest) (IARe
 	httpReq.Header.Set("Authorization", "Bearer "+groqKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := httpclient.Client.Do(httpReq)
 	if err != nil {
 		return zero, fmt.Errorf("groq: http: %w", err)
 	}
