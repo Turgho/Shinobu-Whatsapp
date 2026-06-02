@@ -1,4 +1,3 @@
-// Package app monta logger, banco, histórico, cliente WhatsApp, router e handlers.
 package app
 
 import (
@@ -15,6 +14,7 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/birthday"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/geocoding"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/music"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/weather"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/configs"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/database"
@@ -24,18 +24,15 @@ import (
 	"go.uber.org/zap"
 )
 
-// Run inicializa dependências, conecta ao WhatsApp e bloqueia em Listen até encerrar.
 func Run() error {
 	uptime.Start()
 
-	// Verifica dependências externas antes de qualquer conexão
 	if err := checkDeps(); err != nil {
 		return fmt.Errorf("dependências ausentes: %w", err)
 	}
 
 	cfg := configs.Load()
 
-	// Logger
 	logger, err := buildLogger()
 	if err != nil {
 		return fmt.Errorf("erro ao inicializar logger: %w", err)
@@ -44,14 +41,12 @@ func Run() error {
 
 	ctx := context.Background()
 
-	// Database SQLite para o Whatsmeow
 	db, err := connectDatabase(cfg, logger)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 
-	// Histórico de mensagens por usuário — usado pela IA para contexto de conversa
 	store, err := history.NewStore("storage/message_history.db")
 	if err != nil {
 		logger.Error("erro ao abrir history", zap.Error(err))
@@ -59,35 +54,27 @@ func Run() error {
 	}
 	defer store.Close()
 
-	store.StartCleanup(ctx, 24*time.Hour) // apaga mensagens com mais de 24h
+	store.StartCleanup(ctx, 24*time.Hour)
 
-	// Inicializa o cliente WhatsApp
 	client, err := bot.NewClient(ctx, db)
 	if err != nil {
 		return fmt.Errorf("erro ao criar client WhatsApp: %w", err)
 	}
 
-	// Conecta ao WhatsApp
 	if err := client.Connect(ctx); err != nil {
 		return fmt.Errorf("erro ao conectar no WhatsApp: %w", err)
 	}
 
-	// Inicializa o router
 	r := buildRouter(cfg, client.WAClient, logger, store)
 
-	// Cadastra comandos públicos
 	registerPublicCommands(r, cfg, logger, store)
-
-	// Cadastra comandos privados
 	registerAdminCommands(r, cfg)
 
 	birthday.StartScheduler(client.WAClient)
 
-	// Inicializa o handler
 	handler := bot.NewHandler(client.WAClient, r)
 	client.RegisterHandlers(handler.EventHandler)
 
-	// Bloqueia em Listen até encerrar
 	client.Listen()
 	return nil
 }
@@ -110,25 +97,13 @@ func connectDatabase(cfg *configs.Config, logger *zap.Logger) (*sql.DB, error) {
 func buildRouter(cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Logger, store *history.Store) *commands.Router {
 	r := commands.NewRouter(cfg.Bot.Prefix, waClient, logger.Named("ROUTER"), store)
 
-	// IgnoreSelfMiddleware: descarta mensagens enviadas pelo próprio bot (desativado por ora)
-	// r.Use(commands.IgnoreSelfMiddleware)
-
-	// Descarta mensagens antigas recebidas ao reconectar
 	r.Use(commands.IgnoreOldMessagesMiddleware)
-
-	// Notifica quando um comando não existe
 	r.Use(commands.CommandNotFoundMiddleware(r))
-
-	// Bloqueia comandos privados para quem não é owner/admin
 	r.Use(commands.PrivateCommandsMiddleware(r, cfg.UsersJID.Owner, cfg.UsersJID.Admins))
 
 	return r
 }
 
-// registerPublicCommands cadastra comandos abertos a qualquer usuário autorizado pelo middleware.
-//
-// Para adicionar um comando público: crie o handler em internal/commands/public/,
-// chame r.RegisterCommand aqui; o !menu lista automaticamente.
 func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logger, store *history.Store) {
 	geoClient := geocoding.NewGeoCoding(cfg.ApiURLs.Geocoding, logger.Named("GEOCODING"))
 	weatherClient := weather.NewWeatherClient(cfg.ApiURLs.Weather, logger.Named("WEATHER"))
@@ -158,12 +133,17 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Type:        commands.CommandTypeUtility,
 	}, public.StickerCommand)
 
+	musicCfg := &music.Config{
+		ServerURL: cfg.Music.ServerURL,
+		APIToken:  cfg.Music.APIToken,
+	}
+
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "play",
 		Description: "Busca por uma música via nome ou URL",
 		Type:        commands.CommandTypeDownload,
 		Args:        []commands.ArgMeta{{Name: "nome da música ou URL", Required: true}},
-	}, public.PlayCommand)
+	}, public.PlayCommand(musicCfg))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "mambo",
@@ -183,13 +163,12 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Type:        commands.CommandTypeFun,
 	}, public.FixedBundledAudioCommand("assets/audios/hora_cafe.ogg", "hora_cafe"))
 
-	// Shinobu: IA com personalidade, histórico por usuário e busca web sob demanda
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "shinobu",
 		Description: "converse com shinobu",
 		Type:        commands.CommandTypeAI,
 		Args:        []commands.ArgMeta{{Name: "escreva algo", Required: false}},
-	}, public.ShinobuCommand(store))
+	}, public.ShinobuCommand(store, cfg))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "aniversário",
@@ -206,16 +185,27 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 			{Name: "intensidade", Required: false},
 		},
 	}, public.AudioEffectsCommand)
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "ignorar",
+		Description: "Ignorar mensagens de um número",
+		Type:        commands.CommandTypeAdmin,
+		Private:     true,
+	}, public.IgnoreCommand())
 }
 
-// registerAdminCommands cadastra comandos com Private: true (owner/admins no middleware).
 func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
+	musicCfg := &music.Config{
+		ServerURL: cfg.Music.ServerURL,
+		APIToken:  cfg.Music.APIToken,
+	}
+
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "stats",
 		Description: "Exibe estatísticas de runtime do bot",
 		Type:        commands.CommandTypeOwner,
 		Private:     true,
-	}, admin.StatsCommand)
+	}, admin.StatsCommand(musicCfg))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "shutdown",
@@ -235,16 +225,12 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
 	}, admin.SaveStickerCommand(cfg.UsersJID.Owner))
 }
 
-// weatherHandler envolve WeatherCommand injetando as dependências externas.
-// Esse padrão mantém a assinatura de HandlerFunc sem poluir os tipos centrais.
 func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		return public.WeatherCommand(ctx, client, evt, args, geo, wc)
 	}
 }
 
-// checkDeps garante que o processo encontra ffmpeg/webpmux nos caminhos usados
-// pelo internal/infra/ffmpeg e internal/domain/sticker (execução típica: cwd = raiz do repositório).
 func checkDeps() error {
 	deps := []struct {
 		path string

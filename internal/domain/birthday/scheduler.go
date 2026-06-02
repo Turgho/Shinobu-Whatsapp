@@ -6,25 +6,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 )
 
-const notifyHour = 0 // 12h da manhã
+const notifyHour = 8
 
-// StartScheduler inicia o loop em background que verifica aniversários todo dia às 8h.
-// Deve ser chamado uma vez no main após o cliente conectar.
 func StartScheduler(client *whatsmeow.Client) {
-	go func() {
+	gosafe.Go(func() {
 		loc, err := time.LoadLocation("America/Sao_Paulo")
 		if err != nil {
-			panic(err)
+			fmt.Printf("[birthday] erro timezone: %v\n", err)
+			return
 		}
 
 		for {
 			now := time.Now().In(loc)
-
 			next := nextTrigger(now, notifyHour)
 
 			fmt.Printf("[birthday] próxima verificação: %s\n",
@@ -33,11 +32,12 @@ func StartScheduler(client *whatsmeow.Client) {
 			<-time.After(time.Until(next))
 			checkAndNotify(client)
 		}
-	}()
+	})
 }
 
-// nextTrigger calcula o próximo horário de disparo.
-// Se já passou das 8h hoje, agenda para amanhã.
+// nextTrigger calcula o próximo horário de verificação de aniversários.
+// Se agora já passou do horário alvo, agenda para amanhã no mesmo horário.
+// Isso garante que a notificação seja enviada (aproximadamente) uma vez por dia.
 func nextTrigger(now time.Time, hour int) time.Time {
 	next := time.Date(now.Year(), now.Month(), now.Day(), hour, 0, 0, 0, now.Location())
 	if now.After(next) {
@@ -46,7 +46,8 @@ func nextTrigger(now time.Time, hour int) time.Time {
 	return next
 }
 
-// checkAndNotify verifica aniversariantes do dia e envia mensagem em cada grupo.
+// checkAndNotify consulta aniversariantes do dia e envia mensagem para cada grupo.
+// Usa o fuso America/Sao_Paulo e os dados da store local.
 func checkAndNotify(client *whatsmeow.Client) {
 	loc, err := time.LoadLocation("America/Sao_Paulo")
 	if err != nil {
@@ -84,7 +85,6 @@ func checkAndNotify(client *whatsmeow.Client) {
 	}
 }
 
-// buildMessage monta a mensagem de aniversário com @all e menções dos aniversariantes.
 func buildMessage(entries []Entry) (mentions []string, msg string) {
 	var sb strings.Builder
 	sb.WriteString("🎂 *Parabéns!* 🎉\n\n")

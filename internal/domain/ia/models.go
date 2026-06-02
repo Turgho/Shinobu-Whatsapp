@@ -6,9 +6,13 @@ const (
 	modelWebStrong = "llama-3.3-70b-versatile"                   // respostas com contexto Tavily
 )
 
+type Config struct {
+	GroqURL   string
+	GroqKey   string
+	TavilyKey string
+}
+
 // groqRunParams agrupa temperatura e teto de tokens da resposta principal.
-// Valores calibrados para: (1) conversa natural sem respostas truncadas demais;
-// (2) modo web mais factual, com espaço para síntese de várias fontes.
 type groqRunParams struct {
 	model       string
 	maxTokens   int
