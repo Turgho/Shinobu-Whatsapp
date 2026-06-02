@@ -25,10 +25,10 @@ type IAResponse struct {
 // AskIA orquestra o pipeline de resposta da IA:
 // 1. Limpa prompt (remove @lid) e detecta prompt injection
 // 2. Classifica modo: breve, normal ou web
-// 3. Decide se precisa de busca web (keywords → IA classifier)
+// 3. Decide se precisa de busca web (keywords → IA classifier + cache)
 // 4. Se precisar, busca contexto na Tavily e trunca para 1500 chars
 // 5. Monta mensagens do sistema (personalidade, dono, resumo, transcript)
-// 6. Monta user message com base no modo
+// 6. Monta user message com base no modo (contexto web + prompt)
 // 7. Chama Groq e retorna resposta
 // 8. Agenda refresh assíncrono do resumo da conversa
 func AskIA(ctx context.Context, cfg *Config, chat, prompt string, isOwner bool, sender string, store *history.Store) (string, bool, error) {
@@ -42,7 +42,7 @@ func AskIA(ctx context.Context, cfg *Config, chat, prompt string, isOwner bool, 
 
 	styleMode := classifyPromptMode(prompt)
 
-	needSearch := shouldSearchWeb(ctx, cfg, prompt)
+	needSearch := shouldSearchWeb(ctx, cfg, chat, prompt)
 	var webContext string
 	var usedSearch bool
 	if needSearch {
@@ -58,9 +58,14 @@ func AskIA(ctx context.Context, cfg *Config, chat, prompt string, isOwner bool, 
 	}
 
 	messages := baseSystemMessages(mode, isOwner)
-	if !usedSearch {
-		messages = appendPersistentAndRecent(ctx, messages, chat, store)
+	// Contexto histórico é SEMPRE incluído, independente de busca web.
+	// Quando há busca, reduz o transcript (menos mensagens antigas)
+	// porque o contexto web já ocupa espaço no limite de tokens.
+	transcriptLimit := 14
+	if usedSearch {
+		transcriptLimit = 6
 	}
+	messages = appendPersistentAndRecent(ctx, messages, chat, sender, store, transcriptLimit)
 
 	userContent := buildUserContent(prompt, mode, webContext)
 	messages = append(messages, history.IAMessage{Role: "user", Content: userContent})
@@ -91,10 +96,23 @@ func baseSystemMessages(mode ResponseMode, isOwner bool) []history.IAMessage {
 	return msgs
 }
 
-func appendPersistentAndRecent(ctx context.Context, messages []history.IAMessage, chat string, store *history.Store) []history.IAMessage {
+func appendPersistentAndRecent(ctx context.Context, messages []history.IAMessage, chat, sender string, store *history.Store, transcriptLimit int) []history.IAMessage {
 	if store == nil || chat == "" {
 		return messages
 	}
+
+	// Memória de usuário: fatos extraídos sobre o usuário neste chat.
+	if store.UserMemory != nil && sender != "" {
+		if facts, err := store.UserMemory.GetFacts(ctx, chat, sender); err == nil && len(facts) > 0 {
+			if formatted := history.FormatFacts(facts); formatted != "" {
+				messages = append(messages, history.IAMessage{
+					Role:    "system",
+					Content: formatted,
+				})
+			}
+		}
+	}
+
 	if summary, err := store.GetSummary(ctx, chat); err == nil && strings.TrimSpace(summary) != "" {
 		summary = truncateText(strings.TrimSpace(summary), 1200)
 		messages = append(messages, history.IAMessage{
@@ -102,7 +120,7 @@ func appendPersistentAndRecent(ctx context.Context, messages []history.IAMessage
 			Content: "Resumo persistente da conversa anterior:\n" + summary,
 		})
 	}
-	if tr, err := store.TranscriptRecent(ctx, chat, 14, 12*time.Hour); err == nil && strings.TrimSpace(tr) != "" {
+	if tr, err := store.TranscriptRecent(ctx, chat, transcriptLimit, 12*time.Hour); err == nil && strings.TrimSpace(tr) != "" {
 		tr = truncateText(tr, 2200)
 		messages = append(messages, history.IAMessage{
 			Role: "system",
