@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
+	"syscall"
 	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
@@ -26,15 +26,12 @@ func RestartCommand(ctx context.Context, client *whatsmeow.Client, evt *events.M
 		return fmt.Errorf("falha ao obter caminho do executável: %w", err)
 	}
 
-	cmd := exec.Command(execPath, os.Args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("falha ao iniciar novo processo: %w", err)
+	// syscall.Exec substitui o processo atual pelo binário (mesmo PID).
+	// Isso funciona em qualquer host Linux porque mantém o mesmo processo
+	// para o systemd/supervisor, herdando stdin/stdout/stderr e env vars.
+	if err := syscall.Exec(execPath, os.Args, os.Environ()); err != nil {
+		return fmt.Errorf("falha ao reiniciar: %w", err)
 	}
 
-	os.Exit(0)
 	return nil
 }
