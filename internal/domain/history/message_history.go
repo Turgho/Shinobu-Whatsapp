@@ -29,9 +29,10 @@ type IAMessage struct {
 	Content string `json:"content"`
 }
 
-// Store persiste mensagens e resumos por chat em SQLite.
+// Store persiste mensagens, resumos e memória de usuário em SQLite.
 type Store struct {
-	db *sql.DB
+	db          *sql.DB
+	UserMemory  *UserMemoryStore
 }
 
 // NewStore abre (ou cria) o arquivo SQLite e aplica o esquema mínimo de tabelas/índices.
@@ -64,7 +65,12 @@ func NewStore(path string) (*Store, error) {
 		}
 	}
 
-	return &Store{db: db}, nil
+	memStore, err := NewUserMemoryStore(db)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao criar user memory store: %w", err)
+	}
+
+	return &Store{db: db, UserMemory: memStore}, nil
 }
 
 // StartCleanup apaga mensagens mais antigas que maxAge, a cada hora, até ctx cancelar.
@@ -113,15 +119,29 @@ func (s *Store) RecentMessages(ctx context.Context, chat string, limit int, maxA
 	return msgs, nil
 }
 
-// TranscriptRecent formata as mesmas mensagens que RecentMessages em um único texto com tempo relativo.
-// Útil para injetar como **um** bloco system no Groq: menos alternância user/assistant e rótulos explícitos
-// (Usuário vs Shinobu), o que costuma melhorar continuidade sem gastar tantos tokens em metadados de role.
+// TranscriptRecent formata mensagens recentes em texto com tempo relativo.
+// Mensagens consecutivas do mesmo remetente são mescladas com " | " para
+// reduzir overhead de formatação e tokens de metadados (label + timestamp).
+// Ex: "[agora] Usuário: oi | tudo bem | viu o jogo"
+// em vez de 3 linhas separadas.
 func (s *Store) TranscriptRecent(ctx context.Context, chat string, limit int, maxAge time.Duration) (string, error) {
 	lines, err := s.loadRecentChatLines(ctx, chat, limit, maxAge)
 	if err != nil {
 		return "", err
 	}
 	var b strings.Builder
+	var lastLabel string
+	var lineBuf strings.Builder
+
+	flush := func() {
+		if lineBuf.Len() == 0 {
+			return
+		}
+		b.WriteString(lineBuf.String())
+		b.WriteByte('\n')
+		lineBuf.Reset()
+	}
+
 	for _, ln := range lines {
 		label := "Usuário"
 		if ln.Sender == AssistantSenderName {
@@ -132,8 +152,18 @@ func (s *Store) TranscriptRecent(ctx context.Context, chat string, limit int, ma
 			continue
 		}
 		ts := formatRelativeConversationTime(ln.At)
-		fmt.Fprintf(&b, "[%s] %s: %s\n", ts, label, text)
+
+		if label != lastLabel {
+			flush()
+			lineBuf.WriteString(fmt.Sprintf("[%s] %s: %s", ts, label, text))
+		} else {
+			lineBuf.WriteString(" | ")
+			lineBuf.WriteString(text)
+		}
+		lastLabel = label
 	}
+	flush()
+
 	return strings.TrimSpace(b.String()), nil
 }
 
