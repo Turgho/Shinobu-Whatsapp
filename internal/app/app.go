@@ -186,12 +186,6 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		},
 	}, public.AudioEffectsCommand)
 
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "ignorar",
-		Description: "Ignorar mensagens de um número",
-		Type:        commands.CommandTypeAdmin,
-		Private:     true,
-	}, public.IgnoreCommand())
 }
 
 func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
@@ -223,6 +217,13 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
 		},
 		Private: true,
 	}, admin.SaveStickerCommand(cfg.UsersJID.Owner))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "ignorar",
+		Description: "Ignorar mensagens de um número",
+		Type:        commands.CommandTypeAdmin,
+		Private:     true,
+	}, public.IgnoreCommand())
 }
 
 func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) commands.HandlerFunc {
