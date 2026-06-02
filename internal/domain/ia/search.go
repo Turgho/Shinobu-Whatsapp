@@ -4,6 +4,8 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
@@ -11,11 +13,29 @@ import (
 
 const maxRunesSearchClassifier = 400
 
+// searchCache evita re-classificar prompts que claramente continuam
+// o tópico de uma busca recém-feita no mesmo chat.
+// Ex: usuário pergunta "qual a cotação do dólar?" e 20s depois "e do euro?".
+// A segunda pergunta compartilha o contexto de "cotação" e não precisa
+// de uma nova chamada ao classificador Groq.
+var searchCache struct {
+	mu sync.Mutex
+	m  map[string]searchCacheEntry
+}
+
+type searchCacheEntry struct {
+	lastResult bool
+	updatedAt  time.Time
+}
+
+const searchCacheTTL = 5 * time.Minute
+
 // shouldSearchWeb decide em 3 estágios se o prompt precisa de busca web:
 // 1. Palavras-chave explícitas (preço, notícia, clima, etc.) → sim.
 // 2. Frases triviais curtas sem '?' → não precisa.
-// 3. Classificador Groq (modelo rápido, temperature 0) → sim/nao.
-func shouldSearchWeb(ctx context.Context, cfg *Config, prompt string) bool {
+// 3. Cache por chat: se já classificamos este chat nos últimos N min, reusa.
+// 4. Classificador Groq (modelo rápido, temperature 0) → sim/nao.
+func shouldSearchWeb(ctx context.Context, cfg *Config, chat, prompt string) bool {
 	lower := strings.ToLower(prompt)
 	if hasWebSearchCue(lower) {
 		return true
@@ -23,7 +43,40 @@ func shouldSearchWeb(ctx context.Context, cfg *Config, prompt string) bool {
 	if trivialWithoutSearch(lower) {
 		return false
 	}
-	return classifyNeedsWebSearch(ctx, cfg, prompt)
+
+	// Cache: se já classificamos este chat recentemente, reusa.
+	if result, ok := getCachedSearch(chat); ok {
+		return result
+	}
+
+	result := classifyNeedsWebSearch(ctx, cfg, prompt)
+	setCachedSearch(chat, result)
+	return result
+}
+
+// getCachedSearch retorna o resultado em cache se ainda for válido.
+func getCachedSearch(chat string) (bool, bool) {
+	searchCache.mu.Lock()
+	defer searchCache.mu.Unlock()
+
+	e, ok := searchCache.m[chat]
+	if !ok || time.Since(e.updatedAt) > searchCacheTTL {
+		return false, false
+	}
+	return e.lastResult, true
+}
+
+func setCachedSearch(chat string, result bool) {
+	searchCache.mu.Lock()
+	defer searchCache.mu.Unlock()
+
+	if searchCache.m == nil {
+		searchCache.m = make(map[string]searchCacheEntry)
+	}
+	searchCache.m[chat] = searchCacheEntry{
+		lastResult: result,
+		updatedAt:  time.Now(),
+	}
 }
 
 // trivialWithoutSearch retorna true para saudações, acenos, confirmações curtas

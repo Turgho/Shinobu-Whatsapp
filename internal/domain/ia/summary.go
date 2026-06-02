@@ -72,7 +72,7 @@ func generateConversationSummary(
 	recentText := formatMessagesForSummary(recent)
 
 	userContent := fmt.Sprintf(
-		`Resumo atual da conversa:
+		`Resumo atual da conversa (NÃO REMOVA estes itens):
 %s
 
 Mensagens recentes:
@@ -85,14 +85,16 @@ Mensagens recentes:
 %s
 
 Tarefa:
-Atualize o resumo da conversa para uso futuro pelo bot.
+MANTENHA todos os bullets do resumo atual que ainda são relevantes.
+ADICIONE novos bullets apenas para fatos novos e importantes que apareceram nas mensagens recentes.
+NÃO remova bullets existentes a menos que estejam claramente obsoletos.
 
 Regras:
 - Mantenha apenas fatos úteis e estáveis.
 - Preserve preferências, temas recorrentes, contexto em andamento, nomes, intenções e tarefas.
 - Remova mensagens repetitivas, piadas soltas e detalhes inúteis.
 - Escreva em português do Brasil.
-- Use no máximo 10 bullets curtos.
+- Use no máximo 12 bullets curtos.
 - Não explique o que você está fazendo.
 - Se não houver nada útil para guardar, responda exatamente: vazio.`,
 		currentSummary,
