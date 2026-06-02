@@ -223,7 +223,7 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
 		Description: "Ignorar mensagens de um número",
 		Type:        commands.CommandTypeAdmin,
 		Private:     true,
-	}, public.IgnoreCommand())
+	}, admin.IgnoreCommand())
 }
 
 func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) commands.HandlerFunc {
