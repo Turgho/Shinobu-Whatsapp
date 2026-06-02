@@ -11,25 +11,19 @@ import (
 	"strings"
 )
 
-// DownloadAudio baixa áudio a partir de nome ou URL.
-//
-// Modos de operação (em ordem de prioridade):
-//  1. MUSIC_SERVER_URL definida → usa servidor local via Cloudflare Tunnel ou VPS
-//  2. ./bin/ytdlp presente     → executa binário local diretamente
-//
-// Configure a variável de ambiente MUSIC_SERVER_URL com a URL do tunnel.
-// Exemplo: https://meu-tunnel.trycloudflare.com
-func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
+type Config struct {
+	ServerURL string
+	APIToken  string
+}
+
+func DownloadAudio(ctx context.Context, cfg *Config, query string) ([]byte, string, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, "", fmt.Errorf("music/download: query vazia")
 	}
 
-	apiToken := os.Getenv("API_AUTH_TOKEN")
-	serverURL := os.Getenv("MUSIC_SERVER_URL")
-
-	if serverURL != "" && apiToken != "" {
-		return downloadViaTunnel(ctx, serverURL, apiToken, query)
+	if cfg.ServerURL != "" && cfg.APIToken != "" {
+		return downloadViaTunnel(ctx, cfg.ServerURL, cfg.APIToken, query)
 	}
 
 	if _, err := os.Stat("./bin/ytdlp"); err == nil {
@@ -39,7 +33,6 @@ func DownloadAudio(ctx context.Context, query string) ([]byte, string, error) {
 	return nil, "", fmt.Errorf("music/download: nenhum método disponível — defina MUSIC_SERVER_URL ou coloque o binário em ./bin/ytdlp")
 }
 
-// downloadViaTunnel usa o servidor local exposto via Cloudflare Tunnel.
 func downloadViaTunnel(ctx context.Context, serverURL, apiToken, query string) ([]byte, string, error) {
 	endpoint := strings.TrimRight(serverURL, "/") + "/play"
 
@@ -69,9 +62,7 @@ func downloadViaTunnel(ctx context.Context, serverURL, apiToken, query string) (
 	return data, "mp3", nil
 }
 
-// downloadViaBinary executa o yt-dlp local em ./bin/ytdlp.
 func downloadViaBinary(ctx context.Context, query string) ([]byte, string, error) {
-	// Se não for URL, usa busca do YouTube
 	if !strings.HasPrefix(query, "http://") && !strings.HasPrefix(query, "https://") {
 		query = "ytsearch1:" + query
 	}
