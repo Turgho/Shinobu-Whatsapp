@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ignore"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/phone"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
@@ -25,7 +26,7 @@ func IgnoreCommand() func(ctx context.Context, client *whatsmeow.Client, evt *ev
 				return whatsapp.SendText(ctx, client, evt,
 					"❌ Use: `!ignorar remover <número>`", true)
 			}
-			removed, err := ignore.Remove(args[1])
+			removed, err := ignore.Remove(phone.NormalizeNumber(args[1]))
 			if err != nil {
 				return whatsapp.SendText(ctx, client, evt,
 					"❌ Erro ao remover: "+err.Error(), true)
@@ -38,7 +39,7 @@ func IgnoreCommand() func(ctx context.Context, client *whatsmeow.Client, evt *ev
 				"✅ Número removido da lista de ignorados.", true)
 
 		default:
-			err := ignore.Add(args[0])
+			err := ignore.Add(phone.NormalizeNumber(args[0]))
 			if err != nil {
 				return whatsapp.SendText(ctx, client, evt,
 					"❌ Erro ao ignorar: "+err.Error(), true)
