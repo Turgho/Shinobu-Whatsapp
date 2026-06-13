@@ -350,3 +350,88 @@ O `!menu` lista automaticamente. Para restringir a owner/admins, adicione `Priva
 
 - Autor: **Turgho** — [github.com/Turgho](https://github.com/Turgho)
 - Issues: [github.com/Turgho/Shinobu-Whatsapp/issues](https://github.com/Turgho/Shinobu-Whatsapp/issues)
+
+## Notificador de Gol do Brasil (Copa 2026)
+
+O módulo de futebol adiciona um watcher que monitora partidas do Brasil na Copa 2026 e envia notificações via WhatsApp quando ocorre um gol.
+
+### Como obter e configurar a API key
+
+1. Acesse https://www.api-football.com/ e crie uma conta gratuita.
+2. Após o login, obtenha sua API key na seção "My Account".
+3. Defina a variável de ambiente `FOOTBALL_API_KEY` ou configure em `config.yaml`:
+   ```yaml
+   football:
+     api_key: "SUA_API_KEY_AQUI"
+   ```
+
+### Como configurar watched_teams e notify_jid
+
+No `config.yaml`, ajuste a seção `football`:
+
+```yaml
+football:
+  enabled: true
+  api_key: "sua_api_key"
+  notify_jid: "seu_jid@lid" # JID do grupo ou pessoa para receber notificações
+  poll:
+    idle_interval: "5m"
+    live_interval: "15s"
+  watched_teams:
+    - name: "Brasil"
+      api_team_id: 6
+      flag: "🇧🇷"
+    - name: "Argentina"
+      api_team_id: 3
+      flag: "🇦🇷"
+```
+
+- `enabled`: ativa ou desativa o watcher.
+- `api_key`: chave da API-Football.
+- `notify_jid`: JID do destino da notificação (grupo ou pessoa).
+- `poll.idle_interval`: intervalo de consulta quando não há partidas ao vivo.
+- `poll.live_interval`: intervalo de consulta quando há partidas ao vivo (mínimo recomendado: 15s para o plano free).
+- `watched_teams`: lista de times a serem monitorados. Cada time requer:
+  - `name`: nome do time (para exibição na notificação).
+  - `api_team_id`: ID externo da equipe na API-Football.
+  - `flag`: emoji da bandeira do time (opcional).
+
+### Comparação das opções de API avaliadas
+
+| API | Custo | Delay médio | Confiabilidade | Observações |
+|-----|-------|-------------|----------------|-------------|
+| API-Football (api-football.com) | Plano free: 100 req/dia | ~15-30s (dependendo do intervalo de polling) | Alta | Requer chave; plano free insuficiente para polling agressivo durante partidas inteiras. |
+| API comunitária (github.com/rezarahiminia/worldcup2026) | Gratuito | Variável | Baixa | Projeto pequeno; pode ter instabilidade e atrasos maiores. |
+
+**Por que a API-Football foi escolhida?**
+Apesar do limite de requisições no plano free, ela oferece dados oficiais, baixa latência e alta confiabilidade. Para uso em produção durante partidas, recomenda-se um plano pago ou limitar o monitoramento a jogos específicos.
+
+### Delay estimado
+
+O delay médio entre o gol real e a notificação está entre 15 e 30 segundos, considerando:
+- Intervalo de polling de 15 segundos durante partidas ao vivo (mínimo permitido pelo plano free).
+- Tempo de processamento da requisição e resposta da API (geralmente < 2s).
+- Tempo de envio da mensagem via WhatsApp (geralmente < 5s).
+
+O delay pode ser reduzido aumentando a frequência de polling, mas o plano free da API-Football permite apenas 100 requisições por dia. Com intervalo de 15 segundos, são consumidas 5760 requisições por dia (24h * 60min * 4req/min), o que excede o limite. Portanto, o intervalo deve ser ajustado conforme o plano contratado.
+
+## O que foi feito
+
+- Adicionado novo domínio `internal/domain/football` com estrutura seguindo os padrões existentes (birthday, weather).
+- Implementado watcher de gols com polling adaptativo (idle/live) e deduplicação de eventos via JSON store.
+- Integração com WhatsApp utilizando a infraestrutura existente (`integration/whatsapp/text.go`).
+- Atualização de `config.yaml` e `config.example.yaml` com a seção `football`.
+- Documentação detalhada no README.md sobre configuração, uso e limitações.
+- Inicialização do watcher em `internal/app/app.go` (via `internal/domain/football/handler.Start`).
+
+## Possíveis melhorias futuras
+
+- Monitorar múltiplos times em paralelo (já suportado via `watched_teams`).
+- Substituir polling por webhook/websocket quando disponível na API-Football.
+- Notificar outros eventos (cartão vermelho, início/fim de jogo).
+- Adicionar comando para consultar próximo jogo/placar atual (ex: `!futebol próximo`).
+- Permitir múltiplos destinos de notificação.
+- Internacionalização da mensagem de notificação (suporte a múltiplos idiomas).
+- Métricas de upto do watcher (tempo de atividade, última verificação, etc.).
+- Fallback automático para API comunitária quando a API-Football atingir o limite de requisições.
+- Otimização de deduplicação usando hash de eventos além do ID.

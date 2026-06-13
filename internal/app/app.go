@@ -12,6 +12,7 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands/admin"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands/public"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/birthday"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/football"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/geocoding"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/music"
@@ -71,6 +72,7 @@ func Run() error {
 	registerAdminCommands(r, cfg)
 
 	birthday.StartScheduler(client.WAClient)
+	football.Start(ctx, client)
 
 	handler := bot.NewHandler(client.WAClient, r)
 	client.RegisterHandlers(handler.EventHandler)
@@ -185,7 +187,6 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 			{Name: "intensidade", Required: false},
 		},
 	}, public.AudioEffectsCommand)
-
 }
 
 func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
@@ -227,7 +228,7 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "ignorar",
-		Description: "Ignorar mensagens de um número",
+		Description: "Ignorar mensagens de un número",
 		Type:        commands.CommandTypeAdmin,
 		Private:     true,
 	}, admin.IgnoreCommand())
