@@ -21,6 +21,7 @@ type Config struct {
 	Tavily TavilyConfig
 	Music  MusicConfig
 	Owner  OwnerConfig
+	Football FootballConfig `mapstructure:"football"`
 }
 
 type BotConfig struct {
@@ -65,6 +66,25 @@ type OwnerConfig struct {
 	Number string
 }
 
+type FootballTeam struct {
+	Name      string `mapstructure:"name"`
+	APITeamID int    `mapstructure:"api_team_id"`
+	Flag      string `mapstructure:"flag"`
+}
+
+type FootballConfig struct {
+	Enabled     bool     `mapstructure:"enabled"`
+	APIKey      string   `mapstructure:"api_key"`
+	NotifyJID   string   `mapstructure:"notify_jid"`
+	PollInterval PollIntervalConfig `mapstructure:"poll"`
+	WatchedTeams []FootballTeam `mapstructure:"watched_teams"`
+}
+
+type PollIntervalConfig struct {
+	IdleInterval string `mapstructure:"idle_interval"` // e.g., "5m"
+	LiveInterval string `mapstructure:"live_interval"` // e.g., "15s"
+}
+
 func Load() *Config {
 	_ = godotenv.Load()
 
@@ -96,6 +116,10 @@ func Load() *Config {
 	}
 	cfg.Owner = OwnerConfig{
 		Number: os.Getenv("OWNER_NUMBER"),
+	}
+	// Football
+	if apiKey := os.Getenv("FOOTBALL_API_KEY"); apiKey != "" {
+		cfg.Football.APIKey = apiKey
 	}
 
 	return cfg
