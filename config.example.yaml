@@ -17,3 +17,15 @@ usersJID:
 apiUrls:
   geocoding: "https://nominatim.openstreetmap.org/search"
   weather: "https://api.open-meteo.com/v1/forecast"
+
+football:
+  enabled: false
+  api_key: "SUA_API_KEY_AQUI"  # Obtenha em https://api-football.com/
+  notify_jid: "SEU_JID_AQUI@lid" # JID do grupo ou pessoa para receber notificações
+  poll:
+    idle_interval: "5m"
+    live_interval: "15s"
+  watched_teams:
+    - name: "Brasil"
+      api_team_id: 6
+      flag: "🇧🇷"
