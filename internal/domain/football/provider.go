@@ -288,10 +288,21 @@ func (p *APIFootballProvider) GetTeamIDByName(ctx context.Context, leagueID, sea
 		return 0, fmt.Errorf("football: time '%s' não encontrado na liga %d temporada %d", name, leagueID, season)
 	}
 
-	// Procura match exato (case-insensitive)
-	for _, t := range resp.Response {
-		if strings.EqualFold(t.Team.Name, name) {
-			return t.Team.ID, nil
+	// Tenta múltiplas variações do nome (ex: "Brasil" <-> "Brazil")
+	nameVariations := []string{name}
+	lowerName := strings.ToLower(name)
+	switch lowerName {
+	case "brasil":
+		nameVariations = append(nameVariations, "Brazil")
+	case "brazil":
+		nameVariations = append(nameVariations, "Brasil")
+	}
+
+	for _, variation := range nameVariations {
+		for _, t := range resp.Response {
+			if strings.EqualFold(t.Team.Name, variation) {
+				return t.Team.ID, nil
+			}
 		}
 	}
 
