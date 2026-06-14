@@ -8,37 +8,43 @@ import (
 	"go.uber.org/zap"
 )
 
-// Start initializes and starts the football goal watcher.
-// It should be called from the app's initialization.
+// Start inicializa e inicia o watcher de gols da Copa 2026.
+// Chamado em internal/app/app.go na inicialização do bot.
 func Start(ctx context.Context, waClient *bot.Client) {
-	// Load configuration.
 	cfg := configs.Load()
 	if cfg == nil {
 		zap.L().Error("config não carregado")
 		return
 	}
 
-	// Check if football is enabled.
 	if !cfg.Football.Enabled {
-		zap.L().Info("football watcher desativado na configuração")
+		zap.L().Info("watcher de futebol desativado na configuração")
 		return
 	}
 
-	// Validate required fields.
 	if cfg.Football.APIKey == "" {
-		zap.L().Error("API key para futebol não configurada")
+		zap.L().Error("API key do futebol não configurada")
 		return
 	}
 	if cfg.Football.NotifyJID == "" {
-		zap.L().Error("JID para notificação de futebol não configurado")
+		zap.L().Error("JID de notificação não configurado")
 		return
 	}
 	if len(cfg.Football.WatchedTeams) == 0 {
-		zap.L().Error("nenhum time configurado para assistir")
+		zap.L().Error("nenhum time configurado para monitorar")
 		return
 	}
 
-	// Convert configs.FootballTeam to football.Team.
+	footballLogger := zap.L().Named("FOOTBALL")
+
+	// Cria provedor que chama a API-Football (api-football.com)
+	provider := NewAPIFootballProvider(
+		"https://v3.football.api-sports.io",
+		cfg.Football.APIKey,
+		footballLogger,
+	)
+
+	// Converte config.FootballTeam para football.Team
 	var watchedTeams []Team
 	for _, t := range cfg.Football.WatchedTeams {
 		watchedTeams = append(watchedTeams, Team{
@@ -48,17 +54,29 @@ func Start(ctx context.Context, waClient *bot.Client) {
 		})
 	}
 
-	// Create a logger for the football domain.
-	footballLogger := zap.L().Named("FOOTBALL")
+	// Para cada time, confirma o ID na API (Copa 2026: league=1, season=2026)
+	for i, team := range watchedTeams {
+		if team.APITeamID == 0 {
+			footballLogger.Info("api_team_id não configurado, buscando na API-Football",
+				zap.String("team", team.Name),
+				zap.Int("league", WorldCupLeagueID),
+				zap.Int("season", WorldCupSeason))
 
-	// Create the API-Football provider.
-	provider := NewAPIFootballProvider(
-		"https://v3.football.api-sports.io ",
-		cfg.Football.APIKey,
-		footballLogger,
-	)
+			confirmedID, err := provider.GetTeamIDByName(ctx, WorldCupLeagueID, WorldCupSeason, team.Name)
+			if err != nil {
+				footballLogger.Error("Falha ao confirmar ID do time na Copa 2026",
+					zap.String("team", team.Name),
+					zap.Error(err))
+				continue
+			}
+			watchedTeams[i].APITeamID = confirmedID
+			footballLogger.Info("ID do time confirmado na Copa 2026",
+				zap.String("team", team.Name),
+				zap.Int("api_team_id", confirmedID))
+		}
+	}
 
-	// Create the watcher.
+	// Cria e inicia watcher em background (gosafe.Go)
 	watcher := NewWatcher(waClient.WAClient, &Config{
 		Enabled:      cfg.Football.Enabled,
 		APIKey:       cfg.Football.APIKey,
@@ -67,6 +85,5 @@ func Start(ctx context.Context, waClient *bot.Client) {
 		WatchedTeams: watchedTeams,
 	}, footballLogger, provider)
 
-	// Start the watcher in a background goroutine.
 	watcher.Start(ctx)
 }
