@@ -75,7 +75,8 @@ func (w *Watcher) run(ctx context.Context) {
 			start := time.Now()
 
 			if !inLiveWindow {
-				// MODO IDLE: busca próximos jogos do Brasil na Copa 2026
+				// MODO IDLE: busca próximos jogos de TODOS os times monitorados na Copa 2026
+				foundMatch := false
 				for _, team := range w.cfg.WatchedTeams {
 					fixtures, err := w.provider.GetWorldCupFixturesForTeam(ctx, team.APITeamID)
 					if err != nil {
@@ -93,21 +94,23 @@ func (w *Watcher) run(ctx context.Context) {
 						currentFixtureID = match.ID
 						currentTeam = team
 						inLiveWindow = true
-						w.logger.Info("Jogo do Brasil encontrado - entrando em modo live",
+						foundMatch = true
+						w.logger.Info("Jogo encontrado - entrando em modo live",
 							zap.Int("fixture_id", match.ID),
 							zap.String("status", match.StatusShort),
 							zap.Time("start_time", match.StartTime),
-							zap.String("round", match.Round))
+							zap.String("round", match.Round),
+							zap.String("team", team.Name))
 						break
 					}
 
-					if inLiveWindow {
+					if foundMatch {
 						break
 					}
 				}
 
 				if !inLiveWindow {
-					w.logger.Debug("Nenhum jogo do Brasil ativo na Copa 2026 - modo idle")
+					w.logger.Debug("Nenhum jogo ativo na Copa 2026 - modo idle")
 				}
 			}
 
