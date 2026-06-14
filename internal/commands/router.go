@@ -16,12 +16,12 @@ import (
 
 const (
 	handlerTimeoutMention = 30 * time.Second
-	handlerTimeoutCommand = 60 * time.Second
+	handlerTimeoutCommand = 120 * time.Second
 )
 
 type rateLimitEntry struct {
-	count    int
-	resetAt  time.Time
+	count   int
+	resetAt time.Time
 }
 
 type Router struct {

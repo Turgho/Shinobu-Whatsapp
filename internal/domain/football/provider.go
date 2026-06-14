@@ -151,7 +151,12 @@ func (p *APIFootballProvider) GetWorldCupFixturesForTeam(ctx context.Context, te
 
 	matches := make([]Match, 0, len(resp.Response))
 	for _, f := range resp.Response {
-		startTime, _ := time.Parse(time.RFC3339, f.Fixture.Date)
+		startTime, err := time.Parse(time.RFC3339, f.Fixture.Date)
+		if err != nil {
+			p.Logger.Warn("Erro ao parsear data do jogo, usando time zero",
+				zap.Error(err), zap.String("date", f.Fixture.Date), zap.Int("fixture_id", f.Fixture.ID))
+			startTime = time.Time{}
+		}
 
 		matches = append(matches, Match{
 			ID:          f.Fixture.ID,
@@ -205,8 +210,17 @@ func (p *APIFootballProvider) GetMatchDetails(ctx context.Context, fixtureID int
 		}
 
 		// Gera ID único para deduplicação (API não fornece ID de evento)
-		// Fórmula: matchID*10000 + minuto*100 + extraTime + playerID
-		eventID := fixtureID*10000 + e.Time.Elapsed*100 + extraTime
+		// Fórmula: matchID*1000000 + minuto*10000 + extraTime*100 + typeHash + playerID
+		// typeHash: Goal=1, Penalty=2, Other=0 (para diferenciar mesmo minuto/jogador)
+		typeHash := 0
+		switch e.Type {
+		case "Goal":
+			typeHash = 1
+		case "Penalty":
+			typeHash = 2
+		}
+
+		eventID := fixtureID*1000000 + e.Time.Elapsed*10000 + extraTime*100 + typeHash
 		if e.Player.ID > 0 {
 			eventID += e.Player.ID
 		}
