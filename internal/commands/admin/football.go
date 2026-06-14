@@ -86,7 +86,11 @@ func FootballStatusCommand(ctx context.Context, client *whatsmeow.Client, evt *e
 		if idDisplay == 0 {
 			idDisplay = -1 // será auto-detectado
 		}
-		sb += fmt.Sprintf("  %d. %s %s (API Team ID: %d)\n", i+1, team.Flag, team.Name, idDisplay)
+		idStr := fmt.Sprintf("%d", idDisplay)
+		if idDisplay == -1 {
+			idStr = "auto-detect"
+		}
+		sb += fmt.Sprintf("  %d. %s %s (API Team ID: %s)\n", i+1, team.Flag, team.Name, idStr)
 	}
 
 	sb += fmt.Sprintf("📍 *Notificar em:* %s\n", cfg.Football.NotifyJID)
