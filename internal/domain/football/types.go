@@ -7,41 +7,58 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/configs"
 )
 
-// Team represents a football team being watched.
+// Constantes da Copa do Mundo 2026 (API-Football).
+const (
+	WorldCupLeagueID = 1
+	WorldCupSeason   = 2026
+)
+
+// Team representa um time monitorado (nome, ID na API-Football, emoji da bandeira).
 type Team struct {
-	Name      string `json:"name"`        // e.g., "Brasil"
-	APITeamID int    `json:"api_team_id"` // External API ID for the team
-	Flag      string `json:"flag"`        // Emoji flag, e.g., "🇧🇷"
+	Name      string `json:"name"`        // Ex: "Brasil"
+	APITeamID int    `json:"api_team_id"` // ID externo na API-Football
+	Flag      string `json:"flag"`        // Emoji da bandeira, ex: "🇧🇷"
 }
 
-// Match represents a football match.
+// Match representa uma partida de futebol.
 type Match struct {
 	ID          int       `json:"id"`
 	HomeTeam    Team      `json:"home_team"`
 	AwayTeam    Team      `json:"away_team"`
 	HomeScore   int       `json:"home_score"`
 	AwayScore   int       `json:"away_score"`
-	Status      string    `json:"status"` // e.g., "TBD", "LIVE", "FINISHED"
+	Status      string    `json:"status"`       // Ex: "TBD", "LIVE", "FINISHED", "NS"
+	StatusShort string    `json:"status_short"` // Ex: "1H", "HT", "2H", "ET", "FT", "PEN"
 	StartTime   time.Time `json:"start_time"`
-	ElapsedTime int       `json:"elapsed_time"` // in minutes for live matches
+	ElapsedTime int       `json:"elapsed_time"` // Minutos decorridos (jogo ao vivo)
 	League      string    `json:"league"`
 	Season      int       `json:"season"`
 	Round       string    `json:"round"`
-	LastEventID int       `json:"last_event_id"` // for deduping events (goals)
+	LastEventID int       `json:"last_event_id"` // Para deduplicação de gols
 }
 
-// GoalEvent represents a goal event.
+// GoalEvent representa um evento de gol/pênalti.
 type GoalEvent struct {
 	ID        int    `json:"id"`
 	MatchID   int    `json:"match_id"`
-	Team      string `json:"team"` // "home" or "away"
-	Player    string `json:"player"`
-	Minute    int    `json:"minute"`
-	ExtraTime int    `json:"extra_time"` // e.g., 1 for 45'+1
-	Type      string `json:"type"`       // e.g., "Goal", "Penalty"
+	TeamID    int    `json:"team_id"`    // ID do time que marcou (para comparar com watched_team.api_team_id)
+	TeamName  string `json:"team_name"`  // Nome do time que marcou
+	Player    string `json:"player"`     // Nome do jogador
+	Assist    string `json:"assist"`     // Nome do assistente (se houver)
+	Minute    int    `json:"minute"`     // Minuto do gol (time.elapsed)
+	ExtraTime int    `json:"extra_time"` // Acréscimos (time.extra)
+	Type      string `json:"type"`       // "Goal" ou "Penalty"
+	Detail    string `json:"detail"`     // Tipo: "Normal Goal", "Penalty", "Own Goal"
 }
 
-// Config holds the configuration for the football watcher.
+// TeamInfo representa informações básicas do time da API.
+type TeamInfo struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+	Logo string `json:"logo"`
+}
+
+// Config carrega configuração do watcher (config.yaml → Viper → mapstructure).
 type Config struct {
 	Enabled      bool                       `mapstructure:"enabled"`
 	APIKey       string                     `mapstructure:"api_key"`
@@ -50,12 +67,30 @@ type Config struct {
 	WatchedTeams []Team                     `mapstructure:"watched_teams"`
 }
 
-// ScoreProvider defines the interface for fetching football data.
+// ScoreProvider define interface para buscar dados de futebol.
+// Implementação padrão: APIFootballProvider (chama api-football.com).
 type ScoreProvider interface {
-	// GetLiveFixturesForTeam returns live matches for the given team ID.
-	GetLiveFixturesForTeam(ctx context.Context, teamID int) ([]Match, error)
-	// GetUpcomingFixturesForTeam returns upcoming matches for the given team ID.
-	GetUpcomingFixturesForTeam(ctx context.Context, teamID int) ([]Match, error)
-	// GetMatchEvents returns events (goals, etc.) for a given match ID.
-	GetMatchEvents(ctx context.Context, matchID int) ([]GoalEvent, error)
+	// GetWorldCupFixturesForTeam busca jogos do Brasil na Copa 2026.
+	// Chama GET /fixtures?league=1&season=2026&team={teamID}
+	GetWorldCupFixturesForTeam(ctx context.Context, teamID int) ([]Match, error)
+
+	// GetMatchDetails busca detalhes completos da partida (placar + eventos).
+	// Chama GET /fixtures?id={fixture_id} - retorna fixture + events numa call.
+	GetMatchDetails(ctx context.Context, fixtureID int) (*MatchDetails, error)
+
+	// GetTeamIDByName busca o ID do time na liga/temporada.
+	// Chama GET /teams?league=1&season=2026&search={name}
+	GetTeamIDByName(ctx context.Context, leagueID, season int, name string) (int, error)
 }
+
+// MatchDetails contém dados completos da partida (retorno de GET /fixtures?id={id}).
+type MatchDetails struct {
+	Fixture Match       `json:"fixture"`
+	Events  []GoalEvent `json:"events"`
+}
+
+// LiveStatus representa status considerados "ao vivo" na Copa 2026.
+var LiveStatuses = []string{"1H", "HT", "2H", "ET", "BT", "P", "LIVE"}
+
+// FinalStatus representa status que indicam fim da partida.
+var FinalStatuses = []string{"FT", "AET", "PEN"}
