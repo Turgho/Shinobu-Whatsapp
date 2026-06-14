@@ -86,4 +86,10 @@ func Start(ctx context.Context, waClient *bot.Client) {
 	}, footballLogger, provider)
 
 	watcher.Start(ctx)
+
+	footballLogger.Info("Watcher de futebol iniciado com sucesso",
+		zap.Int("watched_teams", len(watchedTeams)),
+		zap.String("notify_jid", cfg.Football.NotifyJID),
+		zap.String("idle_interval", cfg.Football.PollInterval.IdleInterval),
+		zap.String("live_interval", cfg.Football.PollInterval.LiveInterval))
 }
