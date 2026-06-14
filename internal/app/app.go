@@ -239,6 +239,13 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
 		Type:        commands.CommandTypeAdmin,
 		Private:     true,
 	}, admin.FootballTestCommand)
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "footballstatus",
+		Description: "Mostra status e configuração do módulo de futebol",
+		Type:        commands.CommandTypeAdmin,
+		Private:     true,
+	}, admin.FootballStatusCommand)
 }
 
 func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) commands.HandlerFunc {
