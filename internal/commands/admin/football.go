@@ -61,3 +61,47 @@ func FootballTestCommand(ctx context.Context, client *whatsmeow.Client, evt *eve
 	// Confirm to the user.
 	return whatsapp.Reply(ctx, client, evt, "Notificação de teste enviada com sucesso.")
 }
+
+// FootballStatusCommand shows the football watcher status and config.
+func FootballStatusCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+	cfg := configs.Load()
+	if cfg == nil {
+		return whatsapp.Reply(ctx, client, evt, "Erro ao carregar configuração.")
+	}
+
+	var sb string
+	sb += "⚽ *Status do Módulo Futebol (Copa 2026)*\n\n"
+
+	if !cfg.Football.Enabled {
+		sb += "❌ *Status:* Desativado\n"
+		sb += "\nUse `football.enabled: true` no config.yaml para ativar."
+		return whatsapp.Reply(ctx, client, evt, sb)
+	}
+
+	sb += "✅ *Status:* Ativado\n"
+	sb += fmt.Sprintf("📋 *Times monitorados:* %d\n", len(cfg.Football.WatchedTeams))
+
+	for i, team := range cfg.Football.WatchedTeams {
+		idDisplay := team.APITeamID
+		if idDisplay == 0 {
+			idDisplay = -1 // será auto-detectado
+		}
+		sb += fmt.Sprintf("  %d. %s %s (API Team ID: %d)\n", i+1, team.Flag, team.Name, idDisplay)
+	}
+
+	sb += fmt.Sprintf("📍 *Notificar em:* %s\n", cfg.Football.NotifyJID)
+	sb += fmt.Sprintf("⏱️ *Intervalo idle:* %s\n", cfg.Football.PollInterval.IdleInterval)
+	sb += fmt.Sprintf("⚡ *Intervalo live:* %s\n", cfg.Football.PollInterval.LiveInterval)
+
+	if cfg.Football.APIKey == "" {
+		sb += "\n⚠️ *API Key:* Não configurada (usará FOOTBALL_API_KEY env)"
+	} else {
+		sb += "\n🔑 *API Key:* Configurada"
+	}
+
+	sb += "\n\n💡 *Comandos:*\n"
+	sb += "• `!footballtest` — Envia notificação de teste\n"
+	sb += "• `!footballstatus` — Mostra este status"
+
+	return whatsapp.Reply(ctx, client, evt, sb)
+}
