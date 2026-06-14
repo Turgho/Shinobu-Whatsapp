@@ -23,9 +23,9 @@ football:
   api_key: "SUA_API_KEY_AQUI"  # Obtenha em https://api-football.com/
   notify_jid: "SEU_JID_AQUI@lid" # JID do grupo ou pessoa para receber notificações
   poll:
-    idle_interval: "5m"
-    live_interval: "15s"
+    idle_interval: "6h"   # modo idle: busca jogos da Copa 2026 a cada 6h (GET /fixtures?league=1&season=2026)
+    live_interval: "60s"  # modo live: 60s free tier (1 call/min); 15s se plano pago
   watched_teams:
     - name: "Brasil"
-      api_team_id: 6
+      api_team_id: 0   # 0 = auto-detect via GET /teams?league=1&season=2026&search=Brazil
       flag: "🇧🇷"
