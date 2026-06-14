@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/configs"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
-	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/configs"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 	"go.uber.org/zap"
@@ -48,13 +48,19 @@ func (w *Watcher) run(ctx context.Context) {
 		zap.Any("watched_teams", w.cfg.WatchedTeams),
 		zap.String("notify_jid", w.notifyJID))
 
-	// Log the idle interval once at startup.
+	// Parse intervals once.
 	idleDuration, err := time.ParseDuration(w.cfg.PollInterval.IdleInterval)
 	if err != nil {
 		w.logger.Error("Erro ao parsear idle_interval", zap.Error(err))
 		idleDuration = 5 * time.Minute // fallback
 	}
-	w.logger.Debug("Intervalo de polling ocioso configurado", zap.Duration("idle", idleDuration))
+	liveDuration, err := time.ParseDuration(w.cfg.PollInterval.LiveInterval)
+	if err != nil {
+		w.logger.Error("Erro ao parsear live_interval", zap.Error(err))
+		liveDuration = 15 * time.Second // fallback
+	}
+
+	var currentDuration time.Duration = idleDuration
 
 	for {
 		select {
@@ -62,39 +68,37 @@ func (w *Watcher) run(ctx context.Context) {
 			w.logger.Info("Watcher de futebol encerrado")
 			return
 		default:
+			start := time.Now()
+			anyLive := false
+
 			// Process each watched team.
 			for _, team := range w.cfg.WatchedTeams {
-				w.processTeam(ctx, team)
+				liveMatches, err := w.provider.GetLiveFixturesForTeam(ctx, team.APITeamID)
+				if err != nil {
+					w.logger.Error("Erro ao buscar partidas ao vivo", zap.Error(err))
+					continue
+				}
+				if len(liveMatches) > 0 {
+					anyLive = true
+				}
+				for _, match := range liveMatches {
+					w.processMatch(ctx, team, match)
+				}
 			}
 
-			// Wait for the next idle interval before checking again.
-			// In a real implementation, we would adjust the interval based on whether we are in live mode.
-			// For simplicity, we'll use the idle interval and check for live matches inside processTeam.
-			// We'll implement a simple sleep and then loop.
-			time.Sleep(idleDuration)
+			// Update polling interval based on whether we saw any live match.
+			if anyLive {
+				currentDuration = liveDuration
+			} else {
+				currentDuration = idleDuration
+			}
+
+			// Calculate elapsed time and sleep for the remainder of the interval.
+			elapsed := time.Since(start)
+			if elapsed < currentDuration {
+				time.Sleep(currentDuration - elapsed)
+			}
 		}
-	}
-}
-
-func (w *Watcher) processTeam(ctx context.Context, team Team) {
-	w.logger.Debug("Processando time", zap.String("team", team.Name))
-
-	// Check for live matches for this team.
-	liveMatches, err := w.provider.GetLiveFixturesForTeam(ctx, team.APITeamID)
-	if err != nil {
-		w.logger.Error("Erro ao buscar partidas ao vivo", zap.Error(err))
-		return
-	}
-
-	if len(liveMatches) == 0 {
-		// No live matches, we can optionally check for upcoming matches to see if one is about to start.
-		// For now, we just skip.
-		return
-	}
-
-	// For each live match, check for new goals.
-	for _, match := range liveMatches {
-		w.processMatch(ctx, team, match)
 	}
 }
 
@@ -144,9 +148,11 @@ func (w *Watcher) processMatch(ctx context.Context, team Team, match Match) {
 		// We have the team name in event.Team (from the provider).
 		// We'll check if it matches either the home or away team name.
 		var isWatchedTeamGoal bool
-		if event.Team == match.HomeTeam.Name {
+
+		switch event.Team {
+		case match.HomeTeam.Name:
 			isWatchedTeamGoal = true
-		} else if event.Team == match.AwayTeam.Name {
+		case match.AwayTeam.Name:
 			isWatchedTeamGoal = true
 		}
 		if !isWatchedTeamGoal {
@@ -212,6 +218,6 @@ func (w *Watcher) buildGoalMessage(team Team, match Match, event GoalEvent) stri
 		flag = "⚽"
 	}
 
-	return fmt.Sprintf("%s%s GOOOL DO %s! %s %d x %d %s — %s aos %d'",
-		flag, flag, team.Name, team.Name, teamScore, opponentScore, opponentTeam, event.Player, minute)
+	return fmt.Sprintf("%[1]s%[1]s GOOOL DO %[3]s! %[3]s %[5]d x %[6]d %[7]s - %[1]s %[9]s aos %[10]d'",
+		flag, flag, team.Name, team.Name, teamScore, opponentScore, opponentTeam, flag, event.Player, minute)
 }
