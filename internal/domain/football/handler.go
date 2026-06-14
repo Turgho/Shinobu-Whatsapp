@@ -37,6 +37,8 @@ func Start(ctx context.Context, waClient *bot.Client) {
 
 	footballLogger := zap.L().Named("FOOTBALL")
 
+	footballLogger.Debug("validações de configuração concluídas")
+
 	// Cria provedor que chama a API-Football (api-football.com)
 	provider := NewAPIFootballProvider(
 		"https://v3.football.api-sports.io",
@@ -55,7 +57,8 @@ func Start(ctx context.Context, waClient *bot.Client) {
 	}
 
 	// Para cada time, confirma o ID na API (Copa 2026: league=1, season=2026)
-	for i, team := range watchedTeams {
+	validTeams := make([]Team, 0, len(watchedTeams))
+	for _, team := range watchedTeams {
 		if team.APITeamID == 0 {
 			footballLogger.Info("api_team_id não configurado, buscando na API-Football",
 				zap.String("team", team.Name),
@@ -64,17 +67,24 @@ func Start(ctx context.Context, waClient *bot.Client) {
 
 			confirmedID, err := provider.GetTeamIDByName(ctx, WorldCupLeagueID, WorldCupSeason, team.Name)
 			if err != nil {
-				footballLogger.Error("Falha ao confirmar ID do time na Copa 2026",
+				footballLogger.Error("Falha ao confirmar ID do time na Copa 2026 - time será ignorado",
 					zap.String("team", team.Name),
 					zap.Error(err))
 				continue
 			}
-			watchedTeams[i].APITeamID = confirmedID
+			team.APITeamID = confirmedID
 			footballLogger.Info("ID do time confirmado na Copa 2026",
 				zap.String("team", team.Name),
 				zap.Int("api_team_id", confirmedID))
 		}
+		validTeams = append(validTeams, team)
 	}
+
+	if len(validTeams) == 0 {
+		footballLogger.Error("nenhum time válido para monitorar após validação de IDs")
+		return
+	}
+	watchedTeams = validTeams
 
 	// Cria e inicia watcher em background (gosafe.Go)
 	watcher := NewWatcher(waClient.WAClient, &Config{
