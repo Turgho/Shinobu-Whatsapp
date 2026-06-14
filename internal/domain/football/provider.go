@@ -7,13 +7,14 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/httpclient"
 	"go.uber.org/zap"
 )
 
-// APIFootballProvider implements ScoreProvider using the API-Football service.
+// APIFootballProvider implementa ScoreProvider usando a API-Football (api-football.com).
 type APIFootballProvider struct {
 	BaseURL string
 	APIKey  string
@@ -21,7 +22,7 @@ type APIFootballProvider struct {
 	client  *http.Client
 }
 
-// NewAPIFootballProvider creates a new API-Football provider.
+// NewAPIFootballProvider cria provedor para API-Football.
 func NewAPIFootballProvider(baseURL, apiKey string, logger *zap.Logger) *APIFootballProvider {
 	return &APIFootballProvider{
 		BaseURL: baseURL,
@@ -31,7 +32,7 @@ func NewAPIFootballProvider(baseURL, apiKey string, logger *zap.Logger) *APIFoot
 	}
 }
 
-// apiResponse represents the standard API-Football response wrapper.
+// apiResponse é o wrapper padrão de resposta da API-Football.
 type apiResponse[T any] struct {
 	Get        string            `json:"get"`
 	Parameters map[string]string `json:"parameters"`
@@ -44,7 +45,7 @@ type apiResponse[T any] struct {
 	Response []T `json:"response"`
 }
 
-// apiFixture represents a fixture from the API.
+// apiFixture representa uma partida retornada pela API-Football (lista).
 type apiFixture struct {
 	Fixture struct {
 		ID     int `json:"id"`
@@ -93,7 +94,13 @@ type apiFixture struct {
 	} `json:"score"`
 }
 
-// apiEvent represents a match event from the API.
+// apiFixtureDetail representa resposta completa de GET /fixtures?id={id}.
+type apiFixtureDetail struct {
+	Fixture apiFixture `json:"fixture"`
+	Events  []apiEvent `json:"events"`
+}
+
+// apiEvent representa um evento de partida da API-Football.
 type apiEvent struct {
 	Time struct {
 		Elapsed int  `json:"elapsed"`
@@ -117,11 +124,19 @@ type apiEvent struct {
 	Comments string `json:"comments"`
 }
 
-// GetLiveFixturesForTeam returns live matches for the given team ID.
-func (p *APIFootballProvider) GetLiveFixturesForTeam(ctx context.Context, teamID int) ([]Match, error) {
+// apiTeamResponse representa resposta de GET /teams.
+type apiTeamResponse struct {
+	Team TeamInfo `json:"team"`
+}
+
+// GetWorldCupFixturesForTeam busca jogos do time na Copa 2026.
+// Chama GET /fixtures?league=1&season=2026&team={teamID}
+// Usado no modo idle (1x/dia) para descobrir fixture_id e horário do próximo jogo.
+func (p *APIFootballProvider) GetWorldCupFixturesForTeam(ctx context.Context, teamID int) ([]Match, error) {
 	endpoint := fmt.Sprintf("%s/fixtures", p.BaseURL)
 	params := url.Values{}
-	params.Set("live", "all")
+	params.Set("league", strconv.Itoa(WorldCupLeagueID))
+	params.Set("season", strconv.Itoa(WorldCupSeason))
 	params.Set("team", strconv.Itoa(teamID))
 
 	var resp apiResponse[apiFixture]
@@ -136,25 +151,16 @@ func (p *APIFootballProvider) GetLiveFixturesForTeam(ctx context.Context, teamID
 
 	matches := make([]Match, 0, len(resp.Response))
 	for _, f := range resp.Response {
-		if f.Fixture.Status.Short != "LIVE" && f.Fixture.Status.Short != "1H" && f.Fixture.Status.Short != "2H" && f.Fixture.Status.Short != "HT" && f.Fixture.Status.Short != "ET" && f.Fixture.Status.Short != "BT" && f.Fixture.Status.Short != "P" && f.Fixture.Status.Short != "SUSP" {
-			continue
-		}
-
 		startTime, _ := time.Parse(time.RFC3339, f.Fixture.Date)
 
 		matches = append(matches, Match{
-			ID: f.Fixture.ID,
-			HomeTeam: Team{
-				Name:      f.Teams.Home.Name,
-				APITeamID: f.Teams.Home.ID,
-			},
-			AwayTeam: Team{
-				Name:      f.Teams.Away.Name,
-				APITeamID: f.Teams.Away.ID,
-			},
+			ID:          f.Fixture.ID,
+			HomeTeam:    Team{Name: f.Teams.Home.Name, APITeamID: f.Teams.Home.ID},
+			AwayTeam:    Team{Name: f.Teams.Away.Name, APITeamID: f.Teams.Away.ID},
 			HomeScore:   f.Goals.Home,
 			AwayScore:   f.Goals.Away,
 			Status:      f.Fixture.Status.Long,
+			StatusShort: f.Fixture.Status.Short,
 			StartTime:   startTime,
 			ElapsedTime: f.Fixture.Status.Elapsed,
 			League:      f.League.Name,
@@ -166,15 +172,15 @@ func (p *APIFootballProvider) GetLiveFixturesForTeam(ctx context.Context, teamID
 	return matches, nil
 }
 
-// GetUpcomingFixturesForTeam returns upcoming matches for the given team ID.
-func (p *APIFootballProvider) GetUpcomingFixturesForTeam(ctx context.Context, teamID int) ([]Match, error) {
+// GetMatchDetails busca detalhes completos da partida (placar + eventos).
+// Chama GET /fixtures?id={fixture_id} - retorna fixture + events numa call.
+// Usado no modo live (intervalo configurado: 15s pago, 60s free).
+func (p *APIFootballProvider) GetMatchDetails(ctx context.Context, fixtureID int) (*MatchDetails, error) {
 	endpoint := fmt.Sprintf("%s/fixtures", p.BaseURL)
 	params := url.Values{}
-	params.Set("team", strconv.Itoa(teamID))
-	params.Set("next", "10")
-	params.Set("status", "NS,TBD")
+	params.Set("id", strconv.Itoa(fixtureID))
 
-	var resp apiResponse[apiFixture]
+	var resp apiResponse[apiFixtureDetail]
 	if err := p.doRequest(ctx, endpoint, params, &resp); err != nil {
 		return nil, err
 	}
@@ -184,78 +190,102 @@ func (p *APIFootballProvider) GetUpcomingFixturesForTeam(ctx context.Context, te
 		return nil, fmt.Errorf("football: erros da API: %v", resp.Errors)
 	}
 
-	matches := make([]Match, 0, len(resp.Response))
-	for _, f := range resp.Response {
-		startTime, _ := time.Parse(time.RFC3339, f.Fixture.Date)
-
-		matches = append(matches, Match{
-			ID: f.Fixture.ID,
-			HomeTeam: Team{
-				Name:      f.Teams.Home.Name,
-				APITeamID: f.Teams.Home.ID,
-			},
-			AwayTeam: Team{
-				Name:      f.Teams.Away.Name,
-				APITeamID: f.Teams.Away.ID,
-			},
-			HomeScore: f.Goals.Home,
-			AwayScore: f.Goals.Away,
-			Status:    f.Fixture.Status.Long,
-			StartTime: startTime,
-			League:    f.League.Name,
-			Season:    f.League.Season,
-			Round:     f.League.Round,
-		})
+	if len(resp.Response) == 0 {
+		return nil, fmt.Errorf("football: partida %d não encontrada", fixtureID)
 	}
 
-	return matches, nil
-}
+	data := resp.Response[0]
 
-// GetMatchEvents returns events (goals, etc.) for a given match ID.
-func (p *APIFootballProvider) GetMatchEvents(ctx context.Context, matchID int) ([]GoalEvent, error) {
-	endpoint := fmt.Sprintf("%s/fixtures/events", p.BaseURL)
-	params := url.Values{}
-	params.Set("fixture", strconv.Itoa(matchID))
-
-	var resp apiResponse[apiEvent]
-	if err := p.doRequest(ctx, endpoint, params, &resp); err != nil {
-		return nil, err
-	}
-
-	if len(resp.Errors) > 0 {
-		p.Logger.Error("API-Football retornou erros", zap.Strings("errors", resp.Errors))
-		return nil, fmt.Errorf("football: erros da API: %v", resp.Errors)
-	}
-
-	events := make([]GoalEvent, 0, len(resp.Response))
-	for _, e := range resp.Response {
+	// Converte eventos para GoalEvent
+	events := make([]GoalEvent, 0, len(data.Events))
+	for _, e := range data.Events {
 		extraTime := 0
 		if e.Time.Extra != nil {
 			extraTime = *e.Time.Extra
 		}
 
-		// Generate a unique ID for the event based on matchID, minute, team, player
-		// This is used for deduplication since API doesn't provide event IDs
-		eventID := matchID*10000 + e.Time.Elapsed*100 + extraTime
+		// Gera ID único para deduplicação (API não fornece ID de evento)
+		// Fórmula: matchID*10000 + minuto*100 + extraTime + playerID
+		eventID := fixtureID*10000 + e.Time.Elapsed*100 + extraTime
 		if e.Player.ID > 0 {
 			eventID += e.Player.ID
 		}
 
 		events = append(events, GoalEvent{
 			ID:        eventID,
-			MatchID:   matchID,
-			Team:      e.Team.Name,
+			MatchID:   fixtureID,
+			TeamID:    e.Team.ID,
+			TeamName:  e.Team.Name,
 			Player:    e.Player.Name,
+			Assist:    e.Assist.Name,
 			Minute:    e.Time.Elapsed,
 			ExtraTime: extraTime,
 			Type:      e.Type,
+			Detail:    e.Detail,
 		})
 	}
 
-	return events, nil
+	// Atualiza fixture com dados mais recentes
+	f := data.Fixture
+	startTime, _ := time.Parse(time.RFC3339, f.Fixture.Date)
+
+	match := Match{
+		ID:          f.Fixture.ID,
+		HomeTeam:    Team{Name: f.Teams.Home.Name, APITeamID: f.Teams.Home.ID},
+		AwayTeam:    Team{Name: f.Teams.Away.Name, APITeamID: f.Teams.Away.ID},
+		HomeScore:   f.Goals.Home,
+		AwayScore:   f.Goals.Away,
+		Status:      f.Fixture.Status.Long,
+		StatusShort: f.Fixture.Status.Short,
+		StartTime:   startTime,
+		ElapsedTime: f.Fixture.Status.Elapsed,
+		League:      f.League.Name,
+		Season:      f.League.Season,
+		Round:       f.League.Round,
+	}
+
+	return &MatchDetails{
+		Fixture: match,
+		Events:  events,
+	}, nil
 }
 
-// doRequest performs an HTTP GET request to the API-Football API.
+// GetTeamIDByName busca o ID do time na liga/temporada.
+// Chama GET /teams?league={leagueID}&season={season}&search={name}
+// Usado para confirmar o api_team_id do Brasil antes de fixar no config.
+func (p *APIFootballProvider) GetTeamIDByName(ctx context.Context, leagueID, season int, name string) (int, error) {
+	endpoint := fmt.Sprintf("%s/teams", p.BaseURL)
+	params := url.Values{}
+	params.Set("league", strconv.Itoa(leagueID))
+	params.Set("season", strconv.Itoa(season))
+	params.Set("search", name)
+
+	var resp apiResponse[apiTeamResponse]
+	if err := p.doRequest(ctx, endpoint, params, &resp); err != nil {
+		return 0, err
+	}
+
+	if len(resp.Errors) > 0 {
+		p.Logger.Error("API-Football retornou erros", zap.Strings("errors", resp.Errors))
+		return 0, fmt.Errorf("football: erros da API: %v", resp.Errors)
+	}
+
+	if len(resp.Response) == 0 {
+		return 0, fmt.Errorf("football: time '%s' não encontrado na liga %d temporada %d", name, leagueID, season)
+	}
+
+	// Procura match exato (case-insensitive)
+	for _, t := range resp.Response {
+		if strings.EqualFold(t.Team.Name, name) {
+			return t.Team.ID, nil
+		}
+	}
+
+	// Fallback: retorna o primeiro resultado
+	return resp.Response[0].Team.ID, nil
+}
+
+// doRequest executa GET HTTP na API-Football com header x-apisports-key.
 func (p *APIFootballProvider) doRequest(ctx context.Context, endpoint string, params url.Values, result interface{}) error {
 	reqURL := endpoint + "?" + params.Encode()
 
@@ -268,11 +298,11 @@ func (p *APIFootballProvider) doRequest(ctx context.Context, endpoint string, pa
 	req.Header.Set("x-apisports-key", p.APIKey)
 	req.Header.Set("Accept", "application/json")
 
-	p.Logger.Debug("Fazendo request à API-Football", zap.String("url", reqURL))
+	p.Logger.Debug("Chamando API-Football", zap.String("url", reqURL))
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		p.Logger.Error("Erro ao fazer request HTTP", zap.Error(err), zap.String("url", reqURL))
+		p.Logger.Error("Erro na chamada HTTP", zap.Error(err), zap.String("url", reqURL))
 		return fmt.Errorf("football: erro na requisição: %w", err)
 	}
 	defer resp.Body.Close()

@@ -3,9 +3,9 @@ package football
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
-	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/configs"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
@@ -13,10 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Use the configs package to avoid import not used error.
-var _ = configs.PollIntervalConfig{}.IdleInterval
-
-// Watcher watches for goals and sends notifications.
+// Watcher monitora gols dos times configurados e envia notificação via WhatsApp.
 type Watcher struct {
 	client    *whatsmeow.Client
 	cfg       *Config
@@ -25,7 +22,7 @@ type Watcher struct {
 	notifyJID string
 }
 
-// NewWatcher creates a new football watcher.
+// NewWatcher cria watcher de gols.
 func NewWatcher(client *whatsmeow.Client, cfg *Config, logger *zap.Logger, provider ScoreProvider) *Watcher {
 	return &Watcher{
 		client:    client,
@@ -36,31 +33,38 @@ func NewWatcher(client *whatsmeow.Client, cfg *Config, logger *zap.Logger, provi
 	}
 }
 
-// Start begins watching for goals in a background goroutine.
+// Start inicia o loop de monitoramento em background (protegido por gosafe).
 func (w *Watcher) Start(ctx context.Context) {
 	gosafe.Go(func() {
 		w.run(ctx)
 	})
 }
 
+// run executa polling adaptativo para Copa 2026:
+//   - Idle: 1x/dia (ou few horas) via GET /fixtures?league=1&season=2026&team={id}
+//     descobre fixture_id e horário do próximo jogo do Brasil
+//   - Live: GET /fixtures?id={fixture_id} no intervalo configurado
+//     (15s plano pago, 60s free tier) até status final (FT, AET, PEN)
 func (w *Watcher) run(ctx context.Context) {
-	w.logger.Info("Iniciando watcher de futebol",
+	w.logger.Info("Iniciando watcher de futebol (Copa 2026)",
 		zap.Any("watched_teams", w.cfg.WatchedTeams),
 		zap.String("notify_jid", w.notifyJID))
 
-	// Parse intervals once.
 	idleDuration, err := time.ParseDuration(w.cfg.PollInterval.IdleInterval)
 	if err != nil {
 		w.logger.Error("Erro ao parsear idle_interval", zap.Error(err))
-		idleDuration = 5 * time.Minute // fallback
+		idleDuration = 24 * time.Hour // fallback: 1x/dia
 	}
 	liveDuration, err := time.ParseDuration(w.cfg.PollInterval.LiveInterval)
 	if err != nil {
 		w.logger.Error("Erro ao parsear live_interval", zap.Error(err))
-		liveDuration = 15 * time.Second // fallback
+		liveDuration = 60 * time.Second // fallback: free tier 1 call/min
 	}
 
-	var currentDuration time.Duration = idleDuration
+	var currentFixtureID int
+	var currentTeam Team
+	var inLiveWindow bool
+	currentDuration := idleDuration
 
 	for {
 		select {
@@ -69,31 +73,59 @@ func (w *Watcher) run(ctx context.Context) {
 			return
 		default:
 			start := time.Now()
-			anyLive := false
 
-			// Process each watched team.
-			for _, team := range w.cfg.WatchedTeams {
-				liveMatches, err := w.provider.GetLiveFixturesForTeam(ctx, team.APITeamID)
-				if err != nil {
-					w.logger.Error("Erro ao buscar partidas ao vivo", zap.Error(err))
-					continue
+			if !inLiveWindow {
+				// MODO IDLE: busca próximos jogos do Brasil na Copa 2026
+				for _, team := range w.cfg.WatchedTeams {
+					fixtures, err := w.provider.GetWorldCupFixturesForTeam(ctx, team.APITeamID)
+					if err != nil {
+						w.logger.Error("Erro ao buscar jogos da Copa 2026", zap.Error(err), zap.String("team", team.Name))
+						continue
+					}
+
+					// Procura jogo que ainda não terminou (status != FT, AET, PEN)
+					for _, match := range fixtures {
+						if w.isFinalStatus(match.StatusShort) {
+							continue
+						}
+
+						// Encontrou jogo relevante (próximo ou em andamento)
+						currentFixtureID = match.ID
+						currentTeam = team
+						inLiveWindow = true
+						w.logger.Info("Jogo do Brasil encontrado - entrando em modo live",
+							zap.Int("fixture_id", match.ID),
+							zap.String("status", match.StatusShort),
+							zap.Time("start_time", match.StartTime),
+							zap.String("round", match.Round))
+						break
+					}
+
+					if inLiveWindow {
+						break
+					}
 				}
-				if len(liveMatches) > 0 {
-					anyLive = true
-				}
-				for _, match := range liveMatches {
-					w.processMatch(ctx, team, match)
+
+				if !inLiveWindow {
+					w.logger.Debug("Nenhum jogo do Brasil ativo na Copa 2026 - modo idle")
 				}
 			}
 
-			// Update polling interval based on whether we saw any live match.
-			if anyLive {
+			if inLiveWindow {
+				// MODO LIVE: polling no fixture atual via GET /fixtures?id={id}
+				w.processLiveMatch(ctx, currentTeam, currentFixtureID)
+
+				// Verifica se partida terminou
+				// (o processLiveMatch atualiza inLiveWindow via retorno)
+			}
+
+			// Ajusta intervalo
+			if inLiveWindow {
 				currentDuration = liveDuration
 			} else {
 				currentDuration = idleDuration
 			}
 
-			// Calculate elapsed time and sleep for the remainder of the interval.
 			elapsed := time.Since(start)
 			if elapsed < currentDuration {
 				time.Sleep(currentDuration - elapsed)
@@ -102,30 +134,51 @@ func (w *Watcher) run(ctx context.Context) {
 	}
 }
 
-func (w *Watcher) processMatch(ctx context.Context, team Team, match Match) {
-	w.logger.Debug("Processando partida",
-		zap.Int("match_id", match.ID),
-		zap.String("home_team", match.HomeTeam.Name),
-		zap.String("away_team", match.AwayTeam.Name),
-		zap.Int("home_score", match.HomeScore),
-		zap.Int("away_score", match.AwayScore),
-		zap.String("status", match.Status))
-
-	// Fetch events for this match.
-	events, err := w.provider.GetMatchEvents(ctx, match.ID)
+// processLiveMatch processa partida em andamento.
+// Chama GET /fixtures?id={fixture_id} para obter placar + events.
+// Retorna false se partida terminou (para sair do modo live).
+func (w *Watcher) processLiveMatch(ctx context.Context, team Team, fixtureID int) bool {
+	details, err := w.provider.GetMatchDetails(ctx, fixtureID)
 	if err != nil {
-		w.logger.Error("Erro ao buscar eventos da partida", zap.Error(err))
-		return
+		w.logger.Error("Erro ao buscar detalhes da partida ao vivo", zap.Error(err), zap.Int("fixture_id", fixtureID))
+		return true // continua tentando
 	}
 
-	// Get the last processed event ID for this match.
+	match := details.Fixture
+	events := details.Events
+
+	w.logger.Debug("Processando partida ao vivo",
+		zap.Int("fixture_id", match.ID),
+		zap.String("status", match.StatusShort),
+		zap.Int("home_score", match.HomeScore),
+		zap.Int("away_score", match.AwayScore),
+		zap.Int("elapsed", match.ElapsedTime))
+
+	// Verifica se partida terminou
+	if w.isFinalStatus(match.StatusShort) {
+		w.logger.Info("Partida finalizada - saindo do modo live",
+			zap.Int("fixture_id", match.ID),
+			zap.String("final_status", match.StatusShort),
+			zap.String("score", fmt.Sprintf("%d x %d", match.HomeScore, match.AwayScore)))
+		return false // sai do modo live
+	}
+
+	// Verifica se está em status "ao vivo"
+	if !w.isLiveStatus(match.StatusShort) {
+		w.logger.Debug("Partida não iniciada ainda - aguardando",
+			zap.Int("fixture_id", match.ID),
+			zap.String("status", match.StatusShort))
+		return true // continua no modo live, aguardando início
+	}
+
+	// Lê último event ID processado (persistido em JSON)
 	lastEventID, err := GetLastEventID(match.ID)
 	if err != nil {
 		w.logger.Error("Erro ao obter último evento processado", zap.Error(err))
-		return
+		return true
 	}
 
-	// Find new events (with ID > lastEventID).
+	// Filtra apenas eventos novos (ID > último processado)
 	var newEvents []GoalEvent
 	for _, event := range events {
 		if event.ID > lastEventID {
@@ -134,67 +187,91 @@ func (w *Watcher) processMatch(ctx context.Context, team Team, match Match) {
 	}
 
 	if len(newEvents) == 0 {
-		return
+		return true
 	}
 
-	// We assume events are ordered by ID (which should be chronological).
-	// Process each new event.
+	// Processa cada evento novo: verifica se é gol DO Brasil (team.id == brazil_id)
 	for _, event := range newEvents {
-		// Check if the event is a goal for the team we are watching.
+		// Considera apenas gols e pênaltis
 		if event.Type != "Goal" && event.Type != "Penalty" {
 			continue
 		}
-		// Determine if the goal is for the team we are watching.
-		// We have the team name in event.Team (from the provider).
-		// We'll check if it matches either the home or away team name.
-		var isWatchedTeamGoal bool
 
-		switch event.Team {
-		case match.HomeTeam.Name:
-			isWatchedTeamGoal = true
-		case match.AwayTeam.Name:
-			isWatchedTeamGoal = true
-		}
-		if !isWatchedTeamGoal {
+		// Verifica se o gol é A FAVOR do Brasil:
+		// - event.TeamID == team.APITeamID (gol direto do Brasil)
+		// - OU: event.Detail == "Own Goal" E event.TeamID != team.APITeamID (gol contra do adversário)
+		isBrazilGoal := event.TeamID == team.APITeamID ||
+			(event.Detail == "Own Goal" && event.TeamID != team.APITeamID)
+
+		if !isBrazilGoal {
 			continue
 		}
 
-		// Build the notification message.
 		message := w.buildGoalMessage(team, match, event)
 
-		// Send the WhatsApp notification.
+		// Envia notificação WhatsApp
 		ctxSend, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		jid, err := types.ParseJID(w.notifyJID)
 		if err != nil {
 			w.logger.Error("Erro ao parsear JID para notificação", zap.Error(err))
 			cancel()
-			return
+			continue
 		}
 		err = whatsapp.SendTextToJID(ctxSend, w.client, jid, message, nil)
 		cancel()
 		if err != nil {
 			w.logger.Error("Erro ao enviar notificação de gol", zap.Error(err))
-			// We still update the last event ID to avoid spamming on repeated failures.
 		} else {
 			w.logger.Info("Notificação de gol enviada",
 				zap.String("team", team.Name),
 				zap.String("player", event.Player),
-				zap.Int("minute", event.Minute+event.ExtraTime))
+				zap.String("detail", event.Detail),
+				zap.Int("minute", event.Minute+event.ExtraTime),
+				zap.String("assist", event.Assist))
 		}
 
-		// Update the last event ID to this event's ID to avoid duplicate notifications.
+		// Persiste último event ID para deduplicação (sobrevive a restart)
 		if err := SetLastEventID(match.ID, event.ID); err != nil {
 			w.logger.Error("Erro ao atualizar último evento processado", zap.Error(err))
 		}
 	}
+
+	return true // continua no modo live
 }
 
+// isLiveStatus verifica se status indica partida em andamento.
+// Status ao vivo na Copa 2026: 1H, HT, 2H, ET, BT, P, LIVE
+func (w *Watcher) isLiveStatus(status string) bool {
+	for _, s := range LiveStatuses {
+		if strings.EqualFold(s, status) {
+			return true
+		}
+	}
+	return false
+}
+
+// isFinalStatus verifica se status indica fim da partida.
+// Status finais: FT, AET, PEN
+func (w *Watcher) isFinalStatus(status string) bool {
+	for _, s := range FinalStatuses {
+		if strings.EqualFold(s, status) {
+			return true
+		}
+	}
+	return false
+}
+
+// buildGoalMessage monta mensagem de gol.
+// Ex: "🇧🇷🇧🇷 GOOOL DO BRASIL! Brasil 1 x 0 Croácia - 🇧🇷 Neymar aos 23' (assist: Vini Jr.)"
+// Para gol contra: "🇧🇷🇧🇷 GOOOL DO BRASIL! Brasil 1 x 0 Croácia - 🇧🇷 Gol contra (adversário) aos 45+1'"
 func (w *Watcher) buildGoalMessage(team Team, match Match, event GoalEvent) string {
-	// Determine the opposing team and score.
 	var opponentTeam string
 	var opponentScore int
 	var teamScore int
-	if event.Team == match.HomeTeam.Name {
+
+	// Determina placar e adversário baseado em quem marcou
+	isHomeGoal := event.TeamID == match.HomeTeam.APITeamID || (event.Detail == "Own Goal" && event.TeamID == match.AwayTeam.APITeamID)
+	if isHomeGoal {
 		opponentTeam = match.AwayTeam.Name
 		teamScore = match.HomeScore
 		opponentScore = match.AwayScore
@@ -204,20 +281,28 @@ func (w *Watcher) buildGoalMessage(team Team, match Match, event GoalEvent) stri
 		opponentScore = match.HomeScore
 	}
 
-	// Format the minute.
-	minute := event.Minute
+	// Formata minuto: 23 ou 45+1
+	minuteStr := fmt.Sprintf("%d", event.Minute)
 	if event.ExtraTime > 0 {
-		minute = event.Minute + event.ExtraTime
-		// Format as "45'+1" for example.
-		// We'll just show the total minute for simplicity.
+		minuteStr = fmt.Sprintf("%d+%d", event.Minute, event.ExtraTime)
 	}
 
-	// Emojis based on the team's flag.
 	flag := team.Flag
 	if flag == "" {
 		flag = "⚽"
 	}
 
-	return fmt.Sprintf("%[1]s%[1]s GOOOL DO %[3]s! %[3]s %[5]d x %[6]d %[7]s - %[1]s %[9]s aos %[10]d'",
-		flag, flag, team.Name, team.Name, teamScore, opponentScore, opponentTeam, flag, event.Player, minute)
+	// Nome do jogador ou "Gol contra" para own goal
+	playerName := event.Player
+	if event.Detail == "Own Goal" {
+		playerName = "Gol contra"
+	}
+
+	assistStr := ""
+	if event.Assist != "" {
+		assistStr = fmt.Sprintf(" (assist: %s)", event.Assist)
+	}
+
+	return fmt.Sprintf("%[1]s%[1]s GOOOL DO %[3]s! %[3]s %[5]d x %[6]d %[7]s - %[1]s %[9]s aos %[10]s%[11]s",
+		flag, flag, team.Name, team.Name, teamScore, opponentScore, opponentTeam, flag, playerName, minuteStr, assistStr)
 }

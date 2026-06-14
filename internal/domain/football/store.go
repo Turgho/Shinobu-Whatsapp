@@ -6,12 +6,13 @@ import (
 
 const storeFile = "assets/info/football_events.json"
 
-// Store maps matchID to the last processed event ID.
+// Store mapeia matchID -> último eventID processado (persistido em JSON).
 type Store map[int]int
 
 var js = store.NewJSONStore[Store](storeFile)
 
-// SetLastEventID sets the last processed event ID for a match.
+// SetLastEventID salva o último eventID processado para a partida.
+// Usado para deduplicação: evita notificar o mesmo gol duas vezes (mesmo após restart).
 func SetLastEventID(matchID, eventID int) error {
 	return js.Update(func(s Store) (Store, error) {
 		if s == nil {
@@ -22,7 +23,7 @@ func SetLastEventID(matchID, eventID int) error {
 	})
 }
 
-// GetLastEventID returns the last processed event ID for a match.
+// GetLastEventID lê o último eventID processado da partida.
 func GetLastEventID(matchID int) (int, error) {
 	s, err := js.Read()
 	if err != nil {
