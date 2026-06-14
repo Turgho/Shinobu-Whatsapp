@@ -53,16 +53,16 @@ func Start(ctx context.Context, waClient *bot.Client) {
 
 	// Create the API-Football provider.
 	provider := NewAPIFootballProvider(
-		"https://v3.football.api-sports.io",
+		"https://v3.football.api-sports.io ",
 		cfg.Football.APIKey,
 		footballLogger,
 	)
 
 	// Create the watcher.
 	watcher := NewWatcher(waClient.WAClient, &Config{
-		Enabled:     cfg.Football.Enabled,
-		APIKey:      cfg.Football.APIKey,
-		NotifyJID:   cfg.Football.NotifyJID,
+		Enabled:      cfg.Football.Enabled,
+		APIKey:       cfg.Football.APIKey,
+		NotifyJID:    cfg.Football.NotifyJID,
 		PollInterval: cfg.Football.PollInterval,
 		WatchedTeams: watchedTeams,
 	}, footballLogger, provider)
