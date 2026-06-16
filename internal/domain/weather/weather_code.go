@@ -9,6 +9,7 @@ type WeatherCodeInfo struct {
 // WeatherCodeMap mapeia os códigos da Open-Meteo para descrições em português.
 // Referência: https://open-meteo.com/en/docs#weathervariables
 var WeatherCodeMap = map[int]WeatherCodeInfo{
+	-1: {"Desconhecido", "?"},
 	0:  {"Céu limpo", "☀️"},
 	1:  {"Principalmente limpo", "🌤️"},
 	2:  {"Parcialmente nublado", "⛅"},

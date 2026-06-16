@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/geocoding"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/weather"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -57,42 +57,24 @@ func replyOrUnderlying(
 }
 
 func buildWeatherMessage(loc geocoding.GeoResult, w *weather.WeatherResult) string {
-	cidade, _, pais := splitLocation(loc.DisplayName)
 	info := weather.WeatherCodeMap[w.WeatherCode]
-
 	return fmt.Sprintf(
-		"*🌍 Local:* %s, %s\n"+
-			"*🌡️ Temperatura atual:* `%.1f°C`\n"+
-			"*🤗 Sensação térmica:* `%.1f°C`\n"+
-			"*💨 Vento:* `%.1f km/h` _%.0f°_\n"+
-			"%s *%s*",
-		cidade,
-		pais,
-		w.Temperature,
-		w.ApparentTemperature,
-		w.WindSpeed,
-		w.WindDirection,
+		"%s *%s*\n"+
+			"📍 %s, %s\n\n"+
+			"🌡 `%.1f°C` — sensação `%.1f°C`\n"+
+			"💧 Umidade `%.0f%%`\n"+
+			"🌧 Chuva `%.1f mm` — chance `%.0f%%`\n"+
+			"💨 Vento `%.1f km/h` — direção `%.0f°`",
 		info.Emoji,
 		info.Description,
+		loc.DisplayName,
+		loc.Country,
+		w.Temperature,
+		w.ApparentTemperature,
+		w.RelativeHumidity,
+		w.Precipitation,
+		w.PrecipitationProb,
+		w.WindSpeed,
+		w.WindDirection,
 	)
-}
-
-// splitLocation interpreta DisplayName no estilo Nominatim ("cidade, estado, país, ...").
-// Com três ou mais segmentos, o país é o último token (regiões intermediárias variam).
-func splitLocation(displayName string) (cidade, estado, pais string) {
-	parts := strings.Split(displayName, ",")
-	for i := range parts {
-		parts[i] = strings.TrimSpace(parts[i])
-	}
-
-	if len(parts) > 0 {
-		cidade = parts[0]
-	}
-	if len(parts) > 1 {
-		estado = parts[1]
-	}
-	if len(parts) > 2 {
-		pais = parts[len(parts)-1]
-	}
-	return
 }

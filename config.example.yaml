@@ -15,7 +15,7 @@ usersJID:
   admins: []           # JIDs adicionais com permissão de admin
 
 apiUrls:
-  geocoding: "https://nominatim.openstreetmap.org/search"
+  geocoding: "https://geocoding-api.open-meteo.com/v1/search"
   weather: "https://api.open-meteo.com/v1/forecast"
 
 football:
