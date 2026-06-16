@@ -1,13 +1,15 @@
 package football
 
 import (
+	"strconv"
+
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/store"
 )
 
 const storeFile = "assets/info/football_events.json"
 
-// Store mapeia matchID -> último eventID processado (persistido em JSON).
-type Store map[int]int
+// Store mapeia matchID (como string) -> último eventID processado.
+type Store map[string]int
 
 var js = store.NewJSONStore[Store](storeFile)
 
@@ -18,12 +20,13 @@ func SetLastEventID(matchID, eventID int) error {
 		if s == nil {
 			s = make(Store)
 		}
-		s[matchID] = eventID
+		s[strconv.Itoa(matchID)] = eventID
 		return s, nil
 	})
 }
 
 // GetLastEventID lê o último eventID processado da partida.
+// Retorna 0 se nenhum evento foi processado ainda para essa partida.
 func GetLastEventID(matchID int) (int, error) {
 	s, err := js.Read()
 	if err != nil {
@@ -32,5 +35,5 @@ func GetLastEventID(matchID int) (int, error) {
 	if s == nil {
 		return 0, nil
 	}
-	return s[matchID], nil
+	return s[strconv.Itoa(matchID)], nil
 }
