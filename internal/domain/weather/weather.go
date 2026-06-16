@@ -14,8 +14,9 @@ import (
 
 // WeatherClient é o client da API Open-Meteo.
 type WeatherClient struct {
-	APIURL string
-	Logger *zap.Logger
+	APIURL     string
+	Logger     *zap.Logger
+	httpClient *http.Client
 }
 
 // WeatherResult contém os dados climáticos do momento atual.
@@ -31,12 +32,16 @@ type WeatherResult struct {
 	Time                string
 }
 
-// NewWeatherClient cria um novo client de clima.
+// NewWeatherClient cria um novo client de clima com timeout.
 func NewWeatherClient(apiURL string, logger *zap.Logger) *WeatherClient {
-	return &WeatherClient{APIURL: apiURL, Logger: logger}
+	return &WeatherClient{
+		APIURL: apiURL,
+		Logger: logger,
+		httpClient: &http.Client{
+			Timeout: 10 * time.Second,
+		},
+	}
 }
-
-
 
 // GetCurrentWeather busca o clima atual para as coordenadas fornecidas.
 // Usa o campo current_weather da API Open-Meteo, complementado com dados horários.
@@ -56,11 +61,12 @@ func (w *WeatherClient) GetCurrentWeather(ctx context.Context, lat, lon float64)
 
 // fetchOpenMeteo realiza a requisição à API Open-Meteo com parâmetros otimizados para precisão.
 func (w *WeatherClient) fetchOpenMeteo(ctx context.Context, lat, lon float64) (*WeatherResult, error) {
-	// Parâmetros escolhidos para aumentar precisão e cobertura de dados
 	apiURL := fmt.Sprintf(
 		"%s?latitude=%f&longitude=%f"+
-			"&hourly=temperature_2m,relativehumidity_2m,apparent_temperature,precipitation,precipitation_probability,weathercode,windspeed_10m,winddirection_10m,cloudcover"+
-			"&current_weather=true&timezone=auto&forecast_days=1",
+			"&current=temperature_2m,relative_humidity_2m,apparent_temperature"+
+			",precipitation,weather_code,wind_speed_10m,wind_direction_10m"+
+			"&hourly=precipitation_probability"+ // único campo não disponível em current
+			"&timezone=auto&forecast_days=1",
 		w.APIURL, lat, lon,
 	)
 
@@ -70,7 +76,8 @@ func (w *WeatherClient) fetchOpenMeteo(ctx context.Context, lat, lon float64) (*
 	if err != nil {
 		return nil, fmt.Errorf("weather: request: %w", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+
+	resp, err := w.httpClient.Do(req) // ver nota sobre httpClient abaixo
 	if err != nil {
 		w.Logger.Error("Erro ao fazer request HTTP (Open-Meteo)", zap.Error(err))
 		return nil, fmt.Errorf("weather: erro na requisição: %w", err)
@@ -85,24 +92,19 @@ func (w *WeatherClient) fetchOpenMeteo(ctx context.Context, lat, lon float64) (*
 	}
 
 	var data struct {
-		CurrentWeather struct {
-			Temperature   float64 `json:"temperature"`
-			Windspeed     float64 `json:"windspeed"`
-			WindDirection float64 `json:"winddirection"`
-			WeatherCode   int     `json:"weathercode"`
-			Time          string  `json:"time"` // formato: "2006-01-02T15:00"
-		} `json:"current_weather"`
+		Current struct {
+			Time                string  `json:"time"`
+			Temperature         float64 `json:"temperature_2m"`
+			RelativeHumidity    float64 `json:"relative_humidity_2m"`
+			ApparentTemperature float64 `json:"apparent_temperature"`
+			Precipitation       float64 `json:"precipitation"`
+			WeatherCode         int     `json:"weather_code"`
+			WindSpeed           float64 `json:"wind_speed_10m"`
+			WindDirection       float64 `json:"wind_direction_10m"`
+		} `json:"current"`
 		Hourly struct {
-			Time                []string  `json:"time"`
-			Temperature2m       []float64 `json:"temperature_2m"`
-			RelativeHumidity2m  []float64 `json:"relativehumidity_2m"`
-			ApparentTemperature []float64 `json:"apparent_temperature"`
-			Precipitation       []float64 `json:"precipitation"`
-			PrecipitationProb   []float64 `json:"precipitation_probability"`
-			WeatherCode         []int     `json:"weathercode"`
-			Windspeed10m        []float64 `json:"windspeed_10m"`
-			WindDirection10m    []float64 `json:"winddirection_10m"`
-			Cloudcover          []float64 `json:"cloudcover"`
+			Time              []string  `json:"time"`
+			PrecipitationProb []float64 `json:"precipitation_probability"`
 		} `json:"hourly"`
 	}
 
@@ -112,39 +114,22 @@ func (w *WeatherClient) fetchOpenMeteo(ctx context.Context, lat, lon float64) (*
 	}
 
 	result := &WeatherResult{
-		Temperature:   data.CurrentWeather.Temperature,
-		WindSpeed:     data.CurrentWeather.Windspeed,
-		WindDirection: data.CurrentWeather.WindDirection,
-		WeatherCode:   data.CurrentWeather.WeatherCode,
-		Time:          data.CurrentWeather.Time,
+		Time:                data.Current.Time,
+		Temperature:         data.Current.Temperature,
+		ApparentTemperature: data.Current.ApparentTemperature,
+		WeatherCode:         data.Current.WeatherCode,
+		Precipitation:       data.Current.Precipitation,
+		RelativeHumidity:    data.Current.RelativeHumidity,
+		WindSpeed:           data.Current.WindSpeed,
+		WindDirection:       data.Current.WindDirection,
 	}
 
-	// Preenche os dados horários extras alinhados ao horário atual
-	idx := findHourIndex(data.Hourly.Time, data.CurrentWeather.Time)
-	if idx >= 0 {
-		if idx < len(data.Hourly.Temperature2m) {
-			// Temperatura já vem de current_weather; mantemos esse valor.
-		}
-		if idx < len(data.Hourly.RelativeHumidity2m) {
-			result.RelativeHumidity = data.Hourly.RelativeHumidity2m[idx]
-		}
-		if idx < len(data.Hourly.ApparentTemperature) {
-			result.ApparentTemperature = data.Hourly.ApparentTemperature[idx]
-		}
-		if idx < len(data.Hourly.Precipitation) {
-			result.Precipitation = data.Hourly.Precipitation[idx]
-		}
-		if idx < len(data.Hourly.PrecipitationProb) {
-			result.PrecipitationProb = data.Hourly.PrecipitationProb[idx]
-		}
-		// Velocidade e direção do vento já vem de current_weather (10 m).
-		if idx < len(data.Hourly.Windspeed10m) {
-			result.WindSpeed = data.Hourly.Windspeed10m[idx]
-		}
-		if idx < len(data.Hourly.WindDirection10m) {
-			result.WindDirection = data.Hourly.WindDirection10m[idx]
-		}
+	// precipitation_probability só existe em hourly — alinha ao horário atual
+	if idx := findHourIndex(data.Hourly.Time, data.Current.Time); idx >= 0 &&
+		idx < len(data.Hourly.PrecipitationProb) {
+		result.PrecipitationProb = data.Hourly.PrecipitationProb[idx]
 	}
+
 	return result, nil
 }
 
@@ -204,8 +189,8 @@ func (w *WeatherClient) fetchWttr(ctx context.Context, lat, lon float64) (*Weath
 	winddirDegree := parseFloat(cond.WinddirDegree)
 	humidity := parseFloat(cond.Humidity)
 
-	// Descrição do weather não utilizada diretamente; código 0 (céu limpo) como fallback.
-	weatherCode := 0
+	// Descrição do weather não utilizada diretamente; código -1 ausente
+	weatherCode := -1
 
 	// Timestamp ISO usando a hora local (wttr.in não fornece timestamp)
 	// Usado a hora atual UTC como aproximação do timestamp.
