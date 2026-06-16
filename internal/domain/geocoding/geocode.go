@@ -7,12 +7,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 
 	"go.uber.org/zap"
 )
 
-// GeoCoding é o client de geocoding via Nominatim (OpenStreetMap).
+// GeoCoding é o client de geocoding via Open-Meteo Geocoding API.
 type GeoCoding struct {
 	APIURL string
 	Logger *zap.Logger
@@ -23,17 +22,26 @@ type GeoResult struct {
 	Latitude    float64
 	Longitude   float64
 	DisplayName string
+	Country     string
+	Timezone    string
 }
 
 // NewGeoCoding cria um novo client de geocoding.
+// apiURL padrão: "https://geocoding-api.open-meteo.com/v1/search"
 func NewGeoCoding(apiURL string, logger *zap.Logger) *GeoCoding {
 	return &GeoCoding{APIURL: apiURL, Logger: logger}
 }
 
 // Lookup busca coordenadas para uma query de texto.
-// limit define o número máximo de resultados.
+// limit define o número máximo de resultados (parâmetro "count" na API).
 func (g *GeoCoding) Lookup(ctx context.Context, query string, limit int) ([]GeoResult, error) {
-	fullURL := fmt.Sprintf("%s?q=%s&format=json&limit=%d", g.APIURL, url.QueryEscape(query), limit)
+	params := url.Values{}
+	params.Set("name", query)
+	params.Set("count", fmt.Sprintf("%d", limit))
+	params.Set("language", "pt")
+	// params.Set("countrycode", "BR") // busca global
+
+	fullURL := fmt.Sprintf("%s?%s", g.APIURL, params.Encode())
 
 	g.Logger.Info("Fazendo request de geocoding", zap.String("query", query))
 
@@ -42,9 +50,6 @@ func (g *GeoCoding) Lookup(ctx context.Context, query string, limit int) ([]GeoR
 		g.Logger.Error("Erro ao criar request HTTP", zap.Error(err))
 		return nil, fmt.Errorf("geocoding: erro ao criar request: %w", err)
 	}
-
-	// Nominatim exige User-Agent identificado
-	req.Header.Set("User-Agent", "YuukoBot/1.0")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -56,14 +61,21 @@ func (g *GeoCoding) Lookup(ctx context.Context, query string, limit int) ([]GeoR
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		g.Logger.Error("Geocoding retornou status inesperado",
-			zap.Int("status", resp.StatusCode), zap.String("body", string(body)))
+			zap.Int("status", resp.StatusCode),
+			zap.String("body", string(body)),
+		)
 		return nil, fmt.Errorf("geocoding: status %d", resp.StatusCode)
 	}
 
-	var raw []struct {
-		Lat         string `json:"lat"`
-		Lon         string `json:"lon"`
-		DisplayName string `json:"display_name"`
+	var raw struct {
+		Results []struct {
+			Latitude  float64 `json:"latitude"`
+			Longitude float64 `json:"longitude"`
+			Name      string  `json:"name"`
+			Country   string  `json:"country"`
+			Admin1    string  `json:"admin1"` // estado
+			Timezone  string  `json:"timezone"`
+		} `json:"results"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
@@ -71,35 +83,22 @@ func (g *GeoCoding) Lookup(ctx context.Context, query string, limit int) ([]GeoR
 		return nil, fmt.Errorf("geocoding: erro ao decodificar resposta: %w", err)
 	}
 
-	results := make([]GeoResult, 0, len(raw))
-	for _, r := range raw {
-		lat, lon, ok := parseLatLon(r.Lat, r.Lon, g.Logger)
-		if !ok {
-			continue
-		}
+	if len(raw.Results) == 0 {
+		g.Logger.Warn("Nenhum resultado encontrado", zap.String("query", query))
+		return nil, nil
+	}
+
+	results := make([]GeoResult, 0, len(raw.Results))
+	for _, r := range raw.Results {
 		results = append(results, GeoResult{
-			Latitude:    lat,
-			Longitude:   lon,
-			DisplayName: r.DisplayName,
+			Latitude:    r.Latitude,
+			Longitude:   r.Longitude,
+			DisplayName: fmt.Sprintf("%s, %s", r.Name, r.Admin1),
+			Country:     r.Country,
+			Timezone:    r.Timezone,
 		})
 	}
 
 	g.Logger.Info("Geocoding concluído", zap.Int("resultados", len(results)))
 	return results, nil
-}
-
-func parseLatLon(latStr, lonStr string, log *zap.Logger) (lat, lon float64, ok bool) {
-	lat, err := strconv.ParseFloat(latStr, 64)
-	if err != nil {
-		log.Warn("Latitude inválida, ignorando resultado",
-			zap.String("lat", latStr), zap.Error(err))
-		return 0, 0, false
-	}
-	lon, err = strconv.ParseFloat(lonStr, 64)
-	if err != nil {
-		log.Warn("Longitude inválida, ignorando resultado",
-			zap.String("lon", lonStr), zap.Error(err))
-		return 0, 0, false
-	}
-	return lat, lon, true
 }
