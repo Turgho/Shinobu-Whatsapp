@@ -58,10 +58,15 @@ func PrivateCommandsMiddleware(r *Router, owner string, admins []string) Middlew
 		if !r.IsPrivate(cmd) {
 			return true
 		}
-		jid := evt.Info.Sender.String()
+
+		// ToNonAD() remove o número de dispositivo do JID, permitindo que o mesmo
+		// usuário seja reconhecido independente de enviar pelo celular, PC ou Web.
+		jid := evt.Info.Sender.ToNonAD().String()
+
 		if jid == owner || slices.Contains(admins, jid) {
 			return true
 		}
+
 		ctx := context.Background()
 		msg := "🔒 Você não tem permissão para usar este comando."
 		sendMiddlewareNotice(ctx, r, evt, cmd, jid, msg, "Falha ao notificar acesso negado")
