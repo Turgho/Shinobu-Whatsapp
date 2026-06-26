@@ -194,8 +194,9 @@ func (r *Router) handleShinobuMention(evt *events.Message, msg string) {
 	}
 
 	r.log.Info("Shinobu mencionada",
-		zap.String("user", evt.Info.Sender.User),
-		zap.String("msg", msg),
+		append(eventFields(evt),
+			zap.String("msg", msg),
+		)...,
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), handlerTimeoutMention)
@@ -203,7 +204,9 @@ func (r *Router) handleShinobuMention(evt *events.Message, msg string) {
 
 	args := []string{msg}
 	if err := cmd.Handler(ctx, r.client, evt, args); err != nil {
-		r.log.Error("Erro ao responder menção", zap.Error(err))
+		r.log.Error("Erro ao responder menção",
+			append(eventFields(evt), zap.Error(err))...,
+		)
 	}
 }
 
@@ -215,9 +218,10 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 	}
 
 	r.log.Info("Comando recebido",
-		zap.String("command", cmdName),
-		zap.String("user", evt.Info.Sender.User),
-		zap.Strings("args", args),
+		append(eventFields(evt),
+			zap.String("command", cmdName),
+			zap.Strings("args", args),
+		)...,
 	)
 
 	cmd, ok := r.commands[cmdName]
@@ -231,17 +235,20 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 	start := time.Now()
 	if err := cmd.Handler(ctx, r.client, evt, args); err != nil {
 		r.log.Error("Erro no comando",
-			zap.String("command", cmdName),
-			zap.String("user", evt.Info.Sender.User),
-			zap.Error(err),
+			append(eventFields(evt),
+				zap.String("command", cmdName),
+				zap.Error(err),
+			)...,
 		)
 		return
 	}
 
 	r.log.Info("Comando executado",
-		zap.String("command", cmdName),
-		zap.Duration("duration", time.Since(start)),
-		zap.String("date", time.Now().Format("2006-01-02 15:04:05")),
+		append(eventFields(evt),
+			zap.String("command", cmdName),
+			zap.Duration("duration", time.Since(start)),
+			zap.String("date", time.Now().Format("2006-01-02 15:04:05")),
+		)...,
 	)
 }
 
@@ -257,4 +264,15 @@ func isMentioned(msg, botJID string) bool {
 		return true
 	}
 	return false
+}
+
+// eventFields retorna campos de log comuns extraídos de um evento.
+func eventFields(evt *events.Message) []zap.Field {
+	chat := evt.Info.Chat.String()
+	sender := evt.Info.Sender.ToNonAD().String()
+	return []zap.Field{
+		zap.String("sender", sender),
+		zap.String("chat", chat),
+		zap.Bool("is_group", strings.HasSuffix(chat, "@g.us")),
+	}
 }
