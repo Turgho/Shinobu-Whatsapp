@@ -267,6 +267,13 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
 		Type:        commands.CommandTypeAdmin,
 		Private:     true,
 	}, admin.IgnoreCommand())
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "testjob",
+		Description: "Testa o job semanal (audio+@all+sticker) no chat atual",
+		Type:        commands.CommandTypeOwner,
+		Private:     true,
+	}, admin.TestJobCommand())
 }
 
 func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) commands.HandlerFunc {
