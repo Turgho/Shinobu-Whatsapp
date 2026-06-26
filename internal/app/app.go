@@ -24,6 +24,7 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func Run() error {
@@ -107,8 +108,17 @@ func Run() error {
 }
 
 func buildLogger() (*zap.Logger, error) {
+	loc, err := time.LoadLocation("America/Sao_Paulo")
+	if err != nil {
+		loc = time.UTC
+	}
+
 	logCfg := zap.NewDevelopmentConfig()
 	logCfg.DisableStacktrace = true
+	logCfg.EncoderConfig.TimeKey = "time"
+	logCfg.EncoderConfig.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+		enc.AppendString(t.In(loc).Format("2006-01-02 15:04:05"))
+	}
 	return logCfg.Build()
 }
 
