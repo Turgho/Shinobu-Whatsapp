@@ -11,17 +11,28 @@ import (
 type Config struct {
 	Environment string `mapstructure:"environment"`
 
-	ApiURLs  ApiURLs  `mapstructure:"apiUrls"`
-	UsersJID UsersJID `mapstructure:"usersJID"`
-	Bot      BotConfig `mapstructure:"bot"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Log      LogConfig `mapstructure:"log"`
+	ApiURLs       ApiURLs            `mapstructure:"apiUrls"`
+	UsersJID      UsersJID           `mapstructure:"usersJID"`
+	Bot           BotConfig          `mapstructure:"bot"`
+	Database      DatabaseConfig     `mapstructure:"database"`
+	Log           LogConfig          `mapstructure:"log"`
+	ScheduledJobs []WeekdayJobConfig `mapstructure:"scheduledJobs"`
 
 	Groq   GroqConfig
 	Tavily TavilyConfig
 	Music  MusicConfig
 	Owner  OwnerConfig
-	Football FootballConfig `mapstructure:"football"`
+}
+
+type WeekdayJobConfig struct {
+	Name         string   `mapstructure:"name"`
+	Day          string   `mapstructure:"day"`
+	Enabled      bool     `mapstructure:"enabled"`
+	Hour         int      `mapstructure:"hour"`
+	Minute       int      `mapstructure:"minute"`
+	AudioPath    string   `mapstructure:"audioPath"`
+	StickerName  string   `mapstructure:"stickerName"`
+	TargetGroups []string `mapstructure:"targetGroups"`
 }
 
 type BotConfig struct {
@@ -44,8 +55,9 @@ type UsersJID struct {
 }
 
 type ApiURLs struct {
-	Geocoding string `mapstructure:"geocoding"`
-	Weather   string `mapstructure:"weather"`
+	Geocoding    string `mapstructure:"geocoding"`
+	OpenMeteoGeo string `mapstructure:"openMeteoGeo"`
+	Weather      string `mapstructure:"weather"`
 }
 
 type GroqConfig struct {
@@ -64,25 +76,6 @@ type MusicConfig struct {
 
 type OwnerConfig struct {
 	Number string
-}
-
-type FootballTeam struct {
-	Name      string `mapstructure:"name"`
-	APITeamID int    `mapstructure:"api_team_id"`
-	Flag      string `mapstructure:"flag"`
-}
-
-type FootballConfig struct {
-	Enabled     bool     `mapstructure:"enabled"`
-	APIKey      string   `mapstructure:"api_key"`
-	NotifyJID   string   `mapstructure:"notify_jid"`
-	PollInterval PollIntervalConfig `mapstructure:"poll"`
-	WatchedTeams []FootballTeam `mapstructure:"watched_teams"`
-}
-
-type PollIntervalConfig struct {
-	IdleInterval string `mapstructure:"idle_interval"` // e.g., "5m"
-	LiveInterval string `mapstructure:"live_interval"` // e.g., "15s"
 }
 
 func Load() *Config {
@@ -116,10 +109,6 @@ func Load() *Config {
 	}
 	cfg.Owner = OwnerConfig{
 		Number: os.Getenv("OWNER_NUMBER"),
-	}
-	// Football
-	if apiKey := os.Getenv("FOOTBALL_API_KEY"); apiKey != "" {
-		cfg.Football.APIKey = apiKey
 	}
 
 	return cfg

@@ -12,11 +12,12 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands/admin"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands/public"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/birthday"
-	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/football"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/geocoding"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/music"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/scheduler"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/weather"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/weekday"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/configs"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/database"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/uptime"
@@ -71,8 +72,32 @@ func Run() error {
 	registerPublicCommands(r, cfg, logger, store)
 	registerAdminCommands(r, cfg)
 
-	birthday.StartScheduler(client.WAClient)
-	football.Start(ctx, client)
+	// Inicializa scheduler com jobs registrados
+	sched := scheduler.NewScheduler(logger.Named("SCHEDULER"))
+
+	birthdayJob, err := birthday.NewBirthdayJob(client.WAClient, logger.Named("BIRTHDAY"))
+	if err != nil {
+		logger.Error("Erro ao criar job de aniversário", zap.Error(err))
+	} else {
+		sched.Register(birthdayJob)
+	}
+
+	for _, j := range cfg.ScheduledJobs {
+		if job := weekday.NewFromConfig(client.WAClient, logger.Named(j.Name), weekday.Config{
+			Name:         j.Name,
+			Day:          j.Day,
+			Enabled:      j.Enabled,
+			Hour:         j.Hour,
+			Minute:       j.Minute,
+			AudioPath:    j.AudioPath,
+			StickerName:  j.StickerName,
+			TargetGroups: j.TargetGroups,
+		}); job != nil {
+			sched.Register(job)
+		}
+	}
+
+	sched.Start(ctx)
 
 	handler := bot.NewHandler(client.WAClient, r)
 	client.RegisterHandlers(handler.EventHandler)
@@ -107,7 +132,7 @@ func buildRouter(cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Lo
 }
 
 func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logger, store *history.Store) {
-	geoClient := geocoding.NewGeoCoding(cfg.ApiURLs.Geocoding, logger.Named("GEOCODING"))
+	geoClient := geocoding.NewGeoCoding(cfg.ApiURLs.Geocoding, cfg.ApiURLs.OpenMeteoGeo, logger.Named("GEOCODING"))
 	weatherClient := weather.NewWeatherClient(cfg.ApiURLs.Weather, logger.Named("WEATHER"))
 
 	r.RegisterCommand(commands.CommandMeta{
@@ -232,20 +257,6 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
 		Type:        commands.CommandTypeAdmin,
 		Private:     true,
 	}, admin.IgnoreCommand())
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "footballtest",
-		Description: "Envia uma notificação de teste de gol para o módulo de futebol",
-		Type:        commands.CommandTypeAdmin,
-		Private:     true,
-	}, admin.FootballTestCommand)
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "footballstatus",
-		Description: "Mostra status e configuração do módulo de futebol",
-		Type:        commands.CommandTypeAdmin,
-		Private:     true,
-	}, admin.FootballStatusCommand)
 }
 
 func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) commands.HandlerFunc {

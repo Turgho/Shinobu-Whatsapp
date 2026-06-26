@@ -15,23 +15,26 @@ usersJID:
   admins: []           # JIDs adicionais com permissão de admin
 
 apiUrls:
-  geocoding: "https://geocoding-api.open-meteo.com/v1/search"
+  geocoding: "https://nominatim.openstreetmap.org/search"
+  openMeteoGeo: "https://geocoding-api.open-meteo.com/v1/search"
   weather: "https://api.open-meteo.com/v1/forecast"
 
-football:
-  enabled: false
-  api_key: "SUA_API_KEY_AQUI"      # Obtenha em https://dashboard.api-football.com/
-  notify_jid: "SEU_JID_AQUI@lid"   # JID do grupo ou contato para receber as notificações
-  poll:
-    idle_interval: "6h"   # modo idle: busca jogos da Copa 2026 a cada 6h
-                           # (GET /fixtures?league=1&season=2026&team={id})
-    live_interval: "60s"  # modo live: 60s recomendado no free tier (100 req/dia)
-                           # reduzir para "15s" apenas com plano pago
-  watched_teams:
-    - name: "Brasil"
-      api_team_id: 0       # 0 = auto-detect via GET /teams?league=1&season=2026&search=Brazil
-      flag: "🇧🇷"
-    # Para adicionar outro time, basta incluir uma nova entrada:
-    # - name: "Argentina"
-    #   api_team_id: 0
-    #   flag: "🇦🇷"
+scheduledJobs:
+  - name: "sextou"
+    day: "friday"
+    enabled: true
+    hour: 10
+    minute: 0
+    audioPath: "assets/audios/play_tv.ogg"
+    stickerName: "play_tv"
+    targetGroups:
+      - "grupo_jid@lid"
+  # - name: "segunda"
+  #   day: "monday"
+  #   enabled: false
+  #   hour: 9
+  #   minute: 0
+  #   audioPath: "assets/audios/segunda.ogg"
+  #   targetGroups:
+  #     - "grupo_jid@lid"
+      # - "outro_grupo@lid"

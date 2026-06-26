@@ -31,8 +31,8 @@ type IAMessage struct {
 
 // Store persiste mensagens, resumos e memória de usuário em SQLite.
 type Store struct {
-	db          *sql.DB
-	UserMemory  *UserMemoryStore
+	db         *sql.DB
+	UserMemory *UserMemoryStore
 }
 
 // NewStore abre (ou cria) o arquivo SQLite e aplica o esquema mínimo de tabelas/índices.

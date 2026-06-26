@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/music"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/media"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
-	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/music"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )
