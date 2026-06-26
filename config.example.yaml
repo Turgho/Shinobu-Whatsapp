@@ -28,7 +28,7 @@ scheduledJobs:
     audioPath: "assets/audios/play_tv.ogg"
     stickerName: "play_tv"
     targetGroups:
-      - "grupo_jid@lid"
+      - "grupo_jid@g.us"          # @g.us = grupo, @s.whatsapp.net = pessoal
   # - name: "segunda"
   #   day: "monday"
   #   enabled: false
@@ -36,5 +36,5 @@ scheduledJobs:
   #   minute: 0
   #   audioPath: "assets/audios/segunda.ogg"
   #   targetGroups:
-  #     - "grupo_jid@lid"
+  #     - "grupo_jid@g.us"
       # - "outro_grupo@lid"
