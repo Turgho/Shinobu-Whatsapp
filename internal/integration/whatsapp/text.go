@@ -62,3 +62,24 @@ func SendTextToJID(ctx context.Context, client *whatsmeow.Client, chat types.JID
 	}
 	return nil
 }
+
+// SendAllToJID envia texto com @all nativo para um JID.
+func SendAllToJID(ctx context.Context, client *whatsmeow.Client, chat types.JID, text string) error {
+	nonJID := uint32(1)
+	_ = client.SendChatPresence(ctx, chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
+	defer client.SendChatPresence(ctx, chat, types.ChatPresencePaused, types.ChatPresenceMediaText)
+
+	msg := &waE2E.Message{
+		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text: proto.String(text),
+			ContextInfo: &waE2E.ContextInfo{
+				NonJIDMentions: &nonJID,
+			},
+		},
+	}
+	_, err := client.SendMessage(ctx, chat, msg)
+	if err != nil {
+		return fmt.Errorf("whatsapp: send all to jid: %w", err)
+	}
+	return nil
+}
