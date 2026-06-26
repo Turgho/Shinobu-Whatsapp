@@ -2,26 +2,22 @@ package scheduler
 
 import (
 	"context"
-	"sync"
 	"time"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
 	"go.uber.org/zap"
 )
 
-// Job é a interface que define um trabalho agendado.
 type Job interface {
 	Name() string
 	Next(now time.Time) time.Time
 	Run(ctx context.Context) error
 }
 
-// Scheduler gerencia a execução de jobs agendados.
 type Scheduler struct {
-	jobs     []*jobEntry
-	logger   *zap.Logger
-	stopCh   chan struct{}
-	stopOnce sync.Once
-	wg       sync.WaitGroup
+	jobs   []*jobEntry
+	logger *zap.Logger
+	stopCh chan struct{}
 }
 
 type jobEntry struct {
@@ -29,7 +25,6 @@ type jobEntry struct {
 	lastRun time.Time
 }
 
-// NewScheduler cria um novo scheduler.
 func NewScheduler(logger *zap.Logger) *Scheduler {
 	return &Scheduler{
 		jobs:   make([]*jobEntry, 0),
@@ -38,28 +33,28 @@ func NewScheduler(logger *zap.Logger) *Scheduler {
 	}
 }
 
-// Register registra um novo job no scheduler.
 func (s *Scheduler) Register(job Job) {
 	s.jobs = append(s.jobs, &jobEntry{job: job})
-	s.logger.Info("Job registrado", zap.String("job", job.Name()))
+	next := job.Next(time.Now())
+	s.logger.Info("Job registrado",
+		zap.String("job", job.Name()),
+		zap.String("next_run", next.Format("2006-01-02 15:04 MST")),
+	)
 }
 
-// Start inicia o loop do scheduler em uma goroutine.
-// Verifica a cada minuto quais jobs devem ser executados.
 func (s *Scheduler) Start(ctx context.Context) {
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
+	gosafe.Go(func() {
 		s.run(ctx)
-	}()
+	})
 }
 
-// Stop para o scheduler e aguarda a finalização da goroutine.
+// Stop sinaliza o scheduler para parar na próxima iteração.
 func (s *Scheduler) Stop() {
-	s.stopOnce.Do(func() {
+	select {
+	case <-s.stopCh:
+	default:
 		close(s.stopCh)
-	})
-	s.wg.Wait()
+	}
 }
 
 func (s *Scheduler) run(ctx context.Context) {
@@ -96,16 +91,26 @@ func (s *Scheduler) checkAndRun(now time.Time) {
 			)
 
 			jobCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-			if err := entry.job.Run(jobCtx); err != nil {
-				s.logger.Error("Erro ao executar job",
-					zap.String("job", entry.job.Name()),
-					zap.Error(err),
-				)
-			} else {
-				s.logger.Info("Job executado com sucesso",
-					zap.String("job", entry.job.Name()),
-				)
-			}
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						s.logger.Error("Job panickou",
+							zap.String("job", entry.job.Name()),
+							zap.Any("panic", r),
+						)
+					}
+				}()
+				if err := entry.job.Run(jobCtx); err != nil {
+					s.logger.Error("Erro ao executar job",
+						zap.String("job", entry.job.Name()),
+						zap.Error(err),
+					)
+				} else {
+					s.logger.Info("Job executado com sucesso",
+						zap.String("job", entry.job.Name()),
+					)
+				}
+			}()
 			cancel()
 
 			entry.lastRun = now

@@ -84,6 +84,22 @@ func newWeekdayJob(client *whatsmeow.Client, logger *zap.Logger, targetGroups []
 	if err != nil {
 		return nil, fmt.Errorf("carregar timezone: %w", err)
 	}
+
+	groupStrs := make([]string, len(targetGroups))
+	for i, g := range targetGroups {
+		groupStrs[i] = g.String()
+	}
+
+	logger.Info("Job configurado",
+		zap.String("name", name),
+		zap.String("day", day.String()),
+		zap.Int("hour", hour),
+		zap.Int("minute", minute),
+		zap.Strings("groups", groupStrs),
+		zap.String("audio", audioPath),
+		zap.String("sticker", stickerName),
+	)
+
 	return &WeekdayJob{
 		client:       client,
 		logger:       logger.Named(strings.ToUpper(name)),
@@ -134,28 +150,43 @@ func (j *WeekdayJob) Next(now time.Time) time.Time {
 
 func (j *WeekdayJob) Run(ctx context.Context) error {
 	for _, groupJID := range j.targetGroups {
-		sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-
 		// 1. Envia áudio como PTT
-		if err := whatsapp.SendAudioFileToJID(sendCtx, j.client, groupJID, j.audioPath); err != nil {
-			j.logger.Error("Erro ao enviar áudio",
-				zap.String("group", groupJID.String()),
-				zap.Error(err),
-			)
-		}
+		func() {
+			sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
+			if err := whatsapp.SendAudioFileToJID(sendCtx, j.client, groupJID, j.audioPath); err != nil {
+				j.logger.Error("Erro ao enviar áudio",
+					zap.String("group", groupJID.String()),
+					zap.Error(err),
+				)
+			}
+		}()
 
 		// 2. Envia texto com @all
-		msg := fmt.Sprintf("🎉 %s! @all", j.day.String())
-		if err := whatsapp.SendTextToJID(sendCtx, j.client, groupJID, msg, []string{"all@broadcast"}); err != nil {
-			j.logger.Error("Erro ao enviar menção",
-				zap.String("group", groupJID.String()),
-				zap.Error(err),
-			)
-		}
+		func() {
+			sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
+			msg := fmt.Sprintf("🎉 %s! @all", j.day.String())
+			if err := whatsapp.SendTextToJID(sendCtx, j.client, groupJID, msg, []string{"all@broadcast"}); err != nil {
+				j.logger.Error("Erro ao enviar menção",
+					zap.String("group", groupJID.String()),
+					zap.Error(err),
+				)
+			}
+		}()
 
 		// 3. Envia sticker se configurado
 		if j.stickerName != "" {
-			if d, ok := sticker.Get(j.stickerName); ok {
+			func() {
+				sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+				defer cancel()
+				d, ok := sticker.Get(j.stickerName)
+				if !ok {
+					j.logger.Warn("Sticker não encontrado",
+						zap.String("sticker", j.stickerName),
+					)
+					return
+				}
 				uploaded := &whatsmeow.UploadResponse{
 					URL:           d.URL,
 					DirectPath:    d.DirectPath,
@@ -170,14 +201,8 @@ func (j *WeekdayJob) Run(ctx context.Context) error {
 						zap.Error(err),
 					)
 				}
-			} else {
-				j.logger.Warn("Sticker não encontrado",
-					zap.String("sticker", j.stickerName),
-				)
-			}
+			}()
 		}
-
-		cancel()
 	}
 	return nil
 }
