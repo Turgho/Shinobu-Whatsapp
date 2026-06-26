@@ -162,13 +162,13 @@ func (j *WeekdayJob) Run(ctx context.Context) error {
 			}
 		}()
 
-		// 2. Envia texto com @all
+		// 2. Envia texto com @all nativo
 		func() {
 			sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			defer cancel()
 			msg := fmt.Sprintf("🎉 %s! @all", j.day.String())
-			if err := whatsapp.SendTextToJID(sendCtx, j.client, groupJID, msg, []string{"all@broadcast"}); err != nil {
-				j.logger.Error("Erro ao enviar menção",
+			if err := whatsapp.SendAllToJID(sendCtx, j.client, groupJID, msg); err != nil {
+				j.logger.Error("Erro ao enviar menção @all",
 					zap.String("group", groupJID.String()),
 					zap.Error(err),
 				)
