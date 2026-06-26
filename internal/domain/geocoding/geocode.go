@@ -7,17 +7,20 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
+	"time"
 
 	"go.uber.org/zap"
 )
 
-// GeoCoding é o client de geocoding via Open-Meteo Geocoding API.
 type GeoCoding struct {
-	APIURL string
-	Logger *zap.Logger
+	NominatimURL string
+	OpenMeteoURL string
+	Logger       *zap.Logger
+	httpClient   *http.Client
 }
 
-// GeoResult guarda as coordenadas e nome de um lugar.
 type GeoResult struct {
 	Latitude    float64
 	Longitude   float64
@@ -26,41 +29,146 @@ type GeoResult struct {
 	Timezone    string
 }
 
-// NewGeoCoding cria um novo client de geocoding.
-// apiURL padrão: "https://geocoding-api.open-meteo.com/v1/search"
-func NewGeoCoding(apiURL string, logger *zap.Logger) *GeoCoding {
-	return &GeoCoding{APIURL: apiURL, Logger: logger}
+func NewGeoCoding(nominatimURL, openMeteoURL string, logger *zap.Logger) *GeoCoding {
+	return &GeoCoding{
+		NominatimURL: nominatimURL,
+		OpenMeteoURL: openMeteoURL,
+		Logger:       logger,
+		httpClient:   &http.Client{Timeout: 10 * time.Second},
+	}
 }
 
-// Lookup busca coordenadas para uma query de texto.
-// limit define o número máximo de resultados (parâmetro "count" na API).
 func (g *GeoCoding) Lookup(ctx context.Context, query string, limit int) ([]GeoResult, error) {
+	if results, err := g.lookupNominatim(ctx, query, limit); err == nil && len(results) > 0 {
+		return results, nil
+	}
+	g.Logger.Warn("Nominatim falhou ou sem resultados, tentando Open-Meteo", zap.String("query", query))
+	return g.lookupOpenMeteo(ctx, query, limit)
+}
+
+func (g *GeoCoding) lookupNominatim(ctx context.Context, query string, limit int) ([]GeoResult, error) {
 	params := url.Values{}
-	params.Set("name", query)
-	params.Set("count", fmt.Sprintf("%d", limit))
-	params.Set("language", "pt")
-	// params.Set("countrycode", "BR") // busca global
+	params.Set("q", query)
+	params.Set("format", "json")
+	params.Set("limit", fmt.Sprintf("%d", limit))
+	params.Set("countrycodes", "BR")
+	params.Set("addressdetails", "1")
 
-	fullURL := fmt.Sprintf("%s?%s", g.APIURL, params.Encode())
+	fullURL := fmt.Sprintf("%s?%s", g.NominatimURL, params.Encode())
 
-	g.Logger.Info("Fazendo request de geocoding", zap.String("query", query))
+	g.Logger.Info("Fazendo request de geocoding (Nominatim)", zap.String("query", query))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
 	if err != nil {
-		g.Logger.Error("Erro ao criar request HTTP", zap.Error(err))
+		g.Logger.Error("Erro ao criar request HTTP (Nominatim)", zap.Error(err))
 		return nil, fmt.Errorf("geocoding: erro ao criar request: %w", err)
 	}
+	req.Header.Set("User-Agent", "Shinobu-Whatsapp/1.0")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := g.httpClient.Do(req)
 	if err != nil {
-		g.Logger.Error("Erro ao executar request HTTP", zap.Error(err))
+		g.Logger.Error("Erro ao executar request HTTP (Nominatim)", zap.Error(err))
 		return nil, fmt.Errorf("geocoding: erro na requisição: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		g.Logger.Error("Geocoding retornou status inesperado",
+		g.Logger.Error("Nominatim retornou status inesperado",
+			zap.Int("status", resp.StatusCode),
+			zap.String("body", string(body)),
+		)
+		return nil, fmt.Errorf("geocoding: status %d", resp.StatusCode)
+	}
+
+	var raw []struct {
+		Lat         string `json:"lat"`
+		Lon         string `json:"lon"`
+		DisplayName string `json:"display_name"`
+		Address     struct {
+			Country string `json:"country"`
+			State   string `json:"state"`
+			City    string `json:"city"`
+			Town    string `json:"town"`
+			Village string `json:"village"`
+		} `json:"address"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		g.Logger.Error("Erro ao decodificar JSON (Nominatim)", zap.Error(err))
+		return nil, fmt.Errorf("geocoding: erro ao decodificar resposta: %w", err)
+	}
+
+	if len(raw) == 0 {
+		g.Logger.Warn("Nenhum resultado encontrado (Nominatim)", zap.String("query", query))
+		return nil, nil
+	}
+
+	results := make([]GeoResult, 0, len(raw))
+	for _, r := range raw {
+		lat, _ := strconv.ParseFloat(r.Lat, 64)
+		lon, _ := strconv.ParseFloat(r.Lon, 64)
+
+		country := r.Address.Country
+		if country == "" {
+			country = "Brasil"
+		}
+
+		displayName := r.DisplayName
+		if displayName == "" {
+			parts := []string{}
+			if r.Address.City != "" {
+				parts = append(parts, r.Address.City)
+			} else if r.Address.Town != "" {
+				parts = append(parts, r.Address.Town)
+			} else if r.Address.Village != "" {
+				parts = append(parts, r.Address.Village)
+			}
+			if r.Address.State != "" {
+				parts = append(parts, r.Address.State)
+			}
+			displayName = strings.Join(parts, ", ")
+		}
+
+		results = append(results, GeoResult{
+			Latitude:    lat,
+			Longitude:   lon,
+			DisplayName: displayName,
+			Country:     country,
+		})
+	}
+
+	g.Logger.Info("Geocoding concluído (Nominatim)", zap.Int("resultados", len(results)))
+	return results, nil
+}
+
+func (g *GeoCoding) lookupOpenMeteo(ctx context.Context, query string, limit int) ([]GeoResult, error) {
+	params := url.Values{}
+	params.Set("name", query)
+	params.Set("count", fmt.Sprintf("%d", limit))
+	params.Set("language", "pt")
+	params.Set("countryCode", "BR")
+
+	fullURL := fmt.Sprintf("%s?%s", g.OpenMeteoURL, params.Encode())
+
+	g.Logger.Info("Fazendo request de geocoding (Open-Meteo)", zap.String("query", query))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
+	if err != nil {
+		g.Logger.Error("Erro ao criar request HTTP (Open-Meteo)", zap.Error(err))
+		return nil, fmt.Errorf("geocoding: erro ao criar request: %w", err)
+	}
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		g.Logger.Error("Erro ao executar request HTTP (Open-Meteo)", zap.Error(err))
+		return nil, fmt.Errorf("geocoding: erro na requisição: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		g.Logger.Error("Open-Meteo retornou status inesperado",
 			zap.Int("status", resp.StatusCode),
 			zap.String("body", string(body)),
 		)
@@ -73,18 +181,18 @@ func (g *GeoCoding) Lookup(ctx context.Context, query string, limit int) ([]GeoR
 			Longitude float64 `json:"longitude"`
 			Name      string  `json:"name"`
 			Country   string  `json:"country"`
-			Admin1    string  `json:"admin1"` // estado
+			Admin1    string  `json:"admin1"`
 			Timezone  string  `json:"timezone"`
 		} `json:"results"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		g.Logger.Error("Erro ao decodificar JSON", zap.Error(err))
+		g.Logger.Error("Erro ao decodificar JSON (Open-Meteo)", zap.Error(err))
 		return nil, fmt.Errorf("geocoding: erro ao decodificar resposta: %w", err)
 	}
 
 	if len(raw.Results) == 0 {
-		g.Logger.Warn("Nenhum resultado encontrado", zap.String("query", query))
+		g.Logger.Warn("Nenhum resultado encontrado (Open-Meteo)", zap.String("query", query))
 		return nil, nil
 	}
 
@@ -99,6 +207,6 @@ func (g *GeoCoding) Lookup(ctx context.Context, query string, limit int) ([]GeoR
 		})
 	}
 
-	g.Logger.Info("Geocoding concluído", zap.Int("resultados", len(results)))
+	g.Logger.Info("Geocoding concluído (Open-Meteo)", zap.Int("resultados", len(results)))
 	return results, nil
 }
