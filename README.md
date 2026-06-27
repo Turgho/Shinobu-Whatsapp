@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
 [![Último commit](https://img.shields.io/github/last-commit/Turgho/Shinobu-Whatsapp?style=flat-square)](https://github.com/Turgho/Shinobu-Whatsapp/commits/main)
 
-Bot de WhatsApp escrito em Go, construído sobre **whatsmeow**. Possui router de comandos com middlewares, IA com personalidade via **Groq**, histórico de conversa por usuário, busca web via **Tavily**, gerenciamento de aniversários em grupo, efeitos de áudio com **ffmpeg** e reprodução de música via servidor remoto com **yt-dlp**.
+Bot de WhatsApp escrito em Go, construído sobre **whatsmeow**. Possui router de comandos com middlewares, IA com personalidade via **Groq**, histórico de conversa por usuário, busca web via **Tavily**, gerenciamento de aniversários em grupo com scheduler diário, scheduler genérico para jobs semanais/configuráveis (áudio + @all + sticker), efeitos de áudio com **ffmpeg**, reprodução de música via servidor remoto com **yt-dlp** e sistema de figurinhas salvas.
 
 > **Módulo Go:** `github.com/Turgho/Shinobu-Whatsapp`
 > O repositório pode ser clonado como `Shinobu-Whatsapp` — use sempre o caminho do módulo nos imports.
@@ -37,24 +37,13 @@ Bot de WhatsApp escrito em Go, construído sobre **whatsmeow**. Possui router de
 | **Groq** | Obrigatório para `!shinobu` e menções à IA |
 | **Tavily** | Opcional — habilita busca web na IA |
 
-### Instalando ffmpeg
+### Instalando dependências (Linux x86-64)
 
 ```bash
-# Ubuntu / Debian
-sudo apt install ffmpeg
-
-# Fedora (requer RPM Fusion)
-sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
-sudo dnf install ffmpeg
-
-# Arch / Manjaro / CachyOS
-sudo pacman -S ffmpeg
-
-# macOS
-brew install ffmpeg
+./scripts/setup.sh
 ```
 
-O pacote **libwebp** geralmente inclui o `webpmux`. Copie ou crie um link simbólico para `./bin/webpmux` caso não esteja no `PATH` global.
+O script baixa binários estáticos de **ffmpeg**, **webpmux** e **yt-dlp** para `./bin/`. Alternativamente, instale manualmente via gerenciador de pacotes e garanta que os binários estejam em `./bin/` ou no `PATH`.
 
 ---
 
@@ -76,7 +65,7 @@ go mod tidy
 cp config.example.yaml config.yaml
 ```
 
-O arquivo cobre `bot`, `database`, `log`, `usersJID` e `apiUrls`. Os campos podem ser sobrescritos por variáveis de ambiente via **Viper** (ex: `OWNER_JID`, `COMMAND_PREFIX`, `DB_DSN`).
+O arquivo cobre `bot`, `database`, `log`, `usersJID`, `apiUrls` e `scheduledJobs`. Os campos podem ser sobrescritos por variáveis de ambiente via **Viper** (ex: `OWNER_JID`, `COMMAND_PREFIX`, `DB_DSN`).
 
 ### .env
 
@@ -98,6 +87,8 @@ MUSIC_SERVER_URL=http://seu-servidor:porta
 ```
 
 > **JID do dono:** inicie o bot, envie uma mensagem e copie o JID que aparece nos logs. Cole em `usersJID.owner` no `config.yaml`.
+>
+> **Geocoding:** a API Nominatim do OpenStreetMap é usada como primária com `countrycodes=BR` e `addressdetails=1`. Open-Meteo Geocoding API é o fallback.
 >
 > **Groq:** obtenha uma API key gratuita em [console.groq.com](https://console.groq.com).
 >
@@ -121,16 +112,18 @@ Na primeira execução, escaneie o QR Code exibido no terminal. A sessão WhatsA
 
 | Comando | Descrição |
 |---------|-----------|
-| `!menu` | Lista todos os comandos registrados |
+| `!menu` (atalho: `!m`) | Lista todos os comandos registrados |
 | `!ping` | Verifica latência e disponibilidade |
-| `!clima <cidade>` | Clima atual via Nominatim + Open-Meteo |
-| `!sticker` | Converte imagem ou vídeo em figurinha |
-| `!play <nome ou URL>` | Reproduz música via servidor remoto (yt-dlp) |
-| `!efeito [nome] [intensidade]` | Aplica efeito em um áudio. Sem args, lista os disponíveis. Intensidades: `leve`, `medio`, `forte` |
+| `!clima <cidade>` (atalho: `!c`, `!tempo`) | Clima atual via Nominatim + Open-Meteo |
+| `!sticker` (atalho: `!s`, `!figurinha`) | Converte imagem ou vídeo em figurinha |
+| `!play <nome ou URL>` (atalho: `!p`, `!plau`) | Reproduz música via servidor remoto (yt-dlp) |
+| `!efeito [nome] [intensidade]` (atalho: `!e`) | Aplica efeito em um áudio. Sem args, lista os disponíveis. Intensidades: `leve`, `medio`, `forte` |
 | `!shinobu <texto>` | Conversa com a IA |
 | Menção **"shinobu"** | Atalho para o mesmo handler do `!shinobu` |
-| `!aniversário` | Gerencia aniversários do grupo (ver abaixo) |
+| `!aniversário` (atalho: `!a`, `!aniver`) | Gerencia aniversários do grupo (ver abaixo) |
 | `!mambo`, `!dio`, `!cafe` | Reproduz áudios OGG de `assets/audios/` |
+
+> **Aliases:** erros de digitação comuns como `!plau`, `!stiker`, `!clim`, `!figurinha` e `!aniversario` (sem acento) também funcionam.
 
 ### `!aniversário` — detalhamento
 
@@ -148,10 +141,14 @@ Na primeira execução, escaneie o QR Code exibido no terminal. A sessão WhatsA
 |---------|-----------|
 | `!stats` | Métricas de runtime do bot + servidor remoto |
 | `!shutdown` | Encerra o processo |
+| `!restart` | Reinicia o processo (mesmo PID via `syscall.Exec`) |
+| `!ignorar <número>` | Ignorar/designorar mensagens de um número |
+| `!ignorar lista` | Lista números ignorados |
 | `!fig <nome>` | Envia figurinha salva |
 | `!fig salvar <nome>` | Salva figurinha (enviar ou citar) |
 | `!fig remover <nome>` | Remove figurinha salva |
 | `!fig lista` | Lista figurinhas salvas |
+| `!testjob [audioPath] [stickerName]` | Testa envio de áudio+@all+sticker no chat atual |
 
 > Comandos administrativos exigem que o remetente seja owner ou admin configurado em `usersJID`.
 
@@ -186,11 +183,45 @@ Na primeira execução, escaneie o QR Code exibido no terminal. A sessão WhatsA
 
 ---
 
-## Aniversários
+## Scheduler de Jobs
 
-Dados persistidos em JSON pelo pacote `internal/domain/birthday`.
+O pacote `internal/domain/scheduler` implementa um scheduler genérico com interface `Job`:
 
-O scheduler roda em background e notifica os grupos com aniversariantes todos os dias às **08:00** (horário local do processo), mencionando os aniversariantes e todos do grupo.
+```go
+type Job interface {
+    Name() string
+    Next(now time.Time) time.Time
+    Run(ctx context.Context) error
+}
+```
+
+O scheduler roda em uma goroutine segura (via `gosafe.Go`) com ticker de 1 minuto, executando jobs cujo `Next(now)` seja igual ou anterior ao horário atual. Cada job tem seu próprio contexto com timeout de 5 minutos e recuperação individual de panics.
+
+### Aniversários
+
+O `BirthdayJob` (substituiu o scheduler específico) roda todos os dias às **08:00** (horário de Brasília), notificando grupos com aniversariantes e mencionando @all.
+
+### Jobs de Dia da Semana
+
+O pacote `internal/domain/weekday` implementa `WeekdayJob`, configurável via `config.yaml`:
+
+```yaml
+scheduledJobs:
+  - name: "sextou"
+    day: "friday"          # sunday, monday, ..., saturday
+    enabled: true
+    hour: 10
+    minute: 0
+    audioPath: "assets/audios/play_tv.ogg"
+    stickerName: "play_tv"  # opcional — nome salvo em !fig salvar
+    targetGroups:
+      - "grupo_jid@g.us"
+```
+
+O job envia sequencialmente para cada grupo:
+1. Áudio OGG como nota de voz (PTT)
+2. Mensagem de texto com `@all` nativo (`NonJIDMentions`)
+3. Sticker salvo (se configurado e existente no store)
 
 ---
 
@@ -203,12 +234,13 @@ O scheduler roda em background e notifica os grupos com aniversariantes todos os
 ├── config.example.yaml                      # Modelo de configuração
 ├── scripts
 │   └── setup.sh                             # Instala ffmpeg e webpmux em ./bin/
-├── go.mod                                   # Módulo: github.com/Turgho/YuukoWhatsapp
+├── go.mod                                   # Módulo: github.com/Turgho/Shinobu-Whatsapp
 │
 ├── assets/
-│   ├── audios/                              # OGGs estáticos (!mambo, !dio, !cafe)
+│   ├── audios/                              # OGGs estáticos (!mambo, !dio, !cafe, !testjob)
 │   │   ├── hora_cafe.ogg
 │   │   ├── mambo.ogg
+│   │   ├── play_tv.ogg
 │   │   └── zawarudo.ogg
 │   ├── images/                              # Imagens estáticas (ex: banner do !menu)
 │   │   └── shinobu_banner.png
@@ -220,7 +252,7 @@ O scheduler roda em background e notifica os grupos com aniversariantes todos os
 │
 └── internal/
     ├── app/
-    │   └── app.go                           # Inicialização de deps, router e handlers
+    │   └── app.go                           # Inicialização de deps, router, handlers, scheduler
     │
     ├── bot/
     │   ├── client.go                        # Sessão whatsmeow (QR, reconexão)
@@ -231,9 +263,12 @@ O scheduler roda em background e notifica os grupos com aniversariantes todos os
     │   ├── middleware.go                    # IgnoreOld, NotFound, PrivateCommands
     │   ├── types.go                         # CommandMeta, HandlerFunc, ArgMeta
     │   ├── admin/
+    │   │   ├── ignore.go                    # !ignorar — bloqueio de números
+    │   │   ├── restart.go                   # !restart — syscall.Exec
     │   │   ├── save_sticker.go              # !fig — gerencia figurinhas salvas
     │   │   ├── shutdown.go                  # !shutdown
-    │   │   └── stats.go                     # !stats — runtime + servidor remoto
+    │   │   ├── stats.go                     # !stats — runtime + servidor remoto
+    │   │   └── testjob.go                   # !testjob — debug de jobs agendados
     │   └── public/
     │       ├── audio_effects.go             # !efeito — reverb, lofi, nightcore, etc.
     │       ├── birthday.go                  # !aniversário — wrapper do domain
@@ -248,11 +283,12 @@ O scheduler roda em background e notifica os grupos com aniversariantes todos os
     ├── domain/                             # Regras de negócio
     │   ├── birthday/
     │   │   ├── handler.go                   # Subcomandos do grupo (salvar, remover, lista)
-    │   │   ├── scheduler.go                 # Loop diário às 08:00 — notifica grupos
+    │   │   ├── job.go                       # BirthdayJob — implementa scheduler.Job (diário 08:00)
     │   │   └── store.go                     # Persistência JSON + helpers (parseDate, etc.)
     │   ├── geocoding/
-    │   │   └── geocode.go                   # Nominatim — coordenadas por nome de cidade
+    │   │   └── geocode.go                   # Nominatim (primário) + Open-Meteo (fallback)
     │   ├── history/
+    │   │   ├── memory.go                    # Memória de fatos por usuário
     │   │   └── message_history.go           # Histórico por JID em SQLite (contexto da IA)
     │   ├── ia/
     │   │   ├── groq.go                      # Client HTTP Groq
@@ -264,15 +300,21 @@ O scheduler roda em background e notifica os grupos com aniversariantes todos os
     │   │   ├── summary.go                   # Resumo persistente por usuário
     │   │   ├── tavily.go                    # Client HTTP Tavily
     │   │   └── utils.go                     # Helpers internos da IA
+    │   ├── ignore/
+    │   │   └── store.go                     # Persistência JSON de números ignorados
     │   ├── music/
     │   │   ├── audio_effects.go             # Efeitos ffmpeg (reverb, lofi, nightcore…)
     │   │   ├── mimetype.go                  # Resolução de MIME por extensão
     │   │   └── ytdlp_request.go             # Requisição HTTP ao servidor de música
+    │   ├── scheduler/
+    │   │   └── scheduler.go                 # Scheduler genérico (Job interface, ticker 1min, gosafe)
     │   ├── sticker/
     │   │   ├── convert.go                   # ffmpeg → WebP + injeção de metadados EXIF
     │   │   ├── handler.go                   # Subcomandos !fig (salvar, remover, lista)
     │   │   ├── send.go                      # Envio de figurinha salva
     │   │   └── store.go                     # Persistência JSON das figurinhas
+    │   ├── weekday/
+    │   │   └── job.go                       # WeekdayJob — implementa scheduler.Job
     │   └── weather/
     │       ├── weather.go                   # Open-Meteo — previsão por coordenadas
     │       └── weather_code.go              # Mapeamento de códigos WMO para texto
@@ -285,8 +327,12 @@ O scheduler roda em background e notifica os grupos com aniversariantes todos os
     │   ├── ffmpeg/
     │   │   ├── ffmpeg_exec.go               # exec.Cmd para ./bin/ffmpeg
     │   │   └── linux_process.go             # SysProcAttr — prioridade baixa no Linux
+    │   ├── gosafe/
+    │   │   └── safe.go                      # Go() — goroutine com recover
     │   ├── logger/
-    │   │   └── logger.go                    # Zap — configuração de log
+    │   │   └── logger.go                    # Logger whatsmeow (WARN)
+    │   ├── phone/
+    │   │   └── normalize.go                 # Normalização de números
     │   └── uptime/
     │       └── uptime.go                    # Timestamp de início do processo (!stats)
     │
@@ -295,7 +341,7 @@ O scheduler roda em background e notifica os grupos com aniversariantes todos os
         │   ├── doc.go                       # Documentação do pacote
         │   └── download.go                  # DownloadFromEvent — imagem, vídeo, áudio, doc
         └── whatsapp/
-            ├── audio.go                     # SendAudio
+            ├── audio.go                     # SendBundledOggVoice, SendAudioFileToJID
             ├── context.go                   # buildContext, replyContext, mentionContext
             ├── doc.go                       # Documentação do pacote
             ├── document.go                  # SendDocument
@@ -305,8 +351,8 @@ O scheduler roda em background e notifica os grupos com aniversariantes todos os
             ├── presence.go                  # withTyping — indicador de digitação
             ├── reaction.go                  # SendReaction
             ├── reply.go                     # Reply (atalho com quote)
-            ├── sticker.go                   # SendSticker
-            ├── text.go                      # SendText, SendTextWithMentions, SendTextToJID
+            ├── sticker.go                   # SendSticker, SendStickerToJID
+            ├── text.go                      # SendText, SendTextWithMentions, SendTextToJID, SendAllToJID
             └── video.go                     # SendVideo
 ```
 
@@ -322,7 +368,7 @@ package public
 import (
     "context"
 
-    "github.com/Turgho/YuukoWhatsapp/internal/integration/whatsapp"
+    "github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
     "go.mau.fi/whatsmeow"
     "go.mau.fi/whatsmeow/types/events"
 )
@@ -351,87 +397,4 @@ O `!menu` lista automaticamente. Para restringir a owner/admins, adicione `Priva
 - Autor: **Turgho** — [github.com/Turgho](https://github.com/Turgho)
 - Issues: [github.com/Turgho/Shinobu-Whatsapp/issues](https://github.com/Turgho/Shinobu-Whatsapp/issues)
 
-## Notificador de Gol do Brasil (Copa 2026)
 
-O módulo de futebol adiciona um watcher que monitora partidas do Brasil na Copa 2026 e envia notificações via WhatsApp quando ocorre um gol.
-
-### Como obter e configurar a API key
-
-1. Acesse https://www.api-football.com/ e crie uma conta gratuita.
-2. Após o login, obtenha sua API key na seção "My Account".
-3. Defina a variável de ambiente `FOOTBALL_API_KEY` ou configure em `config.yaml`:
-   ```yaml
-   football:
-     api_key: "SUA_API_KEY_AQUI"
-   ```
-
-### Como configurar watched_teams e notify_jid
-
-No `config.yaml`, ajuste a seção `football`:
-
-```yaml
-football:
-  enabled: true
-  api_key: "sua_api_key"
-  notify_jid: "seu_jid@lid" # JID do grupo ou pessoa para receber notificações
-  poll:
-    idle_interval: "5m"
-    live_interval: "15s"
-  watched_teams:
-    - name: "Brasil"
-      api_team_id: 6
-      flag: "🇧🇷"
-    - name: "Argentina"
-      api_team_id: 3
-      flag: "🇦🇷"
-```
-
-- `enabled`: ativa ou desativa o watcher.
-- `api_key`: chave da API-Football.
-- `notify_jid`: JID do destino da notificação (grupo ou pessoa).
-- `poll.idle_interval`: intervalo de consulta quando não há partidas ao vivo.
-- `poll.live_interval`: intervalo de consulta quando há partidas ao vivo (mínimo recomendado: 15s para o plano free).
-- `watched_teams`: lista de times a serem monitorados. Cada time requer:
-  - `name`: nome do time (para exibição na notificação).
-  - `api_team_id`: ID externo da equipe na API-Football.
-  - `flag`: emoji da bandeira do time (opcional).
-
-### Comparação das opções de API avaliadas
-
-| API | Custo | Delay médio | Confiabilidade | Observações |
-|-----|-------|-------------|----------------|-------------|
-| API-Football (api-football.com) | Plano free: 100 req/dia | ~15-30s (dependendo do intervalo de polling) | Alta | Requer chave; plano free insuficiente para polling agressivo durante partidas inteiras. |
-| API comunitária (github.com/rezarahiminia/worldcup2026) | Gratuito | Variável | Baixa | Projeto pequeno; pode ter instabilidade e atrasos maiores. |
-
-**Por que a API-Football foi escolhida?**
-Apesar do limite de requisições no plano free, ela oferece dados oficiais, baixa latência e alta confiabilidade. Para uso em produção durante partidas, recomenda-se um plano pago ou limitar o monitoramento a jogos específicos.
-
-### Delay estimado
-
-O delay médio entre o gol real e a notificação está entre 15 e 30 segundos, considerando:
-- Intervalo de polling de 15 segundos durante partidas ao vivo (mínimo permitido pelo plano free).
-- Tempo de processamento da requisição e resposta da API (geralmente < 2s).
-- Tempo de envio da mensagem via WhatsApp (geralmente < 5s).
-
-O delay pode ser reduzido aumentando a frequência de polling, mas o plano free da API-Football permite apenas 100 requisições por dia. Com intervalo de 15 segundos, são consumidas 5760 requisições por dia (24h * 60min * 4req/min), o que excede o limite. Portanto, o intervalo deve ser ajustado conforme o plano contratado.
-
-## O que foi feito
-
-- Adicionado novo domínio `internal/domain/football` com estrutura seguindo os padrões existentes (birthday, weather).
-- Implementado watcher de gols com polling adaptativo (idle/live) e deduplicação de eventos via JSON store.
-- Integração com WhatsApp utilizando a infraestrutura existente (`integration/whatsapp/text.go`).
-- Atualização de `config.yaml` e `config.example.yaml` com a seção `football`.
-- Documentação detalhada no README.md sobre configuração, uso e limitações.
-- Inicialização do watcher em `internal/app/app.go` (via `internal/domain/football/handler.Start`).
-
-## Possíveis melhorias futuras
-
-- Monitorar múltiplos times em paralelo (já suportado via `watched_teams`).
-- Substituir polling por webhook/websocket quando disponível na API-Football.
-- Notificar outros eventos (cartão vermelho, início/fim de jogo).
-- Adicionar comando para consultar próximo jogo/placar atual (ex: `!futebol próximo`).
-- Permitir múltiplos destinos de notificação.
-- Internacionalização da mensagem de notificação (suporte a múltiplos idiomas).
-- Métricas de upto do watcher (tempo de atividade, última verificação, etc.).
-- Fallback automático para API comunitária quando a API-Football atingir o limite de requisições.
-- Otimização de deduplicação usando hash de eventos além do ID.
