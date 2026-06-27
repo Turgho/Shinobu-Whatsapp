@@ -72,6 +72,7 @@ func Run() error {
 
 	registerPublicCommands(r, cfg, logger, store)
 	registerAdminCommands(r, cfg)
+	registerAliases(r)
 
 	// Inicializa scheduler com jobs registrados
 	sched := scheduler.NewScheduler(logger.Named("SCHEDULER"))
@@ -274,6 +275,13 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
 		Type:        commands.CommandTypeOwner,
 		Private:     true,
 	}, admin.TestJobCommand())
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "manutencao",
+		Description: "Ativa/desativa modo manutenção (comandos bloqueados)",
+		Type:        commands.CommandTypeOwner,
+		Private:     true,
+	}, admin.ManutencaoCommand(r))
 }
 
 func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) commands.HandlerFunc {
@@ -296,4 +304,30 @@ func checkDeps() error {
 		}
 	}
 	return nil
+}
+
+func registerAliases(r *commands.Router) {
+	aliases := map[string]string{
+		// Shortcuts
+		"p": "play",
+		"s": "sticker",
+		"m": "menu",
+		"c": "clima",
+		"e": "efeito",
+		"a": "aniversário",
+
+		// Common misspellings
+		"plau":      "play",
+		"plei":      "play",
+		"stiker":    "sticker",
+		"figurinha": "sticker",
+		"clim":      "clima",
+		"tempo":     "clima",
+		"aniver":    "aniversário",
+		"aniversario": "aniversário",
+	}
+
+	for alias, target := range aliases {
+		r.RegisterAlias(alias, target)
+	}
 }

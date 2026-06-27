@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
@@ -26,6 +27,7 @@ type rateLimitEntry struct {
 
 type Router struct {
 	commands    map[string]command
+	aliases     map[string]string // alias → canonical name
 	middlewares []Middleware
 	prefix      string
 	client      *whatsmeow.Client
@@ -37,12 +39,14 @@ type Router struct {
 	rateLimitMax   int
 	rateLimitEvery time.Duration
 
-	botJID string
+	botJID      string
+	maintenance atomic.Bool
 }
 
 func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *history.Store) *Router {
 	return &Router{
 		commands:       make(map[string]command),
+		aliases:        make(map[string]string),
 		prefix:         prefix,
 		client:         client,
 		log:            log,
@@ -60,6 +64,15 @@ func (r *Router) SetRateLimit(max int, every time.Duration) {
 
 func (r *Router) SetBotJID(jid string) {
 	r.botJID = jid
+}
+
+func (r *Router) SetMaintenance(on bool) {
+	r.maintenance.Store(on)
+	r.log.Info("Modo manutenção alterado", zap.Bool("on", on))
+}
+
+func (r *Router) IsMaintenance() bool {
+	return r.maintenance.Load()
 }
 
 // checkRateLimit implementa rate limiting por chave (sender JID).
@@ -95,6 +108,26 @@ func (r *Router) RegisterCommand(meta CommandMeta, handler HandlerFunc) {
 	)
 }
 
+func (r *Router) RegisterAlias(alias, target string) {
+	if _, ok := r.commands[alias]; ok {
+		r.log.Warn("Alias conflita com comando existente", zap.String("alias", alias))
+		return
+	}
+	if _, ok := r.commands[target]; !ok {
+		r.log.Warn("Alias aponta para comando inexistente", zap.String("alias", alias), zap.String("target", target))
+		return
+	}
+	r.aliases[alias] = target
+	r.log.Debug("Alias registrado", zap.String("alias", alias), zap.String("target", target))
+}
+
+func (r *Router) resolveAlias(name string) string {
+	if target, ok := r.aliases[name]; ok {
+		return target
+	}
+	return name
+}
+
 func (r *Router) Use(m Middleware) {
 	r.middlewares = append(r.middlewares, m)
 }
@@ -108,12 +141,12 @@ func (r *Router) Commands() []CommandMeta {
 }
 
 func (r *Router) HasCommand(name string) bool {
-	_, ok := r.commands[name]
+	_, ok := r.commands[r.resolveAlias(name)]
 	return ok
 }
 
 func (r *Router) IsPrivate(name string) bool {
-	cmd, ok := r.commands[name]
+	cmd, ok := r.commands[r.resolveAlias(name)]
 	return ok && cmd.Meta.Private
 }
 
@@ -159,6 +192,15 @@ func (r *Router) HandleMessage(evt *events.Message) {
 	}
 
 	cmdName := strings.ToLower(parts[0])
+
+	if r.IsMaintenance() && r.resolveAlias(cmdName) != "manutencao" {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		msg := "😅 *O bot está em manutenção!*\n\nComandos temporariamente desativados. Tente novamente mais tarde."
+		_ = whatsapp.Reply(ctx, r.client, evt, msg)
+		return
+	}
+
 	r.handlePrefixedCommand(evt, cmdName, parts[1:])
 }
 
@@ -216,6 +258,8 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 	if !r.runMiddlewares(cmdName, evt) {
 		return
 	}
+
+	cmdName = r.resolveAlias(cmdName)
 
 	r.log.Info("Comando recebido",
 		append(eventFields(evt),
