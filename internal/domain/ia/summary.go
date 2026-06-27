@@ -4,18 +4,45 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
+	"go.uber.org/zap"
+)
+
+var (
+	summaryLocks   sync.Mutex
+	summaryRunning = make(map[string]struct{})
 )
 
 // refreshChatSummary atualiza o resumo persistente da conversa de forma ASSÍNCRONA
-// (goroutine separada com recover). Só gera novo resumo se store.NeedsSummary
-// indicar que passou tempo ou mensagens suficientes desde a última atualização.
+// (goroutine separada com recover). Usa dedup por chat para evitar múltiplas
+// requisições simultâneas para o mesmo chat.
+// Só gera novo resumo se store.NeedsSummary indicar que passou tempo ou mensagens
+// suficientes desde a última atualização.
 // Não bloqueia a resposta da IA para o usuário.
 func refreshChatSummary(cfg *Config, chat, lastUserPrompt, lastAssistantAnswer string, store *history.Store) {
-	gosafe.Go(func() {
+	logger := cfg.Log
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
+	summaryLocks.Lock()
+	if _, running := summaryRunning[chat]; running {
+		summaryLocks.Unlock()
+		return
+	}
+	summaryRunning[chat] = struct{}{}
+	summaryLocks.Unlock()
+
+	gosafe.Go(logger, func() {
+		defer func() {
+			summaryLocks.Lock()
+			delete(summaryRunning, chat)
+			summaryLocks.Unlock()
+		}()
 		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 		defer cancel()
 
