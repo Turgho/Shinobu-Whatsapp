@@ -20,22 +20,7 @@ func (s *JSONStore[T]) Read() (T, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var zero T
-	data, err := os.ReadFile(s.path)
-	if os.IsNotExist(err) {
-		return zero, nil
-	}
-	if err != nil {
-		return zero, fmt.Errorf("ler arquivo %s: %w", s.path, err)
-	}
-	if len(data) == 0 {
-		return zero, nil
-	}
-	var val T
-	if err := json.Unmarshal(data, &val); err != nil {
-		return zero, fmt.Errorf("parse json %s: %w", s.path, err)
-	}
-	return val, nil
+	return s.readLocked()
 }
 
 func (s *JSONStore[T]) Write(val T) error {
