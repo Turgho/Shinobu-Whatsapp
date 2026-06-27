@@ -60,6 +60,17 @@ func NewStore(path string, log *zap.Logger) (*Store, error) {
 			summary    TEXT NOT NULL,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS user_facts (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			chat       TEXT NOT NULL,
+			user       TEXT NOT NULL,
+			fact       TEXT NOT NULL,
+			confidence TEXT NOT NULL DEFAULT 'medium',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(chat, user, fact)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_user_facts_chat_user ON user_facts(chat, user)`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat)`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_chat_sender ON messages(chat, sender)`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_chat_sent_at ON messages(chat, sent_at)`,
@@ -78,7 +89,7 @@ func NewStore(path string, log *zap.Logger) (*Store, error) {
 	return &Store{db: db, UserMemory: memStore, log: log}, nil
 }
 
-// StartCleanup apaga mensagens mais antigas que maxAge, a cada hora, até ctx cancelar.
+// StartCleanup apaga mensagens e fatos antigos, a cada hora, até ctx cancelar.
 func (s *Store) StartCleanup(ctx context.Context, maxAge time.Duration) {
 	gosafe.Go(s.log, func() {
 		ticker := time.NewTicker(1 * time.Hour)
@@ -91,6 +102,7 @@ func (s *Store) StartCleanup(ctx context.Context, maxAge time.Duration) {
 					`DELETE FROM messages WHERE sent_at < ?`,
 					time.Now().Add(-maxAge).Format("2006-01-02 15:04:05"),
 				)
+				_ = s.PruneStaleFacts(ctx, 30*24*time.Hour)
 			case <-ctx.Done():
 				return
 			}
@@ -316,14 +328,27 @@ func (s *Store) CountRecentMessages(ctx context.Context, chat string, maxAge tim
 	return count, nil
 }
 
-// NeedsSummary indica se já há mensagens suficientes para justificar regenerar o resumo.
+// NeedsSummary indica se já há mensagens suficientes e passou tempo suficiente
+// desde a última atualização do resumo para justificar regenerá-lo.
 func (s *Store) NeedsSummary(ctx context.Context, chat string, minMessages int, maxAge time.Duration) (bool, error) {
 	count, err := s.CountRecentMessages(ctx, chat, maxAge)
+	if err != nil || count < minMessages {
+		return false, err
+	}
+
+	var updatedAt string
+	err = s.db.QueryRowContext(ctx,
+		`SELECT updated_at FROM chat_summaries WHERE chat = ?`, chat,
+	).Scan(&updatedAt)
+	if err == sql.ErrNoRows {
+		return true, nil
+	}
 	if err != nil {
 		return false, err
 	}
 
-	return count >= minMessages, nil
+	t := parseSQLiteSentAt(updatedAt)
+	return time.Since(t) > 2*time.Hour, nil
 }
 
 // Close libera a conexão SQLite.
