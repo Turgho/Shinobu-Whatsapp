@@ -86,7 +86,7 @@ func Run() error {
 	sched := scheduler.NewScheduler(logger.Named("SCHEDULER"))
 
 	registerPublicCommands(r, cfg, logger, store, sched, dynStore)
-	registerAdminCommands(r, cfg)
+	registerAdminCommands(r, cfg, store, logger)
 	registerAliases(r)
 
 	// Carrega jobs dinâmicos persistidos, ignorando expirados
@@ -278,7 +278,7 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 	}, public.AgendaHandler(sched, dynStore, logger))
 }
 
-func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
+func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *history.Store, logger *zap.Logger) {
 	musicCfg := &music.Config{
 		ServerURL: cfg.Music.ServerURL,
 		APIToken:  cfg.Music.APIToken,
@@ -335,6 +335,13 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
 		Type:        commands.CommandTypeOwner,
 		Private:     true,
 	}, admin.ManutencaoCommand(r))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "memoria",
+		Description: "Gerencia a memória da IA no chat. Subcomandos: ver, limpar [@user], resumo",
+		Type:        commands.CommandTypeAdmin,
+		Private:     true,
+	}, admin.MemoriaHandler(store, logger))
 }
 
 func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) commands.HandlerFunc {
