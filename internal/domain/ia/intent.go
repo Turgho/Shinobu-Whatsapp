@@ -27,7 +27,7 @@ func DetectIntent(ctx context.Context, cfg *Config, message string) (*Intent, er
 Data atual: %s
 
 COMANDOS:
-- agenda <ISO8601> <texto>: agendar lembrete ("amanhã às 9h", "sexta às 18h", "30/06 às 10h")
+- agenda <tempo|data> <texto>: agendar lembrete ("amanhã às 9h", "sexta às 18h", "30/06 às 10h", "daqui 5 minutos", "em 2 horas")
 - clima <cidade> [data]: previsão do tempo com data opcional ("amanhã", "sexta", "30/06")
 - play <música>
 - sticker
@@ -35,9 +35,10 @@ COMANDOS:
 - aniversário <DD/MM|lista|remover>
 
 REGRAS DE DATA:
-Converta datas relativas para ISO8601 (2006-01-02T15:04) usando %s como referência
-"amanhã" → tomorrow, "sexta" → next friday, "semana que vem" → +7 days
-Se não tiver horário no agenda, usar 08:00
+Para agenda: passe o tempo/data EXATAMENTE como o usuário disse em args[0], sem converter.
+O parser aceita tanto tempo relativo ("daqui 5 minutos", "em 2 horas", "1 dia") quanto data absoluta ("2026-06-28T09:00", "30/06 às 10h").
+Para clima: converta datas relativas para ISO8601 (2006-01-02) usando %s como referência
+"amanhã" → tomorrow, "sexta" → next friday
 clima sem data → args: ["cidade"]
 clima com data → args: ["cidade", "YYYY-MM-DD"]
 
@@ -45,6 +46,8 @@ Se não corresponder: {"command":"","args":[]}
 
 Exemplos:
 {"command":"agenda","args":["2026-06-28T09:00","tomar remédio"]}
+{"command":"agenda","args":["daqui 5 minutos","comprar pão"]}
+{"command":"agenda","args":["em 2 horas","reunião"]}
 {"command":"clima","args":["São Paulo","2026-06-30"]}
 {"command":"clima","args":["São Paulo"]}
 {"command":"play","args":["despacito"]}
