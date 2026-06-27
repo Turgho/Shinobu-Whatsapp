@@ -75,6 +75,10 @@ func AgendaCommand(
 
 	dynSched.Register(job)
 
+	// Força uma verificação imediata para jobs de curta duração
+	// (ex: "daqui 1 minuto"), reduzindo o delay máximo para 1 tick (15s).
+	dynSched.RunCheck()
+
 	reply := fmt.Sprintf("✅ Lembrete agendado!\n\n📅 %s\n🕐 %s\n📝 %s",
 		runAt.Format("02/01/2006"),
 		runAt.Format("15:04"),
@@ -252,7 +256,7 @@ func parseAgendaTime(input string) (time.Time, error) {
 	}
 
 	for _, layout := range layouts {
-		if t, err := time.Parse(layout, s); err == nil {
+		if t, err := time.ParseInLocation(layout, s, time.Local); err == nil {
 			if t.Year() == 0 {
 				t = t.AddDate(time.Now().Year(), 0, 0)
 			}
