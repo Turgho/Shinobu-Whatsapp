@@ -64,8 +64,10 @@ func (j *DynamicJob) Run(ctx context.Context) error {
 		return fmt.Errorf("dynamic_job: enviar mensagem: %w", err)
 	}
 
-	j.logger.Info("Job dinâmico executado com sucesso",
+	j.logger.Info("Lembrete enviado",
 		zap.String("job_id", j.ID),
+		zap.String("chat", j.ChatJID),
+		zap.String("message", j.Message),
 	)
 	return nil
 }
