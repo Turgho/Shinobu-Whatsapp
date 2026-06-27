@@ -51,7 +51,6 @@ func (g *GeoCoding) lookupNominatim(ctx context.Context, query string, limit int
 	params.Set("q", query)
 	params.Set("format", "json")
 	params.Set("limit", fmt.Sprintf("%d", limit))
-	params.Set("countrycodes", "BR")
 	params.Set("addressdetails", "1")
 
 	fullURL := fmt.Sprintf("%s?%s", g.NominatimURL, params.Encode())
@@ -110,9 +109,6 @@ func (g *GeoCoding) lookupNominatim(ctx context.Context, query string, limit int
 		lon, _ := strconv.ParseFloat(r.Lon, 64)
 
 		country := r.Address.Country
-		if country == "" {
-			country = "Brasil"
-		}
 
 		city := r.Address.City
 		if city == "" {
@@ -151,7 +147,6 @@ func (g *GeoCoding) lookupOpenMeteo(ctx context.Context, query string, limit int
 	params.Set("name", query)
 	params.Set("count", fmt.Sprintf("%d", limit))
 	params.Set("language", "pt")
-	params.Set("countryCode", "BR")
 
 	fullURL := fmt.Sprintf("%s?%s", g.OpenMeteoURL, params.Encode())
 
