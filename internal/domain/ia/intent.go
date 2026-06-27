@@ -5,40 +5,51 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 )
 
-// Intent representa um comando identificado pela NLU.
 type Intent struct {
 	Command string   `json:"command"`
 	Args    []string `json:"args"`
 }
 
-// DetectIntent classifica a mensagem em um comando disponível e extrai argumentos.
-// Retorna Intent{Command: ""} se nenhum comando corresponder.
-// Apenas comandos públicos da whitelist são retornados.
 func DetectIntent(ctx context.Context, cfg *Config, message string) (*Intent, error) {
 	if cfg.GroqURL == "" || cfg.GroqKey == "" {
 		return &Intent{}, nil
 	}
 
-	systemPrompt := `Classifica mensagens em português em comandos de um bot WhatsApp. Retorne APENAS JSON válido, sem texto extra.
+	today := time.Now().Format("2006-01-02")
+
+	systemPrompt := fmt.Sprintf(`Classifica mensagens em português em comandos de um bot WhatsApp. Retorne APENAS JSON válido, sem texto extra.
+
+Data atual: %s
 
 COMANDOS:
-- clima <cidade>
+- agenda <ISO8601> <texto>: agendar lembrete ("amanhã às 9h", "sexta às 18h", "30/06 às 10h")
+- clima <cidade> [data]: previsão do tempo com data opcional ("amanhã", "sexta", "30/06")
 - play <música>
 - sticker
 - efeito <tipo> [intensidade]
 - aniversário <DD/MM|lista|remover>
 
+REGRAS DE DATA:
+Converta datas relativas para ISO8601 (2006-01-02T15:04) usando %s como referência
+"amanhã" → tomorrow, "sexta" → next friday, "semana que vem" → +7 days
+Se não tiver horário no agenda, usar 08:00
+clima sem data → args: ["cidade"]
+clima com data → args: ["cidade", "YYYY-MM-DD"]
+
 Se não corresponder: {"command":"","args":[]}
 
 Exemplos:
+{"command":"agenda","args":["2026-06-28T09:00","tomar remédio"]}
+{"command":"clima","args":["São Paulo","2026-06-30"]}
 {"command":"clima","args":["São Paulo"]}
 {"command":"play","args":["despacito"]}
 {"command":"efeito","args":["reverb","leve"]}
-{"command":"","args":[]}`
+{"command":"","args":[]}`, today, today)
 
 	req := IARequest{
 		Model: modelScoutFast,
@@ -47,7 +58,7 @@ Exemplos:
 			{Role: "user", Content: fmt.Sprintf("Mensagem: %s", message)},
 		},
 		Temperature: 0,
-		MaxTokens:   100,
+		MaxTokens:   150,
 		Stream:      false,
 	}
 
