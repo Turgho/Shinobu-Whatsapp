@@ -14,5 +14,8 @@ build:
 run:
 	go run $(LDFLAGS) ./cmd/bot/main.go
 
+test:
+	go test ./... -count=1
+
 setup:
 	@bash scripts/setup.sh
