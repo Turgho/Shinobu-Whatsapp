@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
+	"go.uber.org/zap"
 	_ "modernc.org/sqlite"
 )
 
@@ -33,10 +34,14 @@ type IAMessage struct {
 type Store struct {
 	db         *sql.DB
 	UserMemory *UserMemoryStore
+	log        *zap.Logger
 }
 
 // NewStore abre (ou cria) o arquivo SQLite e aplica o esquema mínimo de tabelas/índices.
-func NewStore(path string) (*Store, error) {
+func NewStore(path string, log *zap.Logger) (*Store, error) {
+	if log == nil {
+		log = zap.NewNop()
+	}
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao abrir history db: %w", err)
@@ -65,17 +70,17 @@ func NewStore(path string) (*Store, error) {
 		}
 	}
 
-	memStore, err := NewUserMemoryStore(db)
+	memStore, err := NewUserMemoryStore(db, log)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao criar user memory store: %w", err)
 	}
 
-	return &Store{db: db, UserMemory: memStore}, nil
+	return &Store{db: db, UserMemory: memStore, log: log}, nil
 }
 
 // StartCleanup apaga mensagens mais antigas que maxAge, a cada hora, até ctx cancelar.
 func (s *Store) StartCleanup(ctx context.Context, maxAge time.Duration) {
-	gosafe.Go(func() {
+	gosafe.Go(s.log, func() {
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 
@@ -182,13 +187,13 @@ func (s *Store) loadRecentChatLines(ctx context.Context, chat string, limit int,
 
 	rows, err := s.db.QueryContext(ctx, `
 		WITH ranked AS (
-			SELECT sender, text, sent_at,
-				ROW_NUMBER() OVER (ORDER BY sent_at DESC) AS rn
+			SELECT id, sender, text, sent_at,
+				ROW_NUMBER() OVER (ORDER BY sent_at DESC, id DESC) AS rn
 			FROM messages
 			WHERE chat = ? AND sent_at >= ?
 		)
 		SELECT sender, text, sent_at FROM ranked WHERE rn <= ?
-		ORDER BY sent_at ASC
+		ORDER BY sent_at ASC, id ASC
 	`, chat, since, limit)
 	if err != nil {
 		return nil, err
