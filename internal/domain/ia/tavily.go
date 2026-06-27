@@ -18,13 +18,16 @@ const (
 )
 
 type tavilyRequest struct {
-	Query             string `json:"query"`
-	APIKey            string `json:"api_key"`
-	SearchDepth       string `json:"search_depth"`
-	Topic             string `json:"topic"`
-	MaxResults        int    `json:"max_results"`
-	IncludeAnswer     bool   `json:"include_answer"`
-	IncludeRawContent bool   `json:"include_raw_content"`
+	Query             string   `json:"query"`
+	APIKey            string   `json:"api_key"`
+	SearchDepth       string   `json:"search_depth"`
+	Topic             string   `json:"topic"`
+	MaxResults        int      `json:"max_results"`
+	Days              int      `json:"days,omitempty"`
+	IncludeAnswer     bool     `json:"include_answer"`
+	IncludeRawContent bool     `json:"include_raw_content"`
+	Country           string   `json:"country"`
+	IncludeDomains    []string `json:"include_domains,omitempty"`
 }
 
 type tavilyResponse struct {
@@ -42,14 +45,28 @@ func searchWeb(ctx context.Context, apiKey, query string) (string, error) {
 		return "", fmt.Errorf("TAVILY_API_KEY não configurada")
 	}
 
+	lowerQuery := strings.ToLower(query)
+
 	req := tavilyRequest{
-		Query:             query,
+		Query:             enrichQueryBR(query, lowerQuery),
 		APIKey:            apiKey,
 		SearchDepth:       "advanced",
 		Topic:             tavilyTopicFromQuery(query),
 		MaxResults:        maxResults,
+		Days:              tavilyDaysFromQuery(query),
 		IncludeAnswer:     true,
 		IncludeRawContent: true,
+		Country:           "brazil",
+	}
+
+	if isPriceQuery(lowerQuery) {
+		req.IncludeDomains = []string{
+			"mercadolivre.com.br",
+			"amazon.com.br",
+			"buscape.com.br",
+			"zoom.com.br",
+			"kabum.com.br",
+		}
 	}
 
 	body, err := json.Marshal(req)
@@ -118,4 +135,35 @@ func tavilyTopicFromQuery(query string) string {
 		return "news"
 	}
 	return "general"
+}
+
+func tavilyDaysFromQuery(query string) int {
+	lower := strings.ToLower(query)
+	switch {
+	case prefersNewsTavilyTopic(lower):
+		return 3
+	case isPriceQuery(lower):
+		return 7
+	default:
+		return 0
+	}
+}
+
+// enrichQueryBR complementa queries de preço/produto com contexto brasileiro
+// para evitar resultados em dólar ou de outros países.
+func enrichQueryBR(query, lowerQuery string) string {
+	if isPriceQuery(lowerQuery) {
+		return query + " preço brasil reais"
+	}
+	return query
+}
+
+func isPriceQuery(lowerQuery string) bool {
+	keywords := []string{"quanto custa", "preço", "preco", "valor", "comprar", "mais barato", "promoção", "promocao"}
+	for _, k := range keywords {
+		if strings.Contains(lowerQuery, k) {
+			return true
+		}
+	}
+	return false
 }
