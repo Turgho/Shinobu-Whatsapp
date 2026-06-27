@@ -3,7 +3,9 @@ package public
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/geocoding"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/weather"
@@ -12,7 +14,8 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-// WeatherCommand resolve o nome da cidade, busca clima atual e responde com um resumo formatado.
+var datePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
 func WeatherCommand(
 	ctx context.Context,
 	client *whatsmeow.Client,
@@ -25,6 +28,18 @@ func WeatherCommand(
 		return whatsapp.Reply(ctx, client, evt, "Por favor, informe o nome da cidade.")
 	}
 
+	var targetDate time.Time
+	hasDate := false
+
+	if len(args) >= 2 && datePattern.MatchString(args[len(args)-1]) {
+		parsed, err := time.Parse("2006-01-02", args[len(args)-1])
+		if err == nil {
+			targetDate = parsed
+			hasDate = true
+			args = args[:len(args)-1]
+		}
+	}
+
 	query := strings.Join(args, " ")
 
 	results, err := geo.Lookup(ctx, query, 1)
@@ -33,16 +48,21 @@ func WeatherCommand(
 	}
 
 	loc := results[0]
-	weatherData, err := weatherClient.GetCurrentWeather(ctx, loc.Latitude, loc.Longitude)
+
+	var weatherData *weather.WeatherResult
+	if hasDate {
+		weatherData, err = weatherClient.GetForecastForDate(ctx, loc.Latitude, loc.Longitude, targetDate)
+	} else {
+		weatherData, err = weatherClient.GetCurrentWeather(ctx, loc.Latitude, loc.Longitude)
+	}
 	if err != nil {
 		return replyOrUnderlying(ctx, client, evt, "Não consegui pegar o clima.", err)
 	}
 
-	msg := buildWeatherMessage(loc, weatherData)
+	msg := buildWeatherMessage(loc, weatherData, hasDate)
 	return whatsapp.Reply(ctx, client, evt, msg)
 }
 
-// replyOrUnderlying notifica o usuário com reply; se o envio falhar devolve esse erro, senão o erro original (pode ser nil).
 func replyOrUnderlying(
 	ctx context.Context,
 	client *whatsmeow.Client,
@@ -56,17 +76,29 @@ func replyOrUnderlying(
 	return underlying
 }
 
-func buildWeatherMessage(loc geocoding.GeoResult, w *weather.WeatherResult) string {
+func buildWeatherMessage(loc geocoding.GeoResult, w *weather.WeatherResult, isForecast bool) string {
 	info := weather.WeatherCodeMap[w.WeatherCode]
+
+	header := fmt.Sprintf("%s *%s*", info.Emoji, info.Description)
+	if isForecast {
+		header += " — *PREVISÃO*"
+	}
+
+	var dateLine string
+	if isForecast {
+		if parsed, err := time.Parse("2006-01-02T15:00", w.Time); err == nil {
+			dateLine = fmt.Sprintf("📅 %s\n", parsed.Format("02/01/2006 15:04"))
+		}
+	}
+
 	return fmt.Sprintf(
-		"%s *%s*\n"+
-			"📍 %s, %s\n\n"+
+		"%s\n%s📍 %s, %s\n\n"+
 			"🌡 `%.1f°C` — sensação `%.1f°C`\n"+
 			"💧 Umidade `%.0f%%`\n"+
 			"🌧 Chuva `%.1f mm` — chance `%.0f%%`\n"+
 			"💨 Vento `%.1f km/h` — direção `%.0f°`",
-		info.Emoji,
-		info.Description,
+		header,
+		dateLine,
 		loc.DisplayName,
 		loc.Country,
 		w.Temperature,
