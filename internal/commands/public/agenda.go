@@ -3,6 +3,8 @@ package public
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -78,9 +80,50 @@ func AgendaHandler(
 	}
 }
 
+func parseRelativeDuration(input string) (time.Time, bool) {
+	s := strings.ToLower(strings.TrimSpace(input))
+	now := time.Now()
+
+	patterns := []struct {
+		prefixes []string
+		unit     time.Duration
+	}{
+		{[]string{"minuto", "minutos", "min"}, time.Minute},
+		{[]string{"hora", "horas", "h"}, time.Hour},
+		{[]string{"dia", "dias"}, 24 * time.Hour},
+	}
+
+	re := regexp.MustCompile(`(\d+)\s*(\w+)`)
+	matches := re.FindStringSubmatch(s)
+	if len(matches) < 3 {
+		return time.Time{}, false
+	}
+
+	n, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return time.Time{}, false
+	}
+
+	word := matches[2]
+	for _, p := range patterns {
+		for _, prefix := range p.prefixes {
+			if strings.HasPrefix(word, prefix) {
+				return now.Add(time.Duration(n) * p.unit), true
+			}
+		}
+	}
+
+	return time.Time{}, false
+}
+
 func parseAgendaTime(input string) (time.Time, error) {
 	s := strings.TrimSpace(input)
 	s = strings.Trim(s, "`\"'")
+
+	if t, ok := parseRelativeDuration(s); ok {
+		return t, nil
+	}
+
 	s = normalizePtMonths(s)
 
 	layouts := []string{

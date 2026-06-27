@@ -91,10 +91,7 @@ func (w *WeatherClient) GetCurrentWeather(ctx context.Context, lat, lon float64)
 }
 
 func (w *WeatherClient) GetForecastForDate(ctx context.Context, lat, lon float64, target time.Time) (*WeatherResult, error) {
-	days := int(target.Sub(time.Now()).Hours()/24) + 1
-	if days < 1 {
-		days = 1
-	}
+	days := max(int(time.Until(target).Hours()/24)+1, 1)
 	if days > 16 {
 		return nil, fmt.Errorf("weather: previsão disponível apenas para até 16 dias")
 	}
