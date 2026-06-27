@@ -1,5 +1,5 @@
 bot:
-  name: YuukoBot
+  name: Shinobu
   prefix: "!"          # prefixo dos comandos
   environment: "development"
 
@@ -11,8 +11,8 @@ log:
   level: debug         # debug | info | warn | error
 
 usersJID:
-  owner: "seu_jid@lid" # JID do dono do bot (aparece no log ao iniciar)
-  admins: []           # JIDs adicionais com permissão de admin
+  owner: "seu_jid@lid"      # JID do dono (aparece no log ao iniciar)
+  admins: []                # JIDs adicionais com permissão de admin
 
 apiUrls:
   geocoding: "https://nominatim.openstreetmap.org/search"
@@ -29,12 +29,3 @@ scheduledJobs:
     stickerName: "play_tv"
     targetGroups:
       - "grupo_jid@g.us"          # @g.us = grupo, @s.whatsapp.net = pessoal
-  # - name: "segunda"
-  #   day: "monday"
-  #   enabled: false
-  #   hour: 9
-  #   minute: 0
-  #   audioPath: "assets/audios/segunda.ogg"
-  #   targetGroups:
-  #     - "grupo_jid@g.us"
-      # - "outro_grupo@lid"
