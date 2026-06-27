@@ -7,6 +7,12 @@ import (
 	"go.uber.org/zap"
 )
 
+// DataWithTime associa um DynamicJobData ao seu RunAt já parseado.
+type DataWithTime struct {
+	Data     DynamicJobData
+	ParsedAt time.Time
+}
+
 type DynamicJobData struct {
 	ID      string `json:"id"`
 	RunAt   string `json:"run_at"`

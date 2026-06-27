@@ -80,10 +80,10 @@ func (s *Scheduler) Stop() {
 }
 
 func (s *Scheduler) run(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
-	s.logger.Info("Scheduler iniciado")
+	s.logger.Info("Scheduler iniciado", zap.Duration("interval", 15*time.Second))
 
 	for {
 		select {
@@ -112,11 +112,12 @@ func (s *Scheduler) checkAndRun(now time.Time) {
 
 			s.logger.Info("Executando job",
 				zap.String("job", entry.job.Name()),
-				zap.Time("scheduled", next),
+				zap.Time("run_at", next),
 			)
 
 			s.mu.Unlock()
 			jobCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			start := time.Now()
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
@@ -127,13 +128,14 @@ func (s *Scheduler) checkAndRun(now time.Time) {
 					}
 				}()
 				if err := entry.job.Run(jobCtx); err != nil {
-					s.logger.Error("Erro ao executar job",
+					s.logger.Error("Erro no job",
 						zap.String("job", entry.job.Name()),
 						zap.Error(err),
 					)
 				} else {
-					s.logger.Info("Job executado com sucesso",
+					s.logger.Info("Job executado",
 						zap.String("job", entry.job.Name()),
+						zap.Duration("duration", time.Since(start)),
 					)
 				}
 			}()
@@ -144,6 +146,9 @@ func (s *Scheduler) checkAndRun(now time.Time) {
 
 			if entry.job.Next(now).IsZero() {
 				toRemove = append(toRemove, entry.job.Name())
+				s.logger.Info("Job removido após execução",
+					zap.String("job", entry.job.Name()),
+				)
 			}
 		}
 	}
