@@ -191,7 +191,7 @@ func AgendaHandler(
 
 func parseRelativeDuration(input string) (time.Time, bool) {
 	s := strings.ToLower(strings.TrimSpace(input))
-	now := time.Now()
+	now := time.Now().In(locBrazil())
 
 	type unitPattern struct {
 		prefixes []string
@@ -227,6 +227,14 @@ func parseRelativeDuration(input string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+func locBrazil() *time.Location {
+	loc, err := time.LoadLocation("America/Sao_Paulo")
+	if err != nil {
+		return time.Local
+	}
+	return loc
+}
+
 func parseAgendaTime(input string) (time.Time, error) {
 	s := strings.TrimSpace(input)
 	s = strings.Trim(s, "`\"'")
@@ -236,6 +244,7 @@ func parseAgendaTime(input string) (time.Time, error) {
 	}
 
 	s = normalizePtMonths(s)
+	loc := locBrazil()
 
 	layouts := []string{
 		time.RFC3339,
@@ -256,16 +265,16 @@ func parseAgendaTime(input string) (time.Time, error) {
 	}
 
 	for _, layout := range layouts {
-		if t, err := time.ParseInLocation(layout, s, time.Local); err == nil {
+		if t, err := time.ParseInLocation(layout, s, loc); err == nil {
 			if t.Year() == 0 {
-				t = t.AddDate(time.Now().Year(), 0, 0)
+				t = t.AddDate(time.Now().In(loc).Year(), 0, 0)
 			}
 			if t.Before(time.Now()) {
 				t = t.AddDate(1, 0, 0)
 			}
 			hasTime := strings.Contains(layout, "15:04")
 			if !hasTime {
-				t = time.Date(t.Year(), t.Month(), t.Day(), 8, 0, 0, 0, time.Local)
+				t = time.Date(t.Year(), t.Month(), t.Day(), 8, 0, 0, 0, loc)
 			}
 			return t, nil
 		}
