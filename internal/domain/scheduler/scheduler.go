@@ -99,6 +99,11 @@ func (s *Scheduler) run(ctx context.Context) {
 	}
 }
 
+// RunCheck força uma verificação imediata dos jobs (chamado após registrar um job novo).
+func (s *Scheduler) RunCheck() {
+	s.checkAndRun(time.Now())
+}
+
 func (s *Scheduler) checkAndRun(now time.Time) {
 	s.mu.Lock()
 
