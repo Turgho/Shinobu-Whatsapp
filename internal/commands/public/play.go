@@ -25,11 +25,17 @@ func PlayCommand(musicCfg *music.Config) func(ctx context.Context, client *whats
 			return whatsapp.SendText(ctx, client, evt, "❌ Não consegui baixar essa música.", true)
 		}
 
-		fileName := query + "." + ext
-		mime := music.AudioMimetypeForExt(ext)
-		coverArt := music.ExtractCoverArtFromBytes(audio, ext)
+		audio, err = music.EmbedMetadata(audio, ext, query)
+		if err != nil {
+			// metadata é opcional; continua com o áudio original
+		}
 
-		if err := whatsapp.SendAudioAsDocument(ctx, client, evt, audio, mime, fileName, coverArt); err != nil {
+		uploaded, err := client.Upload(ctx, audio, whatsmeow.MediaAudio)
+		if err != nil {
+			return playSendAudioErr(ctx, client, evt)
+		}
+
+		if err := whatsapp.SendAudio(ctx, client, evt, &uploaded, music.AudioMimetypeForExt(ext), false, true); err != nil {
 			return playSendAudioErr(ctx, client, evt)
 		}
 		return nil
