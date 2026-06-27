@@ -10,6 +10,7 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ia"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ignore"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
@@ -29,6 +30,7 @@ var dispatchableCommands = map[string]bool{
 	"sticker":     true,
 	"efeito":      true,
 	"aniversário": true,
+	"agenda":      true,
 }
 
 func dispatchableCommand(name string) bool {
@@ -80,7 +82,7 @@ func (r *Router) SetRateLimit(max int, every time.Duration) {
 
 // StartRateLimitCleanup inicia uma goroutine que remove entradas expiradas do rateLimitMap a cada 10 minutos.
 func (r *Router) StartRateLimitCleanup(ctx context.Context) {
-	go func() {
+	gosafe.Go(r.log, func() {
 		ticker := time.NewTicker(10 * time.Minute)
 		defer ticker.Stop()
 		for {
@@ -91,7 +93,7 @@ func (r *Router) StartRateLimitCleanup(ctx context.Context) {
 				r.cleanRateLimit()
 			}
 		}
-	}()
+	})
 }
 
 func (r *Router) cleanRateLimit() {
