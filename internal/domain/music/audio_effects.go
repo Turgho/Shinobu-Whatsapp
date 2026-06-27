@@ -176,9 +176,8 @@ func runFFmpeg(ctx context.Context, input, output, filter string) error {
 	var stderr bytes.Buffer
 	cmd := ffmpeg.FfmpegCmd(ctx, args...)
 	cmd.Stderr = &stderr
-	cmd.SysProcAttr = ffmpeg.LowPriorityProc()
 
-	if err := cmd.Run(); err != nil {
+	if err := ffmpeg.RunLowPriority(cmd); err != nil {
 		return fmt.Errorf("audioeffects: ffmpeg falhou: %w\n%s", err, stderr.String())
 	}
 	return nil

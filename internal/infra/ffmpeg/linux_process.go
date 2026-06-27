@@ -1,12 +1,26 @@
 package ffmpeg
 
-import "syscall"
+import (
+	"os/exec"
+	"syscall"
+)
 
-// lowPriorityProc retorna SysProcAttr com nice=10 no Linux,
-// deixando o ffmpeg rodar em segundo plano sem competir com o bot.
+// LowPriorityProc retorna SysProcAttr com nice=10 no Linux.
 func LowPriorityProc() *syscall.SysProcAttr {
 	return &syscall.SysProcAttr{
-		// Nice 10: prioridade abaixo do normal, CPU disponível para o bot
-		Pdeathsig: syscall.SIGTERM, // mata o ffmpeg se o processo pai morrer
+		Pdeathsig: syscall.SIGTERM,
 	}
+}
+
+// RunLowPriority inicia cmd com prioridade baixa (nice+10) e espera terminar.
+// Equivalente a cmd.Run() mas ajusta o nice do processo filho após o start.
+func RunLowPriority(cmd *exec.Cmd) error {
+	cmd.SysProcAttr = LowPriorityProc()
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	// Ajusta nice depois do fork mas antes do Wait.
+	// syscall.SysProcAttr não expõe Nice neste Go, então fazemos manual.
+	syscall.Setpriority(syscall.PRIO_PROCESS, cmd.Process.Pid, 10)
+	return cmd.Wait()
 }

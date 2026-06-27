@@ -1,16 +1,20 @@
 package gosafe
 
 import (
-	"log"
+	"go.uber.org/zap"
 )
 
-func Go(fn func()) {
+// Go executa fn em uma goroutine com recover.
+// Panics são logados com o logger fornecido. Se nil, usa zap.NewNop().
+func Go(logger *zap.Logger, fn func()) {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
 	go func() {
-		// Recupera qualquer panic na goroutine, loga e deixa a aplicação continuar.
-		// Sem isso, um panic numa goroutine filha derruba o processo inteiro.
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("[gosafe] panic recuperado: %v", r)
+				logger.Error("panic recuperado", zap.Any("panic", r))
 			}
 		}()
 		fn()

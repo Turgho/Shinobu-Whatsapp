@@ -1,5 +1,7 @@
 package ia
 
+import "go.uber.org/zap"
+
 // Identificadores de modelo Groq usados no pacote.
 const (
 	modelScoutFast = "meta-llama/llama-4-scout-17b-16e-instruct" // conversa + classificação leve
@@ -10,6 +12,7 @@ type Config struct {
 	GroqURL   string
 	GroqKey   string
 	TavilyKey string
+	Log       *zap.Logger
 }
 
 // groqRunParams agrupa temperatura e teto de tokens da resposta principal.

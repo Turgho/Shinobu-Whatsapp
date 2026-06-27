@@ -9,16 +9,21 @@ import (
 	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
+	"go.uber.org/zap"
 )
 
 // UserMemoryStore gerencia fatos extraídos sobre usuários.
 // Cada fato é uma chave-valor simples (ex: "jogo favorito" = "Zelda")
 // associada a um usuário dentro de um chat.
 type UserMemoryStore struct {
-	db *sql.DB
+	db  *sql.DB
+	log *zap.Logger
 }
 
-func NewUserMemoryStore(db *sql.DB) (*UserMemoryStore, error) {
+func NewUserMemoryStore(db *sql.DB, log *zap.Logger) (*UserMemoryStore, error) {
+	if log == nil {
+		log = zap.NewNop()
+	}
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS user_memory (
 		id         INTEGER PRIMARY KEY AUTOINCREMENT,
 		chat       TEXT NOT NULL,
@@ -31,7 +36,7 @@ func NewUserMemoryStore(db *sql.DB) (*UserMemoryStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("user_memory schema: %w", err)
 	}
-	return &UserMemoryStore{db: db}, nil
+	return &UserMemoryStore{db: db, log: log}, nil
 }
 
 // SaveFact salva ou atualiza um fato sobre um usuário.
@@ -176,7 +181,7 @@ func ExtractFactsFromPrompt(prompt string) map[string]string {
 
 // StartMemoryCleanup apaga memórias não atualizadas há mais de maxAge, a cada 24h.
 func (m *UserMemoryStore) StartMemoryCleanup(ctx context.Context, maxAge time.Duration) {
-	gosafe.Go(func() {
+	gosafe.Go(m.log, func() {
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
 

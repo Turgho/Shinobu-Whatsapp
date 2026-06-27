@@ -62,8 +62,11 @@ Modo de resposta curta:
 	case ModeWeb:
 		b.WriteString(`
 Modo pesquisa (contexto externo foi anexado):
-- Use o contexto como fonte principal; não invente fatos fora dele.
-- Priorize dados atuais e precisos; se faltar algo, diga de forma curta.
+- Use APENAS as informações das fontes fornecidas abaixo.
+- Se a informação não estiver nas fontes, diga "não encontrei essa informação".
+- NUNCA invente preços, datas, fatos ou números que não estejam nas fontes.
+- Se os dados forem de mais de 7 dias, avise que podem estar desatualizados.
+- Priorize dados atuais e precisos.
 - Até 5 frases, objetivas.
 - Mantenha a voz da Shinobu (seca, leve ironia, natural) — factual não significa robótica.
 - Não liste URLs longas a menos que o usuário peça fonte.
@@ -88,41 +91,13 @@ Modo padrão:
 func buildUserContent(prompt string, mode ResponseMode, webContext string) string {
 	switch mode {
 	case ModeBrief:
-		return fmt.Sprintf(
-			`Mensagem do usuário:
----
-%s
----
-
-Regras:
-- Responda de forma curta e direta.
-- Use no máximo 2 frases.
-- Não faça introdução nem despedida.
-- Não repita a pergunta.`,
-			prompt,
-		)
+		return prompt
 
 	case ModeWeb:
-		return fmt.Sprintf(
-			"Contexto (use como base; não extrapole):\n%s\n\nPergunta:\n---\n%s\n---",
-			webContext, prompt,
-		)
+		return fmt.Sprintf("Contexto:\n%s\n\nPergunta: %s", webContext, prompt)
 
 	default:
-		return fmt.Sprintf(
-			`Mensagem do usuário:
----
-%s
----
-
-Regras:
-- Responda diretamente o que foi pedido.
-- Use no máximo 4 frases.
-- Não faça introdução nem explicação longa.
-- Seja natural e objetiva.
-- Não repita a pergunta.`,
-			prompt,
-		)
+		return prompt
 	}
 }
 

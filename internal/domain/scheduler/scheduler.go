@@ -43,7 +43,7 @@ func (s *Scheduler) Register(job Job) {
 }
 
 func (s *Scheduler) Start(ctx context.Context) {
-	gosafe.Go(func() {
+	gosafe.Go(s.logger, func() {
 		s.run(ctx)
 	})
 }

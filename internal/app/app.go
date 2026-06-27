@@ -14,6 +14,7 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/birthday"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/geocoding"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ia"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/music"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/scheduler"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/weather"
@@ -36,7 +37,7 @@ func Run() error {
 
 	cfg := configs.Load()
 
-	logger, err := buildLogger()
+	logger, err := buildLogger(cfg)
 	if err != nil {
 		return fmt.Errorf("erro ao inicializar logger: %w", err)
 	}
@@ -50,7 +51,7 @@ func Run() error {
 	}
 	defer db.Close()
 
-	store, err := history.NewStore("storage/message_history.db")
+	store, err := history.NewStore("storage/message_history.db", logger.Named("HISTORY"))
 	if err != nil {
 		logger.Error("erro ao abrir history", zap.Error(err))
 		return fmt.Errorf("erro ao abrir history: %w", err)
@@ -69,6 +70,15 @@ func Run() error {
 	}
 
 	r := buildRouter(cfg, client.WAClient, logger, store)
+
+	r.SetAIConfig(&ia.Config{
+		GroqURL:   cfg.Groq.URL,
+		GroqKey:   cfg.Groq.APIKey,
+		TavilyKey: cfg.Tavily.APIKey,
+		Log:       logger.Named("AI"),
+	})
+
+	r.StartRateLimitCleanup(ctx)
 
 	registerPublicCommands(r, cfg, logger, store)
 	registerAdminCommands(r, cfg)
@@ -108,7 +118,7 @@ func Run() error {
 	return nil
 }
 
-func buildLogger() (*zap.Logger, error) {
+func buildLogger(cfg *configs.Config) (*zap.Logger, error) {
 	loc, err := time.LoadLocation("America/Sao_Paulo")
 	if err != nil {
 		loc = time.UTC
@@ -120,6 +130,14 @@ func buildLogger() (*zap.Logger, error) {
 	logCfg.EncoderConfig.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
 		enc.AppendString(t.In(loc).Format("2006-01-02 15:04:05"))
 	}
+
+	if cfg.Log.Level != "" {
+		lvl := zap.NewAtomicLevel()
+		if err := lvl.UnmarshalText([]byte(cfg.Log.Level)); err == nil {
+			logCfg.Level = lvl
+		}
+	}
+
 	return logCfg.Build()
 }
 
@@ -135,6 +153,7 @@ func connectDatabase(cfg *configs.Config, logger *zap.Logger) (*sql.DB, error) {
 func buildRouter(cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Logger, store *history.Store) *commands.Router {
 	r := commands.NewRouter(cfg.Bot.Prefix, waClient, logger.Named("ROUTER"), store)
 
+	r.Use(commands.IgnoreSelfMiddleware)
 	r.Use(commands.IgnoreOldMessagesMiddleware)
 	r.Use(commands.CommandNotFoundMiddleware(r))
 	r.Use(commands.PrivateCommandsMiddleware(r, cfg.UsersJID.Owner, cfg.UsersJID.Admins))
