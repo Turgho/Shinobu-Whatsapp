@@ -79,6 +79,7 @@ func AskIA(ctx context.Context, cfg *Config, chat, prompt string, isOwner bool, 
 
 	if store != nil && chat != "" {
 		refreshChatSummary(cfg, chat, prompt, answer, store)
+		extractAndStoreFacts(cfg, chat, sender, prompt, answer, store)
 	}
 
 	return answer, usedSearch, nil
@@ -102,7 +103,7 @@ func appendPersistentAndRecent(ctx context.Context, messages []history.IAMessage
 		return messages
 	}
 
-	// Memória de usuário: fatos extraídos sobre o usuário neste chat.
+	// Memória de usuário: fatos extraídos por padrões (key-value).
 	if store.UserMemory != nil && sender != "" {
 		if facts, err := store.UserMemory.GetFacts(ctx, chat, sender); err == nil && len(facts) > 0 {
 			if formatted := history.FormatFacts(facts); formatted != "" {
@@ -111,6 +112,16 @@ func appendPersistentAndRecent(ctx context.Context, messages []history.IAMessage
 					Content: formatted,
 				})
 			}
+		}
+	}
+
+	// Fatos atômicos extraídos por IA (user_facts).
+	if afacts, err := store.GetFacts(ctx, chat, sender); err == nil && len(afacts) > 0 {
+		if formatted := history.FormatAtomicFacts(afacts); formatted != "" {
+			messages = append(messages, history.IAMessage{
+				Role:    "system",
+				Content: formatted,
+			})
 		}
 	}
 
