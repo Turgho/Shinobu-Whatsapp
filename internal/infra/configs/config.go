@@ -2,20 +2,17 @@ package configs
 
 import (
 	"log"
-	"os"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	Environment string `mapstructure:"environment"`
-
-	ApiURLs       ApiURLs            `mapstructure:"apiUrls"`
-	UsersJID      UsersJID           `mapstructure:"usersJID"`
 	Bot           BotConfig          `mapstructure:"bot"`
 	Database      DatabaseConfig     `mapstructure:"database"`
 	Log           LogConfig          `mapstructure:"log"`
+	UsersJID      UsersJID           `mapstructure:"usersJID"`
+	ApiURLs       ApiURLs            `mapstructure:"apiUrls"`
 	ScheduledJobs []WeekdayJobConfig `mapstructure:"scheduledJobs"`
 
 	Groq   GroqConfig
@@ -36,8 +33,9 @@ type WeekdayJobConfig struct {
 }
 
 type BotConfig struct {
-	Name   string `mapstructure:"name"`
-	Prefix string `mapstructure:"prefix"`
+	Name        string `mapstructure:"name"`
+	Prefix      string `mapstructure:"prefix"`
+	Environment string `mapstructure:"environment"`
 }
 
 type DatabaseConfig struct {
@@ -60,6 +58,58 @@ type ApiURLs struct {
 	Weather      string `mapstructure:"weather"`
 }
 
+func Load() *Config {
+	_ = godotenv.Load()
+
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(".")
+
+	viper.AutomaticEnv()
+	viper.SetEnvPrefix("")
+
+	// Mapeamento de env vars → chaves viper
+	viper.BindEnv("bot.prefix", "COMMAND_PREFIX")
+	viper.BindEnv("bot.environment", "ENVIRONMENT")
+	viper.BindEnv("log.level", "LOG_LEVEL")
+	viper.BindEnv("database.dsn", "DB_DSN")
+	viper.BindEnv("usersjid.owner", "OWNER_JID")
+	viper.BindEnv("apicalls.groq.url", "GROQ_URL")
+	viper.BindEnv("apicalls.groq.apiKey", "GROQ_API_KEY")
+	viper.BindEnv("apicalls.tavily.apiKey", "TAVILY_API_KEY")
+	viper.BindEnv("apicalls.music.serverUrl", "MUSIC_SERVER_URL")
+	viper.BindEnv("apicalls.music.apiToken", "API_AUTH_TOKEN")
+	viper.BindEnv("apicalls.owner.number", "OWNER_NUMBER")
+
+	if err := viper.ReadInConfig(); err != nil {
+		log.Println("config.yaml não encontrado, usando env/default")
+	}
+
+	cfg := &Config{}
+	if err := viper.Unmarshal(cfg); err != nil {
+		log.Fatal("Erro ao carregar config:", err)
+	}
+
+	// Preenche campos que vieram de env vars mas não tem chave mapstructure no struct
+	cfg.Groq = GroqConfig{
+		URL:    viper.GetString("apicalls.groq.url"),
+		APIKey: viper.GetString("apicalls.groq.apiKey"),
+	}
+	cfg.Tavily = TavilyConfig{
+		APIKey: viper.GetString("apicalls.tavily.apiKey"),
+	}
+	cfg.Music = MusicConfig{
+		ServerURL: viper.GetString("apicalls.music.serverUrl"),
+		APIToken:  viper.GetString("apicalls.music.apiToken"),
+	}
+	cfg.Owner = OwnerConfig{
+		Number: viper.GetString("apicalls.owner.number"),
+	}
+
+	return cfg
+}
+
+// Configurações carregadas de env vars / viper (sem mapstructure no yaml)
 type GroqConfig struct {
 	URL    string
 	APIKey string
@@ -76,40 +126,4 @@ type MusicConfig struct {
 
 type OwnerConfig struct {
 	Number string
-}
-
-func Load() *Config {
-	_ = godotenv.Load()
-
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(".")
-
-	viper.AutomaticEnv()
-
-	if err := viper.ReadInConfig(); err != nil {
-		log.Println("config.yaml não encontrado, usando env/default")
-	}
-
-	cfg := &Config{}
-	if err := viper.Unmarshal(cfg); err != nil {
-		log.Fatal("Erro ao carregar config:", err)
-	}
-
-	cfg.Groq = GroqConfig{
-		URL:    os.Getenv("GROQ_URL"),
-		APIKey: os.Getenv("GROQ_API_KEY"),
-	}
-	cfg.Tavily = TavilyConfig{
-		APIKey: os.Getenv("TAVILY_API_KEY"),
-	}
-	cfg.Music = MusicConfig{
-		ServerURL: os.Getenv("MUSIC_SERVER_URL"),
-		APIToken:  os.Getenv("API_AUTH_TOKEN"),
-	}
-	cfg.Owner = OwnerConfig{
-		Number: os.Getenv("OWNER_NUMBER"),
-	}
-
-	return cfg
 }
