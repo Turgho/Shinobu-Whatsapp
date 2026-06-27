@@ -114,20 +114,24 @@ func (g *GeoCoding) lookupNominatim(ctx context.Context, query string, limit int
 			country = "Brasil"
 		}
 
-		displayName := r.DisplayName
+		city := r.Address.City
+		if city == "" {
+			city = r.Address.Town
+		}
+		if city == "" {
+			city = r.Address.Village
+		}
+
+		parts := []string{}
+		if city != "" {
+			parts = append(parts, city)
+		}
+		if r.Address.State != "" {
+			parts = append(parts, r.Address.State)
+		}
+		displayName := strings.Join(parts, ", ")
 		if displayName == "" {
-			parts := []string{}
-			if r.Address.City != "" {
-				parts = append(parts, r.Address.City)
-			} else if r.Address.Town != "" {
-				parts = append(parts, r.Address.Town)
-			} else if r.Address.Village != "" {
-				parts = append(parts, r.Address.Village)
-			}
-			if r.Address.State != "" {
-				parts = append(parts, r.Address.State)
-			}
-			displayName = strings.Join(parts, ", ")
+			displayName = query
 		}
 
 		results = append(results, GeoResult{
