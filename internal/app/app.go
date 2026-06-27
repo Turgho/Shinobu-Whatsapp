@@ -80,12 +80,36 @@ func Run() error {
 
 	r.StartRateLimitCleanup(ctx)
 
-	registerPublicCommands(r, cfg, logger, store)
-	registerAdminCommands(r, cfg)
+	// Inicializa scheduler e store de jobs dinâmicos
+	dynLogger := logger.Named("DYNAMIC")
+	dynStore := scheduler.NewDynamicStore("storage/dynamic_jobs.json", dynLogger)
+	sched := scheduler.NewScheduler(logger.Named("SCHEDULER"))
+
+	registerPublicCommands(r, cfg, logger, store, sched, dynStore)
+	registerAdminCommands(r, cfg, store, logger)
 	registerAliases(r)
 
-	// Inicializa scheduler com jobs registrados
-	sched := scheduler.NewScheduler(logger.Named("SCHEDULER"))
+	// Carrega jobs dinâmicos persistidos, ignorando expirados
+	now := time.Now()
+	for _, data := range dynStore.LoadAll() {
+		runAt, err := time.Parse(time.RFC3339, data.RunAt)
+		if err != nil || runAt.Before(now) {
+			dynLogger.Info("Job expirado ou inválido, removendo",
+				zap.String("id", data.ID),
+				zap.String("run_at", data.RunAt),
+				zap.Error(err),
+			)
+			dynStore.Delete(data.ID)
+			continue
+		}
+
+		job := scheduler.NewDynamicJob(data.ID, runAt, data.ChatJID, data.Message, client.WAClient, dynLogger)
+		sched.Register(job)
+		dynLogger.Info("Job dinâmico restaurado",
+			zap.String("id", data.ID),
+			zap.Time("run_at", runAt),
+		)
+	}
 
 	birthdayJob, err := birthday.NewBirthdayJob(client.WAClient, logger.Named("BIRTHDAY"))
 	if err != nil {
@@ -161,7 +185,7 @@ func buildRouter(cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Lo
 	return r
 }
 
-func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logger, store *history.Store) {
+func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logger, store *history.Store, sched *scheduler.Scheduler, dynStore *scheduler.DynamicStore) {
 	geoClient := geocoding.NewGeoCoding(cfg.ApiURLs.Geocoding, cfg.ApiURLs.OpenMeteoGeo, logger.Named("GEOCODING"))
 	weatherClient := weather.NewWeatherClient(cfg.ApiURLs.Weather, logger.Named("WEATHER"))
 
@@ -242,9 +266,19 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 			{Name: "intensidade", Required: false},
 		},
 	}, public.AudioEffectsCommand)
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "agenda",
+		Description: "Agenda um lembrete. Ex: agenda 2026-06-28T09:00 tomar remédio",
+		Type:        commands.CommandTypeUtility,
+		Args: []commands.ArgMeta{
+			{Name: "data ISO8601", Required: true},
+			{Name: "mensagem", Required: true},
+		},
+	}, public.AgendaHandler(sched, dynStore, logger))
 }
 
-func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
+func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *history.Store, logger *zap.Logger) {
 	musicCfg := &music.Config{
 		ServerURL: cfg.Music.ServerURL,
 		APIToken:  cfg.Music.APIToken,
@@ -301,6 +335,13 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config) {
 		Type:        commands.CommandTypeOwner,
 		Private:     true,
 	}, admin.ManutencaoCommand(r))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "memoria",
+		Description: "Gerencia a memória da IA no chat. Subcomandos: ver, limpar [@user], resumo",
+		Type:        commands.CommandTypeAdmin,
+		Private:     true,
+	}, admin.MemoriaHandler(store, logger))
 }
 
 func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) commands.HandlerFunc {
@@ -344,6 +385,7 @@ func registerAliases(r *commands.Router) {
 		"tempo":     "clima",
 		"aniver":    "aniversário",
 		"aniversario": "aniversário",
+		"lembrete":  "agenda",
 	}
 
 	for alias, target := range aliases {

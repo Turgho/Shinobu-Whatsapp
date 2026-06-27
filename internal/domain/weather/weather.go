@@ -12,14 +12,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// WeatherClient é o client da API Open-Meteo.
 type WeatherClient struct {
 	APIURL     string
 	Logger     *zap.Logger
 	httpClient *http.Client
 }
 
-// WeatherResult contém os dados climáticos do momento atual.
 type WeatherResult struct {
 	Temperature         float64
 	ApparentTemperature float64
@@ -32,7 +30,30 @@ type WeatherResult struct {
 	Time                string
 }
 
-// NewWeatherClient cria um novo client de clima com timeout.
+type hourlyResponse struct {
+	Current struct {
+		Time                string  `json:"time"`
+		Temperature         float64 `json:"temperature_2m"`
+		RelativeHumidity    float64 `json:"relative_humidity_2m"`
+		ApparentTemperature float64 `json:"apparent_temperature"`
+		Precipitation       float64 `json:"precipitation"`
+		WeatherCode         int     `json:"weather_code"`
+		WindSpeed           float64 `json:"wind_speed_10m"`
+		WindDirection       float64 `json:"wind_direction_10m"`
+	} `json:"current"`
+	Hourly struct {
+		Time              []string  `json:"time"`
+		Temperature       []float64 `json:"temperature_2m"`
+		RelativeHumidity  []float64 `json:"relative_humidity_2m"`
+		ApparentTemp      []float64 `json:"apparent_temperature"`
+		Precipitation     []float64 `json:"precipitation"`
+		WeatherCode       []int     `json:"weather_code"`
+		WindSpeed         []float64 `json:"wind_speed_10m"`
+		WindDirection     []float64 `json:"wind_direction_10m"`
+		PrecipitationProb []float64 `json:"precipitation_probability"`
+	} `json:"hourly"`
+}
+
 func NewWeatherClient(apiURL string, logger *zap.Logger) *WeatherClient {
 	return &WeatherClient{
 		APIURL: apiURL,
@@ -43,41 +64,91 @@ func NewWeatherClient(apiURL string, logger *zap.Logger) *WeatherClient {
 	}
 }
 
-// GetCurrentWeather busca o clima atual para as coordenadas fornecidas.
-// Usa o campo current_weather da API Open-Meteo, complementado com dados horários.
-// Se a Open-Meteo falhar, tenta fallback para wttr.in.
 func (w *WeatherClient) GetCurrentWeather(ctx context.Context, lat, lon float64) (*WeatherResult, error) {
-	// Primeira tentativa: Open-Meteo
-	if result, err := w.fetchOpenMeteo(ctx, lat, lon); err == nil {
+	if resp, err := w.fetchHourly(ctx, lat, lon, 1); err == nil {
+		result := &WeatherResult{
+			Time:                resp.Current.Time,
+			Temperature:         resp.Current.Temperature,
+			ApparentTemperature: resp.Current.ApparentTemperature,
+			WeatherCode:         resp.Current.WeatherCode,
+			Precipitation:       resp.Current.Precipitation,
+			RelativeHumidity:    resp.Current.RelativeHumidity,
+			WindSpeed:           resp.Current.WindSpeed,
+			WindDirection:       resp.Current.WindDirection,
+		}
+		if idx := findHourIndex(resp.Hourly.Time, resp.Current.Time); idx >= 0 &&
+			idx < len(resp.Hourly.PrecipitationProb) {
+			result.PrecipitationProb = resp.Hourly.PrecipitationProb[idx]
+		}
 		return result, nil
 	}
+
 	w.Logger.Warn("Open-Meteo falhou, tentando fallback wttr.in", zap.Float64("lat", lat), zap.Float64("lon", lon))
-	// Segunda tentativa: wttr.in
 	if result, err := w.fetchWttr(ctx, lat, lon); err == nil {
 		return result, nil
 	}
 	return nil, fmt.Errorf("weather: todas as fontes falharam")
 }
 
-// fetchOpenMeteo realiza a requisição à API Open-Meteo com parâmetros otimizados para precisão.
-func (w *WeatherClient) fetchOpenMeteo(ctx context.Context, lat, lon float64) (*WeatherResult, error) {
+func (w *WeatherClient) GetForecastForDate(ctx context.Context, lat, lon float64, target time.Time) (*WeatherResult, error) {
+	days := int(target.Sub(time.Now()).Hours()/24) + 1
+	if days < 1 {
+		days = 1
+	}
+	if days > 16 {
+		return nil, fmt.Errorf("weather: previsão disponível apenas para até 16 dias")
+	}
+
+	resp, err := w.fetchHourly(ctx, lat, lon, days)
+	if err != nil {
+		return nil, err
+	}
+
+	targetStr := target.Format("2006-01-02") + "T12:00"
+	idx := findHourIndex(resp.Hourly.Time, targetStr)
+	if idx < 0 || idx >= len(resp.Hourly.Temperature) {
+		return nil, fmt.Errorf("weather: data sem dados horários disponíveis")
+	}
+
+	result := &WeatherResult{
+		Time:                resp.Hourly.Time[idx],
+		Temperature:         resp.Hourly.Temperature[idx],
+		ApparentTemperature: resp.Hourly.ApparentTemp[idx],
+		WeatherCode:         resp.Hourly.WeatherCode[idx],
+		Precipitation:       resp.Hourly.Precipitation[idx],
+		RelativeHumidity:    resp.Hourly.RelativeHumidity[idx],
+		WindSpeed:           resp.Hourly.WindSpeed[idx],
+		WindDirection:       resp.Hourly.WindDirection[idx],
+	}
+	if idx < len(resp.Hourly.PrecipitationProb) {
+		result.PrecipitationProb = resp.Hourly.PrecipitationProb[idx]
+	}
+	return result, nil
+}
+
+func (w *WeatherClient) fetchHourly(ctx context.Context, lat, lon float64, forecastDays int) (*hourlyResponse, error) {
 	apiURL := fmt.Sprintf(
 		"%s?latitude=%f&longitude=%f"+
 			"&current=temperature_2m,relative_humidity_2m,apparent_temperature"+
 			",precipitation,weather_code,wind_speed_10m,wind_direction_10m"+
-			"&hourly=precipitation_probability"+ // único campo não disponível em current
-			"&timezone=auto&forecast_days=1",
-		w.APIURL, lat, lon,
+			"&hourly=temperature_2m,relative_humidity_2m,apparent_temperature"+
+			",precipitation,weather_code,wind_speed_10m,wind_direction_10m,precipitation_probability"+
+			"&timezone=auto&forecast_days=%d",
+		w.APIURL, lat, lon, forecastDays,
 	)
 
-	w.Logger.Info("Buscando clima atual (Open-Meteo)", zap.Float64("lat", lat), zap.Float64("lon", lon))
+	w.Logger.Info("Buscando dados Open-Meteo",
+		zap.Float64("lat", lat),
+		zap.Float64("lon", lon),
+		zap.Int("forecast_days", forecastDays),
+	)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("weather: request: %w", err)
 	}
 
-	resp, err := w.httpClient.Do(req) // ver nota sobre httpClient abaixo
+	resp, err := w.httpClient.Do(req)
 	if err != nil {
 		w.Logger.Error("Erro ao fazer request HTTP (Open-Meteo)", zap.Error(err))
 		return nil, fmt.Errorf("weather: erro na requisição: %w", err)
@@ -91,51 +162,16 @@ func (w *WeatherClient) fetchOpenMeteo(ctx context.Context, lat, lon float64) (*
 		return nil, fmt.Errorf("weather: status %d", resp.StatusCode)
 	}
 
-	var data struct {
-		Current struct {
-			Time                string  `json:"time"`
-			Temperature         float64 `json:"temperature_2m"`
-			RelativeHumidity    float64 `json:"relative_humidity_2m"`
-			ApparentTemperature float64 `json:"apparent_temperature"`
-			Precipitation       float64 `json:"precipitation"`
-			WeatherCode         int     `json:"weather_code"`
-			WindSpeed           float64 `json:"wind_speed_10m"`
-			WindDirection       float64 `json:"wind_direction_10m"`
-		} `json:"current"`
-		Hourly struct {
-			Time              []string  `json:"time"`
-			PrecipitationProb []float64 `json:"precipitation_probability"`
-		} `json:"hourly"`
-	}
-
+	var data hourlyResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		w.Logger.Error("Erro ao decodificar resposta (Open-Meteo)", zap.Error(err))
 		return nil, fmt.Errorf("weather: erro ao decodificar resposta: %w", err)
 	}
 
-	result := &WeatherResult{
-		Time:                data.Current.Time,
-		Temperature:         data.Current.Temperature,
-		ApparentTemperature: data.Current.ApparentTemperature,
-		WeatherCode:         data.Current.WeatherCode,
-		Precipitation:       data.Current.Precipitation,
-		RelativeHumidity:    data.Current.RelativeHumidity,
-		WindSpeed:           data.Current.WindSpeed,
-		WindDirection:       data.Current.WindDirection,
-	}
-
-	// precipitation_probability só existe em hourly — alinha ao horário atual
-	if idx := findHourIndex(data.Hourly.Time, data.Current.Time); idx >= 0 &&
-		idx < len(data.Hourly.PrecipitationProb) {
-		result.PrecipitationProb = data.Hourly.PrecipitationProb[idx]
-	}
-
-	return result, nil
+	return &data, nil
 }
 
-// fetchWttr tenta obter o clima do wttr.in como fallback.
 func (w *WeatherClient) fetchWttr(ctx context.Context, lat, lon float64) (*WeatherResult, error) {
-	// wttr.in aceita latitude,longitude e retorna JSON com formato j1
 	apiURL := fmt.Sprintf("https://wttr.in/%f,%f?format=j1", lat, lon)
 
 	w.Logger.Info("Buscando clima atual (wttr.in fallback)", zap.Float64("lat", lat), zap.Float64("lon", lon))
@@ -144,7 +180,7 @@ func (w *WeatherClient) fetchWttr(ctx context.Context, lat, lon float64) (*Weath
 	if err != nil {
 		return nil, fmt.Errorf("weather: request wttr.in: %w", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := w.httpClient.Do(req)
 	if err != nil {
 		w.Logger.Error("Erro ao fazer request HTTP (wttr.in)", zap.Error(err))
 		return nil, fmt.Errorf("weather: erro na requisição wttr.in: %w", err)
@@ -182,18 +218,13 @@ func (w *WeatherClient) fetchWttr(ctx context.Context, lat, lon float64) (*Weath
 	}
 	cond := &data.CurrentCondition[0]
 
-	// Converter strings para float64
 	temp := parseFloat(cond.TempC)
 	feelsLike := parseFloat(cond.FeelsLikeC)
 	windspeedKmph := parseFloat(cond.WindspeedKmph)
 	winddirDegree := parseFloat(cond.WinddirDegree)
 	humidity := parseFloat(cond.Humidity)
 
-	// Descrição do weather não utilizada diretamente; código -1 ausente
 	weatherCode := -1
-
-	// Timestamp ISO usando a hora local (wttr.in não fornece timestamp)
-	// Usado a hora atual UTC como aproximação do timestamp.
 	currentTime := time.Now().UTC().Format("2006-01-02T15:00")
 
 	return &WeatherResult{
@@ -202,14 +233,13 @@ func (w *WeatherClient) fetchWttr(ctx context.Context, lat, lon float64) (*Weath
 		WindSpeed:           windspeedKmph,
 		WindDirection:       winddirDegree,
 		WeatherCode:         weatherCode,
-		Precipitation:       0, // wttr.in não fornece precipitação imediata neste endpoint
+		Precipitation:       0,
 		PrecipitationProb:   0,
 		RelativeHumidity:    humidity,
 		Time:                currentTime,
 	}, nil
 }
 
-// parseFloat converte string para float64, retornando 0 em caso de erro.
 func parseFloat(s string) float64 {
 	f, err := strconv.ParseFloat(s, 64)
 	if err != nil {
@@ -218,7 +248,6 @@ func parseFloat(s string) float64 {
 	return f
 }
 
-// findHourIndex permanece igual (cópia da função original para uso interno)
 func findHourIndex(times []string, currentTime string) int {
 	if len(currentTime) < 13 {
 		return -1

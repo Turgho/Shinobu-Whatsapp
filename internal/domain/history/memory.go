@@ -179,6 +179,127 @@ func ExtractFactsFromPrompt(prompt string) map[string]string {
 	return facts
 }
 
+// ─── Atomic facts (user_facts table, extracted by Groq) ─────────────────────
+
+// UserFact é um fato discreto sobre um usuário extraído por IA.
+type UserFact struct {
+	User       string
+	Fact       string
+	Confidence string
+	UpdatedAt  time.Time
+}
+
+// UpsertFact insere ou atualiza um fato atômico sobre um usuário.
+func (s *Store) UpsertFact(ctx context.Context, chat, user, fact, confidence string) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO user_facts (chat, user, fact, confidence, updated_at)
+		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(chat, user, fact) DO UPDATE SET
+			confidence = excluded.confidence,
+			updated_at = CURRENT_TIMESTAMP
+	`, chat, user, fact, confidence)
+	return err
+}
+
+// DeleteFact remove um fato específico.
+func (s *Store) DeleteFact(ctx context.Context, chat, user, fact string) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM user_facts WHERE chat = ? AND user = ? AND fact = ?`,
+		chat, user, fact,
+	)
+	return err
+}
+
+// GetFacts retorna todos os fatos atômicos de um usuário em um chat, por updated_at DESC.
+func (s *Store) GetFacts(ctx context.Context, chat, user string) ([]UserFact, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT user, fact, confidence, updated_at FROM user_facts
+		WHERE chat = ? AND user = ?
+		ORDER BY updated_at DESC
+	`, chat, user)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []UserFact
+	for rows.Next() {
+		var u, f, conf, updated string
+		if err := rows.Scan(&u, &f, &conf, &updated); err != nil {
+			return nil, err
+		}
+		out = append(out, UserFact{
+			User:       u,
+			Fact:       f,
+			Confidence: conf,
+			UpdatedAt:  parseSQLiteSentAt(updated),
+		})
+	}
+	return out, rows.Err()
+}
+
+// GetAllFacts retorna todos os fatos atômicos de um chat (todos os usuários).
+func (s *Store) GetAllFacts(ctx context.Context, chat string) ([]UserFact, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT user, fact, confidence, updated_at FROM user_facts
+		WHERE chat = ?
+		ORDER BY user, updated_at DESC
+	`, chat)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []UserFact
+	for rows.Next() {
+		var u, f, conf, updated string
+		if err := rows.Scan(&u, &f, &conf, &updated); err != nil {
+			return nil, err
+		}
+		out = append(out, UserFact{
+			User:       u,
+			Fact:       f,
+			Confidence: conf,
+			UpdatedAt:  parseSQLiteSentAt(updated),
+		})
+	}
+	return out, rows.Err()
+}
+
+// ClearFacts apaga todos os fatos de um usuário em um chat.
+func (s *Store) ClearFacts(ctx context.Context, chat, user string) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM user_facts WHERE chat = ? AND user = ?`,
+		chat, user,
+	)
+	return err
+}
+
+// PruneStaleFacts apaga fatos não atualizados nos últimos maxAge.
+func (s *Store) PruneStaleFacts(ctx context.Context, maxAge time.Duration) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM user_facts WHERE updated_at < ?`,
+		time.Now().Add(-maxAge).Format("2006-01-02 15:04:05"),
+	)
+	return err
+}
+
+// FormatAtomicFacts formata fatos atômicos como texto legível para o prompt do sistema.
+// Saída: "O que sei sobre este usuário:\n- prefere rock\n- mora em SP"
+func FormatAtomicFacts(facts []UserFact) string {
+	if len(facts) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("O que sei sobre este usuário:\n")
+	for _, f := range facts {
+		b.WriteString("- ")
+		b.WriteString(f.Fact)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
 // StartMemoryCleanup apaga memórias não atualizadas há mais de maxAge, a cada 24h.
 func (m *UserMemoryStore) StartMemoryCleanup(ctx context.Context, maxAge time.Duration) {
 	gosafe.Go(m.log, func() {

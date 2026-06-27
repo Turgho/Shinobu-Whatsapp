@@ -25,7 +25,8 @@ type IAResponse struct {
 // AskIA orquestra o pipeline de resposta da IA:
 // 1. Limpa prompt (remove @lid) e detecta prompt injection
 // 2. Classifica modo: breve, normal ou web
-// 3. Decide se precisa de busca web (keywords → IA classifier + cache)
+// 3. Decide se precisa de busca web: keywords (zero tokens) → trivial filter →
+//    cache (5 min) → Groq classifier (fallback, só para mensagens ambíguas)
 // 4. Se precisar, busca contexto na Tavily e trunca para 1500 chars
 // 5. Monta mensagens do sistema (personalidade, dono, resumo, transcript)
 // 6. Monta user message com base no modo (contexto web + prompt)
@@ -78,6 +79,7 @@ func AskIA(ctx context.Context, cfg *Config, chat, prompt string, isOwner bool, 
 
 	if store != nil && chat != "" {
 		refreshChatSummary(cfg, chat, prompt, answer, store)
+		extractAndStoreFacts(cfg, chat, sender, prompt, answer, store)
 	}
 
 	return answer, usedSearch, nil
@@ -101,7 +103,7 @@ func appendPersistentAndRecent(ctx context.Context, messages []history.IAMessage
 		return messages
 	}
 
-	// Memória de usuário: fatos extraídos sobre o usuário neste chat.
+	// Memória de usuário: fatos extraídos por padrões (key-value).
 	if store.UserMemory != nil && sender != "" {
 		if facts, err := store.UserMemory.GetFacts(ctx, chat, sender); err == nil && len(facts) > 0 {
 			if formatted := history.FormatFacts(facts); formatted != "" {
@@ -110,6 +112,16 @@ func appendPersistentAndRecent(ctx context.Context, messages []history.IAMessage
 					Content: formatted,
 				})
 			}
+		}
+	}
+
+	// Fatos atômicos extraídos por IA (user_facts).
+	if afacts, err := store.GetFacts(ctx, chat, sender); err == nil && len(afacts) > 0 {
+		if formatted := history.FormatAtomicFacts(afacts); formatted != "" {
+			messages = append(messages, history.IAMessage{
+				Role:    "system",
+				Content: formatted,
+			})
 		}
 	}
 

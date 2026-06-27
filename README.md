@@ -114,16 +114,17 @@ Na primeira execução, escaneie o QR Code exibido no terminal. A sessão WhatsA
 |---------|-----------|
 | `!menu` (atalho: `!m`) | Lista todos os comandos registrados |
 | `!ping` | Verifica latência e disponibilidade |
-| `!clima <cidade>` (atalho: `!c`, `!tempo`) | Clima atual via Nominatim + Open-Meteo |
+| `!clima <cidade> [data]` (atalho: `!c`, `!tempo`) | Clima atual ou previsão para data específica (amanhã, sexta, etc.) via Nominatim + Open-Meteo |
 | `!sticker` (atalho: `!s`, `!figurinha`) | Converte imagem ou vídeo em figurinha |
 | `!play <nome ou URL>` (atalho: `!p`, `!plau`) | Reproduz música via servidor remoto (yt-dlp) |
 | `!efeito [nome] [intensidade]` (atalho: `!e`) | Aplica efeito em um áudio. Sem args, lista os disponíveis. Intensidades: `leve`, `medio`, `forte` |
 | `!shinobu <texto>` | Conversa com a IA |
 | Menção **"shinobu"** | Atalho para o mesmo handler do `!shinobu` |
 | `!aniversário` (atalho: `!a`, `!aniver`) | Gerencia aniversários do grupo (ver abaixo) |
+| `!agenda <ISO8601> <mensagem>` (atalho: `!lembrete`) | Agenda lembretes com data/hora exata no formato ISO8601. Ex: `!agenda 2026-06-28T09:00 Tomar remédio` |
 | `!mambo`, `!dio`, `!cafe` | Reproduz áudios OGG de `assets/audios/` |
 
-> **Aliases:** erros de digitação comuns como `!plau`, `!stiker`, `!clim`, `!figurinha` e `!aniversario` (sem acento) também funcionam.
+> **Aliases:** erros de digitação comuns como `!plau`, `!stiker`, `!clim`, `!figurinha`, `!aniversario` (sem acento) e `!lembrete` também funcionam.
 
 ### `!aniversário` — detalhamento
 
@@ -172,6 +173,7 @@ Na primeira execução, escaneie o QR Code exibido no terminal. A sessão WhatsA
 - Resumo de conversa persistido entre sessões.
 - Busca web via Tavily acionada automaticamente quando a pergunta exige dados atuais.
 - Tom diferenciado para o owner.
+- Detecção de intenção (NLU) via Groq: comandos `agenda` e `clima` com resolução de datas relativas ("amanhã", "sexta", "30/06") para ISO8601.
 
 ### Modelos
 
@@ -195,11 +197,15 @@ type Job interface {
 }
 ```
 
-O scheduler roda em uma goroutine segura (via `gosafe.Go`) com ticker de 1 minuto, executando jobs cujo `Next(now)` seja igual ou anterior ao horário atual. Cada job tem seu próprio contexto com timeout de 5 minutos e recuperação individual de panics.
+O scheduler roda em uma goroutine segura (via `gosafe.Go`) com ticker de 1 minuto, executando jobs cujo `Next(now)` seja igual ou anterior ao horário atual. Cada job tem seu próprio contexto com timeout de 5 minutos e recuperação individual de panics. Jobs one-shot (cujo `Next()` retorna zero após executar) são automaticamente removidos.
 
 ### Aniversários
 
 O `BirthdayJob` (substituiu o scheduler específico) roda todos os dias às **08:00** (horário de Brasília), notificando grupos com aniversariantes e mencionando @all.
+
+### Lembretes Dinâmicos
+
+O `DynamicJob` permite que usuários agendem lembretes via comando `!agenda`. Os jobs são persistidos em `storage/dynamic_jobs.json` e restaurados na inicialização — jobs expirados são removidos automaticamente. Cada lembrete é executado uma única vez e removido do scheduler após o envio.
 
 ### Jobs de Dia da Semana
 
@@ -269,16 +275,17 @@ O job envia sequencialmente para cada grupo:
     │   │   ├── shutdown.go                  # !shutdown
     │   │   ├── stats.go                     # !stats — runtime + servidor remoto
     │   │   └── testjob.go                   # !testjob — debug de jobs agendados
-    │   └── public/
-    │       ├── audio_effects.go             # !efeito — reverb, lofi, nightcore, etc.
-    │       ├── birthday.go                  # !aniversário — wrapper do domain
-    │       ├── bundled_audio.go             # !mambo, !dio, !cafe
-    │       ├── menu.go                      # !menu — banner + lista de comandos
-    │       ├── ping.go                      # !ping
-    │       ├── play.go                      # !play — encaminha para servidor yt-dlp
-    │       ├── shinobu.go                   # !shinobu / menção — IA com personalidade
-    │       ├── sticker.go                   # !sticker — imagem/vídeo → figurinha
-    │       └── weather.go                   # !clima
+│   └── public/
+│       ├── agenda.go                    # !agenda — lembretes com data/hora
+│       ├── audio_effects.go             # !efeito — reverb, lofi, nightcore, etc.
+│       ├── birthday.go                  # !aniversário — wrapper do domain
+│       ├── bundled_audio.go             # !mambo, !dio, !cafe
+│       ├── menu.go                      # !menu — banner + lista de comandos
+│       ├── ping.go                      # !ping
+│       ├── play.go                      # !play — encaminha para servidor yt-dlp
+│       ├── shinobu.go                   # !shinobu / menção — IA com personalidade
+│       ├── sticker.go                   # !sticker — imagem/vídeo → figurinha
+│       └── weather.go                   # !clima — atual ou previsão por data
     │
     ├── domain/                             # Regras de negócio
     │   ├── birthday/
@@ -306,8 +313,10 @@ O job envia sequencialmente para cada grupo:
     │   │   ├── audio_effects.go             # Efeitos ffmpeg (reverb, lofi, nightcore…)
     │   │   ├── mimetype.go                  # Resolução de MIME por extensão
     │   │   └── ytdlp_request.go             # Requisição HTTP ao servidor de música
-    │   ├── scheduler/
-    │   │   └── scheduler.go                 # Scheduler genérico (Job interface, ticker 1min, gosafe)
+│   ├── scheduler/
+│   │   ├── dynamic_job.go               # DynamicJob — job one-shot com persistência
+│   │   ├── dynamic_store.go             # DynamicStore — persistência JSON dos lembretes
+│   │   └── scheduler.go                 # Scheduler genérico (Job interface, ticker 1min, gosafe)
     │   ├── sticker/
     │   │   ├── convert.go                   # ffmpeg → WebP + injeção de metadados EXIF
     │   │   ├── handler.go                   # Subcomandos !fig (salvar, remover, lista)

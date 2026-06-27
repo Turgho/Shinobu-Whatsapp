@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
@@ -15,6 +16,7 @@ type Job interface {
 }
 
 type Scheduler struct {
+	mu     sync.Mutex
 	jobs   []*jobEntry
 	logger *zap.Logger
 	stopCh chan struct{}
@@ -34,12 +36,32 @@ func NewScheduler(logger *zap.Logger) *Scheduler {
 }
 
 func (s *Scheduler) Register(job Job) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.jobs = append(s.jobs, &jobEntry{job: job})
 	next := job.Next(time.Now())
 	s.logger.Info("Job registrado",
 		zap.String("job", job.Name()),
 		zap.String("next_run", next.Format("2006-01-02 15:04 MST")),
 	)
+}
+
+func (s *Scheduler) Unregister(name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.unregisterLocked(name)
+}
+
+func (s *Scheduler) unregisterLocked(name string) {
+	for i, entry := range s.jobs {
+		if entry.job.Name() == name {
+			s.jobs = append(s.jobs[:i], s.jobs[i+1:]...)
+			s.logger.Info("Job desregistrado", zap.String("job", name))
+			return
+		}
+	}
 }
 
 func (s *Scheduler) Start(ctx context.Context) {
@@ -78,6 +100,9 @@ func (s *Scheduler) run(ctx context.Context) {
 }
 
 func (s *Scheduler) checkAndRun(now time.Time) {
+	s.mu.Lock()
+
+	var toRemove []string
 	for _, entry := range s.jobs {
 		next := entry.job.Next(now)
 		if now.After(next) || now.Equal(next) {
@@ -90,6 +115,7 @@ func (s *Scheduler) checkAndRun(now time.Time) {
 				zap.Time("scheduled", next),
 			)
 
+			s.mu.Unlock()
 			jobCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			func() {
 				defer func() {
@@ -112,8 +138,18 @@ func (s *Scheduler) checkAndRun(now time.Time) {
 				}
 			}()
 			cancel()
+			s.mu.Lock()
 
 			entry.lastRun = now
+
+			if entry.job.Next(now).IsZero() {
+				toRemove = append(toRemove, entry.job.Name())
+			}
 		}
 	}
+
+	for _, name := range toRemove {
+		s.unregisterLocked(name)
+	}
+	s.mu.Unlock()
 }

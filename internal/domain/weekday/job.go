@@ -71,47 +71,39 @@ func NewFromConfig(client *whatsmeow.Client, logger *zap.Logger, cfg Config) *We
 		name = cfg.Day
 	}
 
-	job, err := newWeekdayJob(client, logger, groups, cfg.AudioPath, cfg.StickerName, name, day, cfg.Hour, cfg.Minute)
-	if err != nil {
-		logger.Error("Erro ao criar WeekdayJob", zap.Error(err))
-		return nil
-	}
-	return job
-}
-
-func newWeekdayJob(client *whatsmeow.Client, logger *zap.Logger, targetGroups []types.JID, audioPath, stickerName, name string, day time.Weekday, hour, minute int) (*WeekdayJob, error) {
 	loc, err := time.LoadLocation("America/Sao_Paulo")
 	if err != nil {
-		return nil, fmt.Errorf("carregar timezone: %w", err)
+		logger.Error("Erro ao carregar timezone", zap.Error(err))
+		return nil
 	}
 
-	groupStrs := make([]string, len(targetGroups))
-	for i, g := range targetGroups {
+	groupStrs := make([]string, len(groups))
+	for i, g := range groups {
 		groupStrs[i] = g.String()
 	}
 
 	logger.Info("Job configurado",
 		zap.String("name", name),
 		zap.String("day", day.String()),
-		zap.Int("hour", hour),
-		zap.Int("minute", minute),
+		zap.Int("hour", cfg.Hour),
+		zap.Int("minute", cfg.Minute),
 		zap.Strings("groups", groupStrs),
-		zap.String("audio", audioPath),
-		zap.String("sticker", stickerName),
+		zap.String("audio", cfg.AudioPath),
+		zap.String("sticker", cfg.StickerName),
 	)
 
 	return &WeekdayJob{
 		client:       client,
 		logger:       logger.Named(strings.ToUpper(name)),
 		location:     loc,
-		targetGroups: targetGroups,
-		audioPath:    audioPath,
-		stickerName:  stickerName,
+		targetGroups: groups,
+		audioPath:    cfg.AudioPath,
+		stickerName:  cfg.StickerName,
 		name:         name,
 		day:          day,
-		hour:         hour,
-		minute:       minute,
-	}, nil
+		hour:         cfg.Hour,
+		minute:       cfg.Minute,
+	}
 }
 
 // parseDay converte string nome do dia para time.Weekday.

@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
+	"go.uber.org/zap"
 )
 
 const maxRunesSearchClassifier = 400
@@ -102,9 +103,10 @@ func trivialWithoutSearch(lower string) bool {
 	return false
 }
 
-// classifyNeedsWebSearch usa um modelo Groq rápido (llama-3.1-8b) com temperature 0
+// classifyNeedsWebSearch usa um modelo Groq rápido com temperature 0
 // para classificar se o prompt precisa de dados atualizados da internet.
 // Trunca o prompt para 400 runes para evitar gastar tokens desnecessariamente.
+// Só é chamada quando hasWebSearchCue retornou false e a mensagem não é trivial.
 func classifyNeedsWebSearch(ctx context.Context, cfg *Config, prompt string) bool {
 	if cfg.GroqURL == "" || cfg.GroqKey == "" {
 		return false
@@ -124,11 +126,14 @@ func classifyNeedsWebSearch(ctx context.Context, cfg *Config, prompt string) boo
 		},
 		Stream:      false,
 		Temperature: 0,
-		MaxTokens:   3,
+		MaxTokens:   10,
 	}
 
 	resp, err := groqChat(ctx, cfg.GroqURL, cfg.GroqKey, req)
 	if err != nil {
+		if cfg.Log != nil {
+			cfg.Log.Warn("Classificador de busca web falhou, assumindo false", zap.Error(err))
+		}
 		return false
 	}
 	answer := strings.ToLower(strings.TrimSpace(resp.Choices[0].Message.Content))
