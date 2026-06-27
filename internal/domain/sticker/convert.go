@@ -85,9 +85,8 @@ func runFFmpeg(ctx context.Context, input, output string, animated bool) error {
 	var stderr bytes.Buffer
 	cmd := ffmpeg.FfmpegCmd(ctx, args...)
 	cmd.Stderr = &stderr
-	cmd.SysProcAttr = ffmpeg.LowPriorityProc() // prioridade baixa no Linux
 
-	if err := cmd.Run(); err != nil {
+	if err := ffmpeg.RunLowPriority(cmd); err != nil {
 		return fmt.Errorf("sticker/convert: ffmpeg falhou: %w\n%s", err, stderr.String())
 	}
 
