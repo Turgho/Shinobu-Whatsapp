@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ia"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ignore"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
@@ -19,6 +20,20 @@ const (
 	handlerTimeoutMention = 30 * time.Second
 	handlerTimeoutCommand = 120 * time.Second
 )
+
+// dispatchableCommands são os comandos públicos que a NLU pode despachar.
+// Comandos de admin/owner não entram aqui — exigem verificação de dono.
+var dispatchableCommands = map[string]bool{
+	"clima":       true,
+	"play":        true,
+	"sticker":     true,
+	"efeito":      true,
+	"aniversário": true,
+}
+
+func dispatchableCommand(name string) bool {
+	return dispatchableCommands[name]
+}
 
 type rateLimitEntry struct {
 	count   int
@@ -41,6 +56,7 @@ type Router struct {
 
 	botJID      string
 	maintenance atomic.Bool
+	aiConfig    *ia.Config
 }
 
 func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *history.Store) *Router {
@@ -62,8 +78,41 @@ func (r *Router) SetRateLimit(max int, every time.Duration) {
 	r.rateLimitEvery = every
 }
 
+// StartRateLimitCleanup inicia uma goroutine que remove entradas expiradas do rateLimitMap a cada 10 minutos.
+func (r *Router) StartRateLimitCleanup(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				r.cleanRateLimit()
+			}
+		}
+	}()
+}
+
+func (r *Router) cleanRateLimit() {
+	r.rateLimitMu.Lock()
+	defer r.rateLimitMu.Unlock()
+
+	now := time.Now()
+	for key, entry := range r.rateLimitMap {
+		if now.After(entry.resetAt) {
+			delete(r.rateLimitMap, key)
+		}
+	}
+}
+
 func (r *Router) SetBotJID(jid string) {
 	r.botJID = jid
+}
+
+func (r *Router) SetAIConfig(cfg *ia.Config) {
+	r.aiConfig = cfg
+	r.log.Info("AI config definido", zap.Bool("groq", cfg.GroqKey != ""), zap.Bool("tavily", cfg.TavilyKey != ""))
 }
 
 func (r *Router) SetMaintenance(on bool) {
@@ -158,8 +207,9 @@ func (r *Router) Prefix() string {
 // 1. Extrai texto visível
 // 2. Verifica se o remetente está na lista de ignorados
 // 3. Verifica rate limit
-// 4. Se é menção → IA via handleShinobuMention
-// 5. Se é comando prefixado → handlePrefixedCommand
+// 4. Se tem prefixo → comando normal (handlePrefixedCommand)
+// 5. Se não tem prefixo E (DM ou menção) → NLU via handleNaturalLanguage
+// 6. Caso contrário → ignora
 func (r *Router) HandleMessage(evt *events.Message) {
 	msg := whatsapp.VisibleTextFromEvent(evt)
 	if msg == "" {
@@ -177,15 +227,26 @@ func (r *Router) HandleMessage(evt *events.Message) {
 		return
 	}
 
-	if isMentioned(msg, r.botJID) {
-		r.handleShinobuMention(evt, msg)
+	if strings.HasPrefix(msg, r.prefix) {
+		r.handlePrefixedMessage(evt, msg)
 		return
 	}
 
-	if !strings.HasPrefix(msg, r.prefix) {
-		return
+	if r.aiConfig != nil && r.isNLApplicable(evt, msg) {
+		r.handleNaturalLanguage(evt, msg)
 	}
+}
 
+func (r *Router) isNLApplicable(evt *events.Message, msg string) bool {
+	chat := evt.Info.Chat.String()
+	isGroup := strings.HasSuffix(chat, "@g.us")
+	if !isGroup {
+		return true
+	}
+	return isMentioned(msg, r.botJID)
+}
+
+func (r *Router) handlePrefixedMessage(evt *events.Message, msg string) {
 	parts := strings.Fields(strings.TrimPrefix(msg, r.prefix))
 	if len(parts) == 0 {
 		return
@@ -196,12 +257,66 @@ func (r *Router) HandleMessage(evt *events.Message) {
 	if r.IsMaintenance() && r.resolveAlias(cmdName) != "manutencao" {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		msg := "😅 *O bot está em manutenção!*\n\nComandos temporariamente desativados. Tente novamente mais tarde."
-		_ = whatsapp.Reply(ctx, r.client, evt, msg)
+		maintenanceMsg := "😅 *O bot está em manutenção!*\n\nComandos temporariamente desativados. Tente novamente mais tarde."
+		_ = whatsapp.Reply(ctx, r.client, evt, maintenanceMsg)
 		return
 	}
 
 	r.handlePrefixedCommand(evt, cmdName, parts[1:])
+}
+
+// handleNaturalLanguage processa mensagens sem prefixo via NLU.
+// 1. Detecta intento via Groq (com timeout de 8s)
+// 2. Se comando válido → passa pelo pipeline de middlewares
+// 3. Se aprovado → despacha para o handler
+// 4. Se falhar ou sem comando → fallback para IA geral
+func (r *Router) handleNaturalLanguage(evt *events.Message, msg string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	intent, err := ia.DetectIntent(ctx, r.aiConfig, msg)
+	if err != nil {
+		r.log.Debug("NLU: falha na detecção de intento", zap.Error(err))
+		r.handleShinobuMention(evt, msg)
+		return
+	}
+
+	if intent.Command != "" {
+		if !dispatchableCommand(intent.Command) {
+			r.log.Debug("NLU: comando não-despachável", zap.String("command", intent.Command))
+			r.handleShinobuMention(evt, msg)
+			return
+		}
+
+		if !r.runMiddlewares(intent.Command, evt) {
+			return
+		}
+
+		handler := r.Handler(intent.Command)
+		if handler == nil {
+			r.log.Debug("NLU: handler não encontrado", zap.String("command", intent.Command))
+			r.handleShinobuMention(evt, msg)
+			return
+		}
+
+		r.log.Info("NLU: intento detectado e despachado",
+			append(eventFields(evt),
+				zap.String("command", intent.Command),
+				zap.Strings("args", intent.Args),
+				zap.String("raw_message", msg),
+			)...,
+		)
+
+		dispatchCtx, cancelDispatch := context.WithTimeout(context.Background(), handlerTimeoutCommand)
+		defer cancelDispatch()
+		handler(dispatchCtx, r.client, evt, intent.Args)
+		return
+	}
+
+	r.log.Info("NLU: sem comando, fallback IA",
+		append(eventFields(evt), zap.String("msg", msg))...,
+	)
+	r.handleShinobuMention(evt, msg)
 }
 
 func (r *Router) Handler(name string) HandlerFunc {
