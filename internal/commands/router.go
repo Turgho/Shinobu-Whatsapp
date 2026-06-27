@@ -211,6 +211,10 @@ func (r *Router) Prefix() string {
 // 5. Se não tem prefixo E (DM ou menção) → NLU via handleNaturalLanguage
 // 6. Caso contrário → ignora
 func (r *Router) HandleMessage(evt *events.Message) {
+	if strings.HasSuffix(evt.Info.Chat.String(), "@broadcast") {
+		return
+	}
+
 	msg := whatsapp.VisibleTextFromEvent(evt)
 	if msg == "" {
 		return
