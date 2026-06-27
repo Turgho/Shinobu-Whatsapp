@@ -219,7 +219,7 @@ func parseRelativeDuration(input string) (time.Time, bool) {
 	for _, p := range patterns {
 		for _, prefix := range p.prefixes {
 			if strings.HasPrefix(word, prefix) {
-				return now.Add(time.Duration(n) * p.unit), true
+				return now.Add(time.Duration(n) * p.unit).Truncate(time.Second), true
 			}
 		}
 	}
