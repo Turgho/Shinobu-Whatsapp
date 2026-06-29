@@ -354,16 +354,17 @@ func (s *Store) NeedsSummary(ctx context.Context, chat string, minMessages int, 
 // CountWordInMessages conta quantas vezes uma palavra aparece como palavra exata nas mensagens de um remetente específico.
 func (s *Store) CountWordInMessages(ctx context.Context, chat, sender, word string) (int, error) {
 	var count int
+	lower := strings.ToLower(word)
 	err := s.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
 		FROM messages
 		WHERE chat = ? AND sender = ? AND (
-			text = ? OR
-			text LIKE ? OR
-			text LIKE ? OR
-			text LIKE ?
+			LOWER(text) = ? OR
+			LOWER(text) LIKE ? OR
+			LOWER(text) LIKE ? OR
+			LOWER(text) LIKE ?
 		)
-	`, chat, sender, word, word+" %", "% "+word, "% "+word+" %").Scan(&count)
+	`, chat, sender, lower, lower+" %", "% "+lower, "% "+lower+" %").Scan(&count)
 	if err != nil {
 		return 0, err
 	}
