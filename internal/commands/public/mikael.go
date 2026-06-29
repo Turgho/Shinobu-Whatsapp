@@ -3,6 +3,8 @@ package public
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
@@ -29,7 +31,13 @@ func MikaelCommand(
 		return whatsapp.Reply(ctx, client, evt, "❌ Este comando só funciona em grupos autorizados.")
 	}
 
-	count, err := store.CountWordInMessages(ctx, chat, cfg.LID, "pix")
+	// Normaliza o LID para o formato completo (@s.whatsapp.net)
+	lid := cfg.LID
+	if !strings.Contains(lid, "@") {
+		lid = lid + "@s.whatsapp.net"
+	}
+
+	count, err := store.CountWordInMessages(ctx, chat, lid, "pix")
 	if err != nil {
 		return whatsapp.Reply(ctx, client, evt, "❌ Não consegui contar as mensagens.")
 	}
@@ -41,12 +49,7 @@ func isMikaelGroup(chat string, cfg *configs.MikaelConfig) bool {
 	if cfg == nil {
 		return false
 	}
-	for _, group := range cfg.Groups {
-		if group == chat {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(cfg.Groups, chat)
 }
 
 func MikaelHandler(store *history.Store, cfg *configs.MikaelConfig) commands.HandlerFunc {
