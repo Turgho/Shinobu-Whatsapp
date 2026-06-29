@@ -3,6 +3,7 @@ bot:
   prefix: "!"          # prefixo dos comandos
   environment: "development"
   timezone: "America/Sao_Paulo"
+  nlpGroupTrigger: false  # se true, NLU dispara em grupo sem mencionar Shinobu (default: false)
 
 database:
   driver: sqlite3

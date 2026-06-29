@@ -33,10 +33,11 @@ type WeekdayJobConfig struct {
 }
 
 type BotConfig struct {
-	Name        string `mapstructure:"name"`
-	Prefix      string `mapstructure:"prefix"`
-	Environment string `mapstructure:"environment"`
-	Timezone    string `mapstructure:"timezone"`
+	Name            string `mapstructure:"name"`
+	Prefix          string `mapstructure:"prefix"`
+	Environment     string `mapstructure:"environment"`
+	Timezone        string `mapstructure:"timezone"`
+	NLPGroupTrigger bool   `mapstructure:"nlpGroupTrigger"`
 }
 
 type DatabaseConfig struct {
