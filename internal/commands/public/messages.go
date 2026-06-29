@@ -16,6 +16,7 @@ const (
 	msgInvalidNumber      = "Esse número não é válido."
 	msgNoReminders        = "Nenhum lembrete agendado."
 	msgReminderUsage      = "Use: `agenda remover <número>`"
+	msgEmptyReminder      = "O lembrete precisa de uma mensagem."
 
 	// Play
 	msgNoQuery       = "Fala o nome ou link da música."

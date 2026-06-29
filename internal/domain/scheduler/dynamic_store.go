@@ -14,10 +14,11 @@ type DataWithTime struct {
 }
 
 type DynamicJobData struct {
-	ID      string `json:"id"`
-	RunAt   string `json:"run_at"`
-	ChatJID string `json:"chat_jid"`
-	Message string `json:"message"`
+	ID         string `json:"id"`
+	RunAt      string `json:"run_at"`
+	ChatJID    string `json:"chat_jid"`
+	Message    string `json:"message"`
+	MentionAll bool   `json:"mention_all,omitempty"`
 }
 
 type DynamicStore struct {
@@ -34,10 +35,11 @@ func NewDynamicStore(path string, logger *zap.Logger) *DynamicStore {
 
 func (ds *DynamicStore) Save(job *DynamicJob) error {
 	data := DynamicJobData{
-		ID:      job.ID,
-		RunAt:   job.RunAt.Format(time.RFC3339),
-		ChatJID: job.ChatJID,
-		Message: job.Message,
+		ID:         job.ID,
+		RunAt:      job.RunAt.Format(time.RFC3339),
+		ChatJID:    job.ChatJID,
+		Message:    job.Message,
+		MentionAll: job.MentionAll,
 	}
 
 	return ds.js.Update(func(list []DynamicJobData) ([]DynamicJobData, error) {

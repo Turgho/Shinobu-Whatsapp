@@ -66,8 +66,11 @@ agenda:
 "lembra eu amanhã às 8 de tomar remédio" → {"command":"agenda","args":["amanhã 08:00","tomar remédio"]}
 "me lembra daqui uma hora de ligar pro médico" → {"command":"agenda","args":["daqui 1 hora","ligar pro médico"]}
 "agenda pra sexta às 18h: buscar as crianças" → {"command":"agenda","args":["sexta 18:00","buscar as crianças"]}
-"não esquece de me avisar no sábado de manhã" → {"command":"agenda","args":["sábado 08:00","me avisar"]}
+"não esqueça de me avisar no sábado de manhã" → {"command":"agenda","args":["sábado 08:00","me avisar"]}
 "lembra de comprar pão amanhã" → {"command":"agenda","args":["amanhã 08:00","comprar pão"]}
+"lembra todos amanhã às 8 de tomar remédio" → {"command":"agenda","args":["amanhã 08:00","todos tomar remédio"]}
+"avisa todo mundo que sexta tem reunião" → {"command":"agenda","args":["sexta 08:00","todos sexta tem reunião"]}
+"manda um lembrete pra todos sobre a reunião amanhã" → {"command":"agenda","args":["amanhã 08:00","todos sobre a reunião"]}
 
 aniversário:
 "quando é o aniversário da vovó?" → {"command":"aniversário","args":["lista"]}
