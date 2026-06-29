@@ -5,7 +5,8 @@ import (
 	"syscall"
 )
 
-// LowPriorityProc retorna SysProcAttr com nice=10 no Linux.
+// LowPriorityProc retorna SysProcAttr com Pdeathsig=SIGTERM no Linux.
+// O nice+10 é aplicado em RunLowPriority após o fork.
 func LowPriorityProc() *syscall.SysProcAttr {
 	return &syscall.SysProcAttr{
 		Pdeathsig: syscall.SIGTERM,

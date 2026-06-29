@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -16,6 +17,8 @@ type Config struct {
 	APIToken  string
 }
 
+// DownloadAudio baixa áudio de uma query (música/URL).
+// Usa servidor remoto (MUSIC_SERVER_URL) se configurado, senão usa binário ytdlp local.
 func DownloadAudio(ctx context.Context, cfg *Config, query string) ([]byte, string, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
@@ -43,7 +46,8 @@ func downloadViaTunnel(ctx context.Context, serverURL, apiToken, query string) (
 	req.Header.Set("Content-Type", "text/plain")
 	req.Header.Set("Authorization", "Bearer "+apiToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, "", fmt.Errorf("music/tunnel: erro ao chamar servidor: %w", err)
 	}

@@ -17,6 +17,11 @@ import (
 	"go.uber.org/zap"
 )
 
+var relativeTimeRe = regexp.MustCompile(`(\d+)\s*(\w+)`)
+
+// AgendaCommand agenda lembretes com data/hora natural em PT-BR.
+// Subcomandos: lista (jobs futuros), remover <n>, ou <data> <mensagem>.
+// Delega o parsing de data para parseAgendaTime e persistência para DynamicStore.
 func AgendaCommand(
 	ctx context.Context,
 	client *whatsmeow.Client,
@@ -44,23 +49,17 @@ func AgendaCommand(
 
 	runAt, err := parseAgendaTime(args[0])
 	if err != nil {
-		return whatsapp.Reply(ctx, client, evt,
-			"Data inválida. Exemplos válidos:\n\n"+
-				"2026-06-28T09:00\n"+
-				"28/06 09:00\n"+
-				"5 de janeiro 14:00\n"+
-				"daqui 5 minutos\n"+
-				"28/06 (assume 08:00)")
+		return whatsapp.Reply(ctx, client, evt, msgInvalidDate)
 	}
 
 	now := time.Now()
 	if runAt.Before(now) {
-		return whatsapp.Reply(ctx, client, evt, "Não posso agendar lembretes no passado!")
+		return whatsapp.Reply(ctx, client, evt, msgPastDate)
 	}
 
 	maxAhead := now.AddDate(0, 0, 30)
 	if runAt.After(maxAhead) {
-		return whatsapp.Reply(ctx, client, evt, "Só posso agendar lembretes com até 30 dias de antecedência.")
+		return whatsapp.Reply(ctx, client, evt, msgDateLimit)
 	}
 
 	message := strings.Join(args[1:], " ")
@@ -70,7 +69,7 @@ func AgendaCommand(
 	job := scheduler.NewDynamicJob(id, runAt, chatJID, message, client, logger)
 	if err := dynStore.Save(job); err != nil {
 		logger.Error("Erro ao persistir job dinâmico", zap.Error(err))
-		return whatsapp.Reply(ctx, client, evt, "Erro ao salvar lembrete. Tente novamente.")
+		return whatsapp.Reply(ctx, client, evt, msgSaveReminderFail)
 	}
 
 	dynSched.Register(job)
@@ -87,6 +86,7 @@ func AgendaCommand(
 	return whatsapp.Reply(ctx, client, evt, reply)
 }
 
+// agendaLista exibe todos os lembretes futuros ordenados por data.
 func agendaLista(
 	ctx context.Context,
 	client *whatsmeow.Client,
@@ -95,7 +95,7 @@ func agendaLista(
 ) error {
 	all := dynStore.LoadAll()
 	if len(all) == 0 {
-		return whatsapp.Reply(ctx, client, evt, "Nenhum lembrete agendado.")
+		return whatsapp.Reply(ctx, client, evt, msgNoReminders)
 	}
 
 	now := time.Now()
@@ -109,7 +109,7 @@ func agendaLista(
 	}
 
 	if len(future) == 0 {
-		return whatsapp.Reply(ctx, client, evt, "Nenhum lembrete agendado.")
+		return whatsapp.Reply(ctx, client, evt, msgNoReminders)
 	}
 
 	sort.Slice(future, func(i, j int) bool {
@@ -129,6 +129,7 @@ func agendaLista(
 	return whatsapp.Reply(ctx, client, evt, b.String())
 }
 
+// agendaRemover remove um lembrete pelo índice mostrado no lista.
 func agendaRemover(
 	ctx context.Context,
 	client *whatsmeow.Client,
@@ -139,12 +140,12 @@ func agendaRemover(
 	logger *zap.Logger,
 ) error {
 	if len(args) < 2 {
-		return whatsapp.Reply(ctx, client, evt, "Use: `agenda remover <número>`")
+		return whatsapp.Reply(ctx, client, evt, msgReminderUsage)
 	}
 
 	idx, err := strconv.Atoi(args[1])
 	if err != nil || idx < 1 {
-		return whatsapp.Reply(ctx, client, evt, "Número inválido.")
+		return whatsapp.Reply(ctx, client, evt, msgInvalidNumber)
 	}
 
 	all := dynStore.LoadAll()
@@ -163,13 +164,13 @@ func agendaRemover(
 	})
 
 	if idx > len(future) {
-		return whatsapp.Reply(ctx, client, evt, "Número inválido.")
+		return whatsapp.Reply(ctx, client, evt, msgInvalidNumber)
 	}
 
 	target := future[idx-1]
 	if err := dynStore.Delete(target.Data.ID); err != nil {
 		logger.Error("Erro ao deletar job", zap.Error(err))
-		return whatsapp.Reply(ctx, client, evt, "Erro ao remover lembrete.")
+		return whatsapp.Reply(ctx, client, evt, msgRemoveReminderFail)
 	}
 
 	dynSched.Unregister(target.Data.ID)
@@ -189,6 +190,8 @@ func AgendaHandler(
 	}
 }
 
+// parseRelativeDuration converte "daqui 5 minutos", "em 2 horas" etc. em time.Time.
+// Retorna false se não reconhecer o formato.
 func parseRelativeDuration(input string) (time.Time, bool) {
 	s := strings.ToLower(strings.TrimSpace(input))
 	now := time.Now().In(locBrazil())
@@ -204,8 +207,7 @@ func parseRelativeDuration(input string) (time.Time, bool) {
 		{[]string{"dia", "dias"}, 24 * time.Hour},
 	}
 
-	re := regexp.MustCompile(`(\d+)\s*(\w+)`)
-	matches := re.FindStringSubmatch(s)
+	matches := relativeTimeRe.FindStringSubmatch(s)
 	if len(matches) < 3 {
 		return time.Time{}, false
 	}
@@ -235,6 +237,10 @@ func locBrazil() *time.Location {
 	return loc
 }
 
+// parseAgendaTime aceita ISO8601, DD/MM HH:MM, DD/MM/YYYY HH:MM, "D de mês HH:MM",
+// "D de mês de YYYY HH:MM", ou tempo relativo ("daqui 5 minutos").
+// Tenta 14 layouts em ordem de especificidade. Sem hora → assume 08:00 local.
+// Sem ano → assume ano atual; se já passou, avança para o próximo.
 func parseAgendaTime(input string) (time.Time, error) {
 	s := strings.TrimSpace(input)
 	s = strings.Trim(s, "`\"'")
@@ -283,6 +289,8 @@ func parseAgendaTime(input string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("formato inválido: %s", input)
 }
 
+// normalizePtMonths substitui meses em português para inglês (time.Parse usa nomes EN).
+// Ex: "janeiro" → "January", "de" → "".
 func normalizePtMonths(s string) string {
 	s = strings.ToLower(s)
 
