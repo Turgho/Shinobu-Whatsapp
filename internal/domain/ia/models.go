@@ -1,18 +1,40 @@
 package ia
 
-import "go.uber.org/zap"
+import (
+	"net/http"
+
+	"go.uber.org/zap"
+)
 
 // Identificadores de modelo Groq usados no pacote.
+//
+// Orçamento de rate limit Groq (plano free, junho 2026):
+//
+//	modelFastClass  → 14.4K RPD, 6K TPM  — classificação e extração JSON
+//	modelScoutFast  →  1K RPD, 30K TPM  — conversa, resumo, personalidade
+//	modelWebStrong  →  1K RPD, 12K TPM  — respostas com contexto Tavily
+//
+// Regra: tarefas sem personalidade (temperature=0, output JSON) → modelFastClass.
+// Tarefas com personalidade ou raciocínio → Scout ou 70b conforme contexto.
 const (
-	modelScoutFast = "meta-llama/llama-4-scout-17b-16e-instruct" // conversa + classificação leve
-	modelWebStrong = "llama-3.3-70b-versatile"                   // respostas com contexto Tavily
+	ModelFastClass = "llama-3.1-8b-instant"                      // classificação e extração estruturada
+	ModelScoutFast = "meta-llama/llama-4-scout-17b-16e-instruct" // conversa, resumo
+	ModelWebStrong = "llama-3.3-70b-versatile"                   // respostas com contexto Tavily
+)
+
+// Aliases internos para compatibilidade com código existente.
+const (
+	modelFastClass = ModelFastClass
+	modelScoutFast = ModelScoutFast
+	modelWebStrong = ModelWebStrong
 )
 
 type Config struct {
-	GroqURL   string
-	GroqKey   string
-	TavilyKey string
-	Log       *zap.Logger
+	GroqURL    string
+	GroqKey    string
+	TavilyKey  string
+	HTTPClient *http.Client
+	Log        *zap.Logger
 }
 
 // groqRunParams agrupa temperatura e teto de tokens da resposta principal.

@@ -8,71 +8,78 @@ import (
 
 const storeFile = "assets/info/ignored.json"
 
-var (
-	js      = store.NewJSONStore[[]string](storeFile)
+// Store gerencia a lista de JIDs ignorados, com persistência em JSON.
+type Store struct {
+	js      *store.JSONStore[[]string]
 	mu      sync.RWMutex
 	ignored map[string]bool
 	once    sync.Once
-)
+}
 
-func load() {
-	list, err := js.Read()
+func NewStore() *Store {
+	return &Store{
+		js: store.NewJSONStore[[]string](storeFile),
+	}
+}
+
+func (s *Store) load() {
+	list, err := s.js.Read()
 	if err != nil || list == nil {
-		ignored = make(map[string]bool)
+		s.ignored = make(map[string]bool)
 		return
 	}
-	ignored = make(map[string]bool, len(list))
+	s.ignored = make(map[string]bool, len(list))
 	for _, jid := range list {
-		ignored[jid] = true
+		s.ignored[jid] = true
 	}
 }
 
-func persist() {
-	list := make([]string, 0, len(ignored))
-	for jid := range ignored {
+func (s *Store) persist() {
+	list := make([]string, 0, len(s.ignored))
+	for jid := range s.ignored {
 		list = append(list, jid)
 	}
-	_ = js.Write(list)
+	_ = s.js.Write(list)
 }
 
-func IsIgnored(jid string) bool {
-	once.Do(load)
+func (s *Store) IsIgnored(jid string) bool {
+	s.once.Do(s.load)
 
-	mu.RLock()
-	defer mu.RUnlock()
-	return ignored[jid]
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.ignored[jid]
 }
 
-func Add(jid string) error {
-	once.Do(load)
+func (s *Store) Add(jid string) error {
+	s.once.Do(s.load)
 
-	mu.Lock()
-	defer mu.Unlock()
-	ignored[jid] = true
-	persist()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ignored[jid] = true
+	s.persist()
 	return nil
 }
 
-func Remove(jid string) (bool, error) {
-	once.Do(load)
+func (s *Store) Remove(jid string) (bool, error) {
+	s.once.Do(s.load)
 
-	mu.Lock()
-	defer mu.Unlock()
-	if !ignored[jid] {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.ignored[jid] {
 		return false, nil
 	}
-	delete(ignored, jid)
-	persist()
+	delete(s.ignored, jid)
+	s.persist()
 	return true, nil
 }
 
-func List() []string {
-	once.Do(load)
+func (s *Store) List() []string {
+	s.once.Do(s.load)
 
-	mu.RLock()
-	defer mu.RUnlock()
-	list := make([]string, 0, len(ignored))
-	for jid := range ignored {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	list := make([]string, 0, len(s.ignored))
+	for jid := range s.ignored {
 		list = append(list, jid)
 	}
 	return list

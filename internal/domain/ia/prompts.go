@@ -86,8 +86,8 @@ Modo padrão:
 }
 
 // buildUserContent monta o texto enviado como mensagem do usuário de acordo com o modo.
-// O prompt do usuário vai SEMPRE delimitado por --- para evitar que instruções
-// embutidas no texto do usuário "vazem" para o interpretador de instruções do modelo.
+// Em ModeBrief/padrão retorna o prompt limpo; em ModeWeb adiciona o contexto.
+// Não usa delimitadores --- porque a API da Groq já separa system/user/assistant.
 func buildUserContent(prompt string, mode ResponseMode, webContext string) string {
 	switch mode {
 	case ModeBrief:

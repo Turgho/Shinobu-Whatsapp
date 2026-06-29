@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
 [![Último commit](https://img.shields.io/github/last-commit/Turgho/Shinobu-Whatsapp?style=flat-square)](https://github.com/Turgho/Shinobu-Whatsapp/commits/main)
 
-Bot de WhatsApp escrito em Go, construído sobre **whatsmeow**. Possui router de comandos com middlewares, IA com personalidade via **Groq**, histórico de conversa por usuário, busca web via **Tavily**, gerenciamento de aniversários em grupo com scheduler diário, scheduler genérico para jobs semanais/configuráveis (áudio + @all + sticker), efeitos de áudio com **ffmpeg**, reprodução de música via servidor remoto com **yt-dlp** e sistema de figurinhas salvas.
+Bot de WhatsApp escrito em Go, construído sobre **whatsmeow**. Possui router de comandos com middlewares, IA com personalidade via **Groq**, memória atômica por usuário, histórico de conversa em SQLite, busca web via **Tavily** com priorização de resultados brasileiros, gerenciamento de aniversários com scheduler diário, lembretes dinâmicos agendados por linguagem natural, scheduler genérico para jobs semanais/configuráveis (áudio + @all + sticker), efeitos de áudio com **ffmpeg**, reprodução de música via servidor remoto com **yt-dlp** e sistema de figurinhas salvas.
 
 > **Módulo Go:** `github.com/Turgho/Shinobu-Whatsapp`
 > O repositório pode ser clonado como `Shinobu-Whatsapp` — use sempre o caminho do módulo nos imports.
@@ -20,9 +20,10 @@ Bot de WhatsApp escrito em Go, construído sobre **whatsmeow**. Possui router de
 - [Execução](#execução)
 - [Comandos](#comandos)
 - [IA — Oshino Shinobu](#ia--oshino-shinobu)
-- [Aniversários](#aniversários)
+- [Scheduler de Jobs](#scheduler-de-jobs)
 - [Estrutura do projeto](#estrutura-do-projeto)
 - [Criando um novo comando](#criando-um-novo-comando)
+- [Melhorias previstas](#melhorias-previstas)
 
 ---
 
@@ -30,11 +31,11 @@ Bot de WhatsApp escrito em Go, construído sobre **whatsmeow**. Possui router de
 
 | Dependência | Detalhe |
 |-------------|---------|
-| **Go 1.25+** | Ver `go.mod` |
-| **ffmpeg** | Necessário para `!sticker` e `!efeito`. O binário deve estar em `./bin/ffmpeg` relativo à raiz do projeto |
+| **Go 1.26+** | Ver `go.mod` |
+| **ffmpeg** | Necessário para `!sticker`, `!efeito` e extração de capa de áudio. Binário em `./bin/ffmpeg` |
 | **webpmux** | Necessário para injetar metadados nos stickers. Binário em `./bin/webpmux` |
 | **Servidor de música** | `!play` e `!stats` dependem de `MUSIC_SERVER_URL` (servidor com yt-dlp) |
-| **Groq** | Obrigatório para `!shinobu` e menções à IA |
+| **Groq** | Obrigatório para `!shinobu`, NLU e memória da IA |
 | **Tavily** | Opcional — habilita busca web na IA |
 
 ### Instalando dependências (Linux x86-64)
@@ -43,7 +44,7 @@ Bot de WhatsApp escrito em Go, construído sobre **whatsmeow**. Possui router de
 ./scripts/setup.sh
 ```
 
-O script baixa binários estáticos de **ffmpeg**, **webpmux** e **yt-dlp** para `./bin/`. Alternativamente, instale manualmente via gerenciador de pacotes e garanta que os binários estejam em `./bin/` ou no `PATH`.
+O script baixa automaticamente as versões mais recentes de **ffmpeg**, **webpmux** e **yt-dlp** para `./bin/`. O webpmux resolve a versão atual via GitHub API.
 
 ---
 
@@ -65,7 +66,7 @@ go mod tidy
 cp config.example.yaml config.yaml
 ```
 
-O arquivo cobre `bot`, `database`, `log`, `usersJID`, `apiUrls` e `scheduledJobs`. Os campos podem ser sobrescritos por variáveis de ambiente via **Viper** (ex: `OWNER_JID`, `COMMAND_PREFIX`, `DB_DSN`).
+O arquivo cobre `bot`, `database`, `log`, `usersJID`, `apiUrls` e `scheduledJobs`. Os campos podem ser sobrescritos por variáveis de ambiente via **Viper**.
 
 ### .env
 
@@ -81,18 +82,16 @@ TAVILY_API_KEY=tvly-sua-chave-aqui
 OWNER_NUMBER=5511999999999
 
 # Servidor de música (yt-dlp)
-# POST /play  → baixa e retorna áudio
-# GET  /stats → métricas do servidor remoto
 MUSIC_SERVER_URL=http://seu-servidor:porta
 ```
 
 > **JID do dono:** inicie o bot, envie uma mensagem e copie o JID que aparece nos logs. Cole em `usersJID.owner` no `config.yaml`.
 >
-> **Geocoding:** a API Nominatim do OpenStreetMap é usada como primária com `countrycodes=BR` e `addressdetails=1`. Open-Meteo Geocoding API é o fallback.
+> **Geocoding:** Nominatim (OpenStreetMap) como primário com `countrycodes=BR`. Open-Meteo Geocoding como fallback.
 >
-> **Groq:** obtenha uma API key gratuita em [console.groq.com](https://console.groq.com).
+> **Groq:** API key gratuita em [console.groq.com](https://console.groq.com).
 >
-> **Tavily:** plano free disponível em [tavily.com](https://tavily.com).
+> **Tavily:** plano free em [tavily.com](https://tavily.com).
 
 ---
 
@@ -114,17 +113,29 @@ Na primeira execução, escaneie o QR Code exibido no terminal. A sessão WhatsA
 |---------|-----------|
 | `!menu` (atalho: `!m`) | Lista todos os comandos registrados |
 | `!ping` | Verifica latência e disponibilidade |
-| `!clima <cidade> [data]` (atalho: `!c`, `!tempo`) | Clima atual ou previsão para data específica (amanhã, sexta, etc.) via Nominatim + Open-Meteo |
+| `!clima <cidade> [data]` (atalho: `!c`, `!tempo`) | Clima atual ou previsão para data futura. Data aceita: "amanhã", "sexta", "28/06", "5 de janeiro" |
 | `!sticker` (atalho: `!s`, `!figurinha`) | Converte imagem ou vídeo em figurinha |
-| `!play <nome ou URL>` (atalho: `!p`, `!plau`) | Reproduz música via servidor remoto (yt-dlp) |
-| `!efeito [nome] [intensidade]` (atalho: `!e`) | Aplica efeito em um áudio. Sem args, lista os disponíveis. Intensidades: `leve`, `medio`, `forte` |
-| `!shinobu <texto>` | Conversa com a IA |
-| Menção **"shinobu"** | Atalho para o mesmo handler do `!shinobu` |
-| `!aniversário` (atalho: `!a`, `!aniver`) | Gerencia aniversários do grupo (ver abaixo) |
-| `!agenda <ISO8601> <mensagem>` (atalho: `!lembrete`) | Agenda lembretes com data/hora exata no formato ISO8601. Ex: `!agenda 2026-06-28T09:00 Tomar remédio` |
-| `!mambo`, `!dio`, `!cafe` | Reproduz áudios OGG de `assets/audios/` |
+| `!play <nome ou URL>` (atalho: `!p`) | Baixa e envia música como documento com nome e capa do álbum |
+| `!efeito [nome] [intensidade]` (atalho: `!e`) | Aplica efeito em áudio citado. Sem args lista os disponíveis |
+| `!shinobu <texto>` | Conversa com a IA — também ativada mencionando "shinobu" |
+| `!aniversário` (atalho: `!a`, `!aniver`) | Gerencia aniversários do grupo |
+| `!agenda <data> <mensagem>` | Agenda lembretes. Aceita linguagem natural: "daqui 5 minutos", "amanhã às 9h", "28/06 14:00", "5 de janeiro" |
+| `!agenda lista` | Lista lembretes agendados |
+| `!agenda remover <número>` | Remove um lembrete pelo número da lista |
+| `!mambo`, `!dio`, `!cafe` | Reproduz áudios OGG estáticos |
 
-> **Aliases:** erros de digitação comuns como `!plau`, `!stiker`, `!clim`, `!figurinha`, `!aniversario` (sem acento) e `!lembrete` também funcionam.
+> A IA também entende comandos sem prefixo quando mencionada: *"Shinobu, toca uma música do Metallica"*, *"Shinobu, qual o clima em Campinas?"*, *"Shinobu, me lembra daqui 10 minutos de ligar pro médico"*.
+
+### `!agenda` — formatos de data aceitos
+
+| Usuário digita | Interpretado como |
+|----------------|-------------------|
+| `daqui 5 minutos` | agora + 5 min |
+| `em 2 horas` | agora + 2h |
+| `amanhã às 9h` | amanhã 09:00 |
+| `28/06 14:00` | 28 jun, 14:00 |
+| `5 de janeiro` | 5 jan 08:00 (próximo) |
+| `2026-06-28T09:00` | ISO8601 direto |
 
 ### `!aniversário` — detalhamento
 
@@ -149,9 +160,11 @@ Na primeira execução, escaneie o QR Code exibido no terminal. A sessão WhatsA
 | `!fig salvar <nome>` | Salva figurinha (enviar ou citar) |
 | `!fig remover <nome>` | Remove figurinha salva |
 | `!fig lista` | Lista figurinhas salvas |
+| `!memoria` | Mostra resumo e fatos da IA para o chat atual |
+| `!memoria limpar` | Apaga toda a memória da IA para o chat |
+| `!memoria limpar @usuário` | Apaga fatos de um usuário específico |
 | `!testjob [audioPath] [stickerName]` | Testa envio de áudio+@all+sticker no chat atual |
-
-> Comandos administrativos exigem que o remetente seja owner ou admin configurado em `usersJID`.
+| `!manutencao` | Ativa/desativa modo manutenção |
 
 ### Efeitos de áudio disponíveis
 
@@ -168,12 +181,15 @@ Na primeira execução, escaneie o QR Code exibido no terminal. A sessão WhatsA
 
 ## IA — Oshino Shinobu
 
-- Personalidade definida via system prompt.
+- Personalidade definida via system prompt (sarcástica, direta, natural).
 - Histórico por usuário armazenado em SQLite com limpeza periódica.
-- Resumo de conversa persistido entre sessões.
-- Busca web via Tavily acionada automaticamente quando a pergunta exige dados atuais.
+- **Memória em duas camadas:**
+  - Resumo textual por chat (`chat_summaries`) — regenerado a cada 2h com 30+ mensagens
+  - Fatos atômicos por usuário (`user_facts`) — extraídos a cada mensagem, expiram em 30 dias
+- Busca web via Tavily com priorização de fontes brasileiras e enriquecimento de queries de preço.
 - Tom diferenciado para o owner.
-- Detecção de intenção (NLU) via Groq: comandos `agenda` e `clima` com resolução de datas relativas ("amanhã", "sexta", "30/06") para ISO8601.
+- **NLU (linguagem natural):** detecta intenção e despacha comandos internamente sem prefixo.
+  Resolve datas relativas ("amanhã", "sexta", "daqui 10 minutos") para ISO8601 antes de despachar.
 
 ### Modelos
 
@@ -181,13 +197,13 @@ Na primeira execução, escaneie o QR Code exibido no terminal. A sessão WhatsA
 |-----|--------|
 | Conversa e resumo | `meta-llama/llama-4-scout-17b-16e-instruct` |
 | Resposta com contexto web | `llama-3.3-70b-versatile` |
-| Classificação de busca | Scout com `MaxTokens` reduzido |
+| NLU / classificação | Scout com `MaxTokens` reduzido |
 
 ---
 
 ## Scheduler de Jobs
 
-O pacote `internal/domain/scheduler` implementa um scheduler genérico com interface `Job`:
+Interface `Job` em `internal/domain/scheduler/`:
 
 ```go
 type Job interface {
@@ -197,37 +213,34 @@ type Job interface {
 }
 ```
 
-O scheduler roda em uma goroutine segura (via `gosafe.Go`) com ticker de 1 minuto, executando jobs cujo `Next(now)` seja igual ou anterior ao horário atual. Cada job tem seu próprio contexto com timeout de 5 minutos e recuperação individual de panics. Jobs one-shot (cujo `Next()` retorna zero após executar) são automaticamente removidos.
+Ticker de **15 segundos**. Jobs one-shot retornam `time.Time{}` em `Next()` após execução e são removidos automaticamente. Cada job tem contexto com timeout de 5 minutos e recuperação individual de panics.
 
 ### Aniversários
 
-O `BirthdayJob` (substituiu o scheduler específico) roda todos os dias às **08:00** (horário de Brasília), notificando grupos com aniversariantes e mencionando @all.
+`BirthdayJob` roda diariamente às **08:00** (horário de Brasília), notificando grupos com aniversariantes via `@all` nativo.
 
 ### Lembretes Dinâmicos
 
-O `DynamicJob` permite que usuários agendem lembretes via comando `!agenda`. Os jobs são persistidos em `storage/dynamic_jobs.json` e restaurados na inicialização — jobs expirados são removidos automaticamente. Cada lembrete é executado uma única vez e removido do scheduler após o envio.
+`DynamicJob` criado via `!agenda` ou linguagem natural. Persistido em `storage/dynamic_jobs.json` e restaurado na inicialização — jobs expirados são ignorados automaticamente.
 
 ### Jobs de Dia da Semana
 
-O pacote `internal/domain/weekday` implementa `WeekdayJob`, configurável via `config.yaml`:
+Configurável via `config.yaml`:
 
 ```yaml
 scheduledJobs:
   - name: "sextou"
-    day: "friday"          # sunday, monday, ..., saturday
+    day: "friday"
     enabled: true
     hour: 10
     minute: 0
     audioPath: "assets/audios/play_tv.ogg"
-    stickerName: "play_tv"  # opcional — nome salvo em !fig salvar
+    stickerName: "play_tv"
     targetGroups:
       - "grupo_jid@g.us"
 ```
 
-O job envia sequencialmente para cada grupo:
-1. Áudio OGG como nota de voz (PTT)
-2. Mensagem de texto com `@all` nativo (`NonJIDMentions`)
-3. Sticker salvo (se configurado e existente no store)
+Envia sequencialmente: áudio PTT → mensagem com `@all` → sticker salvo.
 
 ---
 
@@ -235,134 +248,54 @@ O job envia sequencialmente para cada grupo:
 
 ```text
 .
-├── cmd/bot/
-│   └── main.go                              # Entry point — chama app.Run()
+├── cmd/bot/main.go                          # Entry point
+├── AGENTS.md                                # Contexto do projeto para o OpenCode
 ├── config.example.yaml                      # Modelo de configuração
-├── scripts
-│   └── setup.sh                             # Instala ffmpeg e webpmux em ./bin/
+├── scripts/setup.sh                         # Instala ffmpeg, webpmux e yt-dlp em ./bin/
 ├── go.mod                                   # Módulo: github.com/Turgho/Shinobu-Whatsapp
 │
 ├── assets/
-│   ├── audios/                              # OGGs estáticos (!mambo, !dio, !cafe, !testjob)
-│   │   ├── hora_cafe.ogg
-│   │   ├── mambo.ogg
-│   │   ├── play_tv.ogg
-│   │   └── zawarudo.ogg
-│   ├── images/                              # Imagens estáticas (ex: banner do !menu)
-│   │   └── shinobu_banner.png
-│   ├── stickers/                            # JSON do store de figurinhas salvas
+│   ├── audios/                              # OGGs estáticos
+│   ├── images/                              # Banner do !menu
+│   ├── stickers/                            # JSON do store de figurinhas
 │   └── videos/                              # Vídeos estáticos (uso futuro)
 │
 ├── storage/                                 # Gerado em runtime — não commitar
-│   └── message_history.db                   # Histórico SQLite da IA por JID
+│   ├── storage.db                           # Sessão whatsmeow
+│   ├── message_history.db                   # Histórico e memória da IA
+│   └── dynamic_jobs.json                    # Lembretes agendados
 │
 └── internal/
-    ├── app/
-    │   └── app.go                           # Inicialização de deps, router, handlers, scheduler
-    │
-    ├── bot/
-    │   ├── client.go                        # Sessão whatsmeow (QR, reconexão)
-    │   └── handler.go                       # Dispatcher de eventos do WhatsApp
-    │
-    ├── commands/                            # Camada de comandos
-    │   ├── router.go                        # Roteamento por prefixo + middlewares
+    ├── app/app.go                           # Inicialização de deps, router, handlers, scheduler
+    ├── bot/                                 # Sessão whatsmeow + dispatcher de eventos
+    ├── commands/
+    │   ├── router.go                        # Roteamento prefixo + NLU + middlewares
     │   ├── middleware.go                    # IgnoreOld, NotFound, PrivateCommands
     │   ├── types.go                         # CommandMeta, HandlerFunc, ArgMeta
-    │   ├── admin/
-    │   │   ├── ignore.go                    # !ignorar — bloqueio de números
-    │   │   ├── restart.go                   # !restart — syscall.Exec
-    │   │   ├── save_sticker.go              # !fig — gerencia figurinhas salvas
-    │   │   ├── shutdown.go                  # !shutdown
-    │   │   ├── stats.go                     # !stats — runtime + servidor remoto
-    │   │   └── testjob.go                   # !testjob — debug de jobs agendados
-│   └── public/
-│       ├── agenda.go                    # !agenda — lembretes com data/hora
-│       ├── audio_effects.go             # !efeito — reverb, lofi, nightcore, etc.
-│       ├── birthday.go                  # !aniversário — wrapper do domain
-│       ├── bundled_audio.go             # !mambo, !dio, !cafe
-│       ├── menu.go                      # !menu — banner + lista de comandos
-│       ├── ping.go                      # !ping
-│       ├── play.go                      # !play — encaminha para servidor yt-dlp
-│       ├── shinobu.go                   # !shinobu / menção — IA com personalidade
-│       ├── sticker.go                   # !sticker — imagem/vídeo → figurinha
-│       └── weather.go                   # !clima — atual ou previsão por data
-    │
-    ├── domain/                             # Regras de negócio
-    │   ├── birthday/
-    │   │   ├── handler.go                   # Subcomandos do grupo (salvar, remover, lista)
-    │   │   ├── job.go                       # BirthdayJob — implementa scheduler.Job (diário 08:00)
-    │   │   └── store.go                     # Persistência JSON + helpers (parseDate, etc.)
-    │   ├── geocoding/
-    │   │   └── geocode.go                   # Nominatim (primário) + Open-Meteo (fallback)
-    │   ├── history/
-    │   │   ├── memory.go                    # Memória de fatos por usuário
-    │   │   └── message_history.go           # Histórico por JID em SQLite (contexto da IA)
-    │   ├── ia/
-    │   │   ├── groq.go                      # Client HTTP Groq
-    │   │   ├── ia.go                        # Orquestração: histórico, busca, resposta
-    │   │   ├── keywords.go                  # Detecção de intent de busca web
-    │   │   ├── models.go                    # Constantes de modelos e parâmetros
-    │   │   ├── prompts.go                   # System prompts da Shinobu
-    │   │   ├── search.go                    # Busca web via Tavily
-    │   │   ├── summary.go                   # Resumo persistente por usuário
-    │   │   ├── tavily.go                    # Client HTTP Tavily
-    │   │   └── utils.go                     # Helpers internos da IA
-    │   ├── ignore/
-    │   │   └── store.go                     # Persistência JSON de números ignorados
-    │   ├── music/
-    │   │   ├── audio_effects.go             # Efeitos ffmpeg (reverb, lofi, nightcore…)
-    │   │   ├── mimetype.go                  # Resolução de MIME por extensão
-    │   │   └── ytdlp_request.go             # Requisição HTTP ao servidor de música
-│   ├── scheduler/
-│   │   ├── dynamic_job.go               # DynamicJob — job one-shot com persistência
-│   │   ├── dynamic_store.go             # DynamicStore — persistência JSON dos lembretes
-│   │   └── scheduler.go                 # Scheduler genérico (Job interface, ticker 1min, gosafe)
-    │   ├── sticker/
-    │   │   ├── convert.go                   # ffmpeg → WebP + injeção de metadados EXIF
-    │   │   ├── handler.go                   # Subcomandos !fig (salvar, remover, lista)
-    │   │   ├── send.go                      # Envio de figurinha salva
-    │   │   └── store.go                     # Persistência JSON das figurinhas
-    │   ├── weekday/
-    │   │   └── job.go                       # WeekdayJob — implementa scheduler.Job
-    │   └── weather/
-    │       ├── weather.go                   # Open-Meteo — previsão por coordenadas
-    │       └── weather_code.go              # Mapeamento de códigos WMO para texto
-    │
-    ├── infra/                              # Infraestrutura transversal
-    │   ├── configs/
-    │   │   └── config.go                    # Viper + .env — carregamento de configuração
-    │   ├── database/
-    │   │   └── database.go                  # Conexão SQLite para o whatsmeow
-    │   ├── ffmpeg/
-    │   │   ├── ffmpeg_exec.go               # exec.Cmd para ./bin/ffmpeg
-    │   │   └── linux_process.go             # SysProcAttr — prioridade baixa no Linux
-    │   ├── gosafe/
-    │   │   └── safe.go                      # Go() — goroutine com recover
-    │   ├── logger/
-    │   │   └── logger.go                    # Logger whatsmeow (WARN)
-    │   ├── phone/
-    │   │   └── normalize.go                 # Normalização de números
-    │   └── uptime/
-    │       └── uptime.go                    # Timestamp de início do processo (!stats)
-    │
-    └── integration/                        # Adaptadores WhatsApp
-        ├── media/
-        │   ├── doc.go                       # Documentação do pacote
-        │   └── download.go                  # DownloadFromEvent — imagem, vídeo, áudio, doc
-        └── whatsapp/
-            ├── audio.go                     # SendBundledOggVoice, SendAudioFileToJID
-            ├── context.go                   # buildContext, replyContext, mentionContext
-            ├── doc.go                       # Documentação do pacote
-            ├── document.go                  # SendDocument
-            ├── image.go                     # SendImage + geração de thumbnail JPEG
-            ├── location.go                  # SendLocation
-            ├── message_text.go              # PlainTextFromProto — extrai texto da mensagem
-            ├── presence.go                  # withTyping — indicador de digitação
-            ├── reaction.go                  # SendReaction
-            ├── reply.go                     # Reply (atalho com quote)
-            ├── sticker.go                   # SendSticker, SendStickerToJID
-            ├── text.go                      # SendText, SendTextWithMentions, SendTextToJID, SendAllToJID
-            └── video.go                     # SendVideo
+    │   ├── admin/                           # stats, shutdown, restart, fig, ignorar, memoria, testjob
+    │   └── public/                          # clima, play, sticker, efeito, shinobu, agenda, aniversário
+    ├── domain/
+    │   ├── birthday/                        # BirthdayJob + store JSON
+    │   ├── geocoding/                       # Nominatim (primário) + Open-Meteo (fallback)
+    │   ├── history/                         # Histórico SQLite + user_facts + resumo
+    │   ├── ia/                              # Groq, Tavily, NLU, prompts, memória
+    │   ├── ignore/                          # Store JSON de números ignorados
+    │   ├── music/                           # Efeitos ffmpeg, MIME, requisição yt-dlp
+    │   ├── scheduler/                       # Scheduler genérico + DynamicJob + DynamicStore
+    │   ├── sticker/                         # Conversão WebP, store, envio
+    │   ├── weekday/                         # WeekdayJob
+    │   └── weather/                         # Open-Meteo forecast + mapa de códigos WMO
+    ├── infra/
+    │   ├── configs/                         # Viper + .env
+    │   ├── database/                        # SQLite para whatsmeow
+    │   ├── ffmpeg/                          # exec.Cmd + prioridade de processo
+    │   ├── gosafe/                          # goroutine com recover
+    │   ├── logger/                          # Logger whatsmeow
+    │   ├── phone/                           # Normalização de números
+    │   └── uptime/                          # Timestamp de início
+    └── integration/
+        ├── media/                           # Download de mídia de eventos
+        └── whatsapp/                        # Send (audio, doc, image, sticker, text, video)
 ```
 
 ---
@@ -376,7 +309,6 @@ package public
 
 import (
     "context"
-
     "github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
     "go.mau.fi/whatsmeow"
     "go.mau.fi/whatsmeow/types/events"
@@ -397,7 +329,20 @@ r.RegisterCommand(commands.CommandMeta{
 }, public.HelloCommand)
 ```
 
-O `!menu` lista automaticamente. Para restringir a owner/admins, adicione `Private: true` no `CommandMeta`.
+Para restringir a owner/admins: `Private: true` no `CommandMeta`.
+Para comandos com dependências: use o padrão closure `XyzHandler(dep) HandlerFunc`.
+
+---
+
+## Melhorias previstas
+
+- **Linguagem natural completa:** qualquer pedido sem prefixo interpretado pela IA, que executa o comando internamente (sem necessidade de decorar sintaxe)
+- **Memória por usuário em grupos:** separar contexto por remetente dentro de um mesmo grupo
+- **`!memoria` completo:** comando admin para inspecionar e limpar resumo/fatos da IA
+- **Previsão do tempo por data:** `!clima São Paulo sexta` ou via linguagem natural
+- **Refactor `weather.go`:** extrair helper `fetchHourly` para eliminar duplicação entre `fetchOpenMeteo` e `GetForecastForDate`
+- **Padronizar `mapstructure`** em `configs/config.go`
+- **`StartCleanup`** em `history` migrar para `gosafe.Go`
 
 ---
 
@@ -405,5 +350,3 @@ O `!menu` lista automaticamente. Para restringir a owner/admins, adicione `Priva
 
 - Autor: **Turgho** — [github.com/Turgho](https://github.com/Turgho)
 - Issues: [github.com/Turgho/Shinobu-Whatsapp/issues](https://github.com/Turgho/Shinobu-Whatsapp/issues)
-
-

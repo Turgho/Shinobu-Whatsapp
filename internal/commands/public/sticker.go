@@ -18,25 +18,21 @@ func StickerCommand(ctx context.Context, client *whatsmeow.Client, evt *events.M
 
 	dl, err := media.DownloadFromEvent(ctx, client, evt, media.FilterVisual)
 	if err != nil {
-		return whatsapp.Reply(ctx, client, evt,
-			"📎 Envie uma imagem ou vídeo com a legenda `!sticker`, ou responda a uma mídia com `!sticker`.")
+		return whatsapp.Reply(ctx, client, evt, msgNoMediaForSticker)
 	}
 
 	webp, err := sticker.ConvertToWebP(ctx, dl.Data, dl.Ext, dl.Animated)
 	if err != nil {
-		return whatsapp.Reply(ctx, client, evt,
-			"❌ Não consegui converter a mídia. Certifique-se de que é uma imagem ou vídeo válido.")
+		return whatsapp.Reply(ctx, client, evt, msgConvertStickerFail)
 	}
 
 	uploaded, err := client.Upload(ctx, webp, whatsmeow.MediaImage)
 	if err != nil {
-		return whatsapp.Reply(ctx, client, evt,
-			"❌ Falha ao enviar a figurinha.")
+		return whatsapp.Reply(ctx, client, evt, msgSendStickerFail)
 	}
 
 	if err := whatsapp.SendSticker(ctx, client, evt, &uploaded, dl.Animated, true); err != nil {
-		return whatsapp.Reply(ctx, client, evt,
-			"❌ Falha ao enviar a figurinha. Tente novamente.")
+		return whatsapp.Reply(ctx, client, evt, msgSendStickerFail)
 	}
 
 	return nil

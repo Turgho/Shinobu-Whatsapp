@@ -37,11 +37,12 @@ type WeekdayJob struct {
 	day          time.Weekday
 	hour         int
 	minute       int
+	stickerStore *sticker.Store
 }
 
 // NewFromConfig cria um WeekdayJob a partir da Config.
 // Retorna nil se desabilitado, dia inválido, ou sem grupos válidos.
-func NewFromConfig(client *whatsmeow.Client, logger *zap.Logger, cfg Config) *WeekdayJob {
+func NewFromConfig(client *whatsmeow.Client, logger *zap.Logger, cfg Config, stickerStore *sticker.Store) *WeekdayJob {
 	if !cfg.Enabled || len(cfg.TargetGroups) == 0 {
 		return nil
 	}
@@ -103,6 +104,7 @@ func NewFromConfig(client *whatsmeow.Client, logger *zap.Logger, cfg Config) *We
 		day:          day,
 		hour:         cfg.Hour,
 		minute:       cfg.Minute,
+		stickerStore: stickerStore,
 	}
 }
 
@@ -172,7 +174,7 @@ func (j *WeekdayJob) Run(ctx context.Context) error {
 			func() {
 				sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 				defer cancel()
-				d, ok := sticker.Get(j.stickerName)
+				d, ok := j.stickerStore.Get(j.stickerName)
 				if !ok {
 					j.logger.Warn("Sticker não encontrado",
 						zap.String("sticker", j.stickerName),

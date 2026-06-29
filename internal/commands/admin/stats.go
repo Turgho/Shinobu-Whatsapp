@@ -58,6 +58,8 @@ func fetchNotebookStats(musicCfg *music.Config) (*remoteStats, error) {
 	return &stats, nil
 }
 
+// StatsCommand exibe stats do sistema (CPU, RAM, temperatura, uptime, notebook remoto).
+// Dados do notebook são buscados em goroutine concorrente com waitgroup.
 func StatsCommand(musicCfg *music.Config) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		var (

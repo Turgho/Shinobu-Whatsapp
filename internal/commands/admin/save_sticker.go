@@ -21,10 +21,10 @@ import (
 // Em grupos ou DM:
 //
 //	!fig <nome>         — envia o sticker salvo
-func SaveStickerCommand(ownerNumber string) commands.HandlerFunc {
+func SaveStickerCommand(ownerNumber string, stickerStore *sticker.Store) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		// HandleDM já filtra por DM, dono e prefixo !fig salvar/remover/lista.
-		sticker.HandleDM(ctx, client, evt, ownerNumber)
+		sticker.HandleDM(ctx, client, evt, ownerNumber, stickerStore)
 
 		// Enviar sticker salvo pelo nome.
 		if len(args) == 0 {
@@ -38,7 +38,7 @@ func SaveStickerCommand(ownerNumber string) commands.HandlerFunc {
 			)
 		}
 
-		if err := sticker.Send(ctx, client, evt, args[0], true); err != nil {
+		if err := sticker.Send(ctx, client, evt, args[0], true, stickerStore); err != nil {
 			return whatsapp.SendText(ctx, client, evt, "❌ Sticker não encontrado ou falha ao enviar.", true)
 		}
 

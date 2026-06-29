@@ -9,9 +9,6 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 )
 
-// errNotFound é um sentinel error usado internamente pelo Update callback
-// para distinguir "sticker não existe" de erro de I/O.
-// O caller (Delete) usa errors.Is para decidir se retorna false ou propaga o erro.
 var errNotFound = errors.New("sticker não encontrado")
 
 const stickerFile = "assets/stickers/stickers.json"
@@ -28,40 +25,48 @@ type Data struct {
 
 type stickerStore map[string]Data
 
-var js = store.NewJSONStore[stickerStore](stickerFile)
+type Store struct {
+	js *store.JSONStore[stickerStore]
+}
+
+func NewStore() *Store {
+	return &Store{
+		js: store.NewJSONStore[stickerStore](stickerFile),
+	}
+}
 
 func NormalizeName(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
 }
 
-func Get(name string) (Data, bool) {
-	s, err := js.Read()
+func (s *Store) Get(name string) (Data, bool) {
+	store, err := s.js.Read()
 	if err != nil {
 		return Data{}, false
 	}
-	d, ok := s[NormalizeName(name)]
+	d, ok := store[NormalizeName(name)]
 	return d, ok
 }
 
-func List() []string {
-	s, err := js.Read()
+func (s *Store) List() []string {
+	store, err := s.js.Read()
 	if err != nil {
 		return nil
 	}
-	names := make([]string, 0, len(s))
-	for name := range s {
+	names := make([]string, 0, len(store))
+	for name := range store {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 	return names
 }
 
-func Save(name string, msg *waE2E.StickerMessage) error {
-	return js.Update(func(s stickerStore) (stickerStore, error) {
-		if s == nil {
-			s = make(stickerStore)
+func (s *Store) Save(name string, msg *waE2E.StickerMessage) error {
+	return s.js.Update(func(store stickerStore) (stickerStore, error) {
+		if store == nil {
+			store = make(stickerStore)
 		}
-		s[NormalizeName(name)] = Data{
+		store[NormalizeName(name)] = Data{
 			URL:           msg.GetURL(),
 			DirectPath:    msg.GetDirectPath(),
 			MediaKey:      msg.GetMediaKey(),
@@ -70,23 +75,23 @@ func Save(name string, msg *waE2E.StickerMessage) error {
 			FileLength:    msg.GetFileLength(),
 			IsAnimated:    msg.GetIsAnimated(),
 		}
-		return s, nil
+		return store, nil
 	})
 }
 
-func Delete(name string) (bool, error) {
+func (s *Store) Delete(name string) (bool, error) {
 	var deleted bool
-	err := js.Update(func(s stickerStore) (stickerStore, error) {
-		if s == nil {
-			return s, nil
+	err := s.js.Update(func(store stickerStore) (stickerStore, error) {
+		if store == nil {
+			return store, nil
 		}
 		key := NormalizeName(name)
-		if _, exists := s[key]; !exists {
-			return s, errNotFound
+		if _, exists := store[key]; !exists {
+			return store, errNotFound
 		}
-		delete(s, key)
+		delete(store, key)
 		deleted = true
-		return s, nil
+		return store, nil
 	})
 	if errors.Is(err, errNotFound) {
 		return false, nil

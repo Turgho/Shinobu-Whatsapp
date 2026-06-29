@@ -30,6 +30,8 @@ type WeatherResult struct {
 	Time                string
 }
 
+// hourlyResponse mapeia a resposta JSON da Open-Meteo (/forecast).
+// Apesar do nome, contém tanto current (agora) quanto hourly (array por hora).
 type hourlyResponse struct {
 	Current struct {
 		Time                string  `json:"time"`
@@ -54,6 +56,7 @@ type hourlyResponse struct {
 	} `json:"hourly"`
 }
 
+// NewWeatherClient cria client com timeout de 10s para Open-Meteo + wttr.in.
 func NewWeatherClient(apiURL string, logger *zap.Logger) *WeatherClient {
 	return &WeatherClient{
 		APIURL: apiURL,
@@ -90,6 +93,9 @@ func (w *WeatherClient) GetCurrentWeather(ctx context.Context, lat, lon float64)
 	return nil, fmt.Errorf("weather: todas as fontes falharam")
 }
 
+// GetForecastForDate busca previsão para uma data específica (até 16 dias).
+// Usa o array hourly da Open-Meteo (forecast_days=16) e encontra o índice
+// mais próximo do meio-dia da data alvo.
 func (w *WeatherClient) GetForecastForDate(ctx context.Context, lat, lon float64, target time.Time) (*WeatherResult, error) {
 	days := max(int(time.Until(target).Hours()/24)+1, 1)
 	if days > 16 {
@@ -123,6 +129,8 @@ func (w *WeatherClient) GetForecastForDate(ctx context.Context, lat, lon float64
 	return result, nil
 }
 
+// fetchHourly consulta a Open-Meteo /forecast com parâmetros current + hourly.
+// Retorna dados do momento atual mais array horário para forecastDays dias.
 func (w *WeatherClient) fetchHourly(ctx context.Context, lat, lon float64, forecastDays int) (*hourlyResponse, error) {
 	apiURL := fmt.Sprintf(
 		"%s?latitude=%f&longitude=%f"+
@@ -168,6 +176,8 @@ func (w *WeatherClient) fetchHourly(ctx context.Context, lat, lon float64, forec
 	return &data, nil
 }
 
+// fetchWttr fallback para wttr.in quando Open-Meteo falha.
+// Usa formato j1 (JSON) que retorna dados atuais completos.
 func (w *WeatherClient) fetchWttr(ctx context.Context, lat, lon float64) (*WeatherResult, error) {
 	apiURL := fmt.Sprintf("https://wttr.in/%f,%f?format=j1", lat, lon)
 
@@ -245,6 +255,9 @@ func parseFloat(s string) float64 {
 	return f
 }
 
+// findHourIndex busca o índice de currentTime no slice times (formato "2006-01-02T15:04").
+// Primeiro tenta correspondência exata; se não encontrar, retorna o último índice
+// antes de currentTime (fallback para quando não há dado exato para aquela hora).
 func findHourIndex(times []string, currentTime string) int {
 	if len(currentTime) < 13 {
 		return -1

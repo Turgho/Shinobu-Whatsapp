@@ -13,8 +13,7 @@ import (
 func PlayCommand(musicCfg *music.Config) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		if len(args) == 0 {
-			return whatsapp.SendText(ctx, client, evt,
-				"🎵 Informe o nome ou URL da música.\nExemplo: !play imagine dragons", true)
+			return whatsapp.SendText(ctx, client, evt, msgNoQuery, true)
 		}
 
 		_ = whatsapp.SendText(ctx, client, evt, "⏳ Processando sua música...", true)
@@ -22,7 +21,7 @@ func PlayCommand(musicCfg *music.Config) func(ctx context.Context, client *whats
 		query := strings.Join(args, " ")
 		audio, ext, err := music.DownloadAudio(ctx, musicCfg, query)
 		if err != nil {
-			return whatsapp.SendText(ctx, client, evt, "❌ Não consegui baixar essa música.", true)
+			return whatsapp.SendText(ctx, client, evt, msgDownloadFail, true)
 		}
 
 		audio, err = music.EmbedMetadata(audio, ext, query)
@@ -43,5 +42,5 @@ func PlayCommand(musicCfg *music.Config) func(ctx context.Context, client *whats
 }
 
 func playSendAudioErr(ctx context.Context, client *whatsmeow.Client, evt *events.Message) error {
-	return whatsapp.SendText(ctx, client, evt, "❌ Não consegui enviar o áudio.", true)
+	return whatsapp.SendText(ctx, client, evt, msgSendAudioFail, true)
 }

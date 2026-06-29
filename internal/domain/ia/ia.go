@@ -2,6 +2,7 @@ package ia
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"time"
 
@@ -72,7 +73,7 @@ func AskIA(ctx context.Context, cfg *Config, chat, prompt string, isOwner bool, 
 	messages = append(messages, history.IAMessage{Role: "user", Content: userContent})
 
 	params := mainAnswerParams(mode, usedSearch)
-	answer, err := callGroq(ctx, cfg.GroqURL, cfg.GroqKey, params.model, messages, params.temperature, params.maxTokens)
+	answer, err := callGroq(ctx, cfg.HTTPClient, cfg.GroqURL, cfg.GroqKey, params.model, messages, params.temperature, params.maxTokens)
 	if err != nil {
 		return "", usedSearch, err
 	}
@@ -143,8 +144,8 @@ func appendPersistentAndRecent(ctx context.Context, messages []history.IAMessage
 	return messages
 }
 
-func callGroq(ctx context.Context, groqURL, groqKey, model string, messages []history.IAMessage, temperature float64, maxTokens int) (string, error) {
-	resp, err := groqChat(ctx, groqURL, groqKey, IARequest{
+func callGroq(ctx context.Context, httpClient *http.Client, groqURL, groqKey, model string, messages []history.IAMessage, temperature float64, maxTokens int) (string, error) {
+	resp, err := groqChat(ctx, httpClient, groqURL, groqKey, IARequest{
 		Model:       model,
 		Messages:    messages,
 		Stream:      false,
@@ -155,4 +156,14 @@ func callGroq(ctx context.Context, groqURL, groqKey, model string, messages []hi
 		return "", err
 	}
 	return resp.Choices[0].Message.Content, nil
+}
+
+// QuickChat é uma versão pública de callGroq para handlers avulsos.
+func QuickChat(ctx context.Context, httpClient *http.Client, groqURL, groqKey, model string, messages []history.IAMessage, temperature float64, maxTokens int) (string, error) {
+	return callGroq(ctx, httpClient, groqURL, groqKey, model, messages, temperature, maxTokens)
+}
+
+// SearchWeb é uma versão pública de searchWeb para handlers avulsos.
+func SearchWeb(ctx context.Context, apiKey, query string) (string, error) {
+	return searchWeb(ctx, apiKey, query)
 }

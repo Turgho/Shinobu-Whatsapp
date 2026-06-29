@@ -36,7 +36,6 @@ type Filter struct {
 }
 
 var (
-	FilterAll       = Filter{Image: true, Video: true, Audio: true, Document: true}
 	FilterVisual    = Filter{Image: true, Video: true}
 	FilterAudioOnly = Filter{Audio: true, Document: true}
 )

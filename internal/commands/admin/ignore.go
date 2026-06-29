@@ -11,7 +11,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-func IgnoreCommand() func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+func IgnoreCommand(ignoreStore *ignore.Store) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		if len(args) == 0 {
 			return usageIgnore(ctx, client, evt)
@@ -19,14 +19,14 @@ func IgnoreCommand() func(ctx context.Context, client *whatsmeow.Client, evt *ev
 
 		switch strings.ToLower(args[0]) {
 		case "lista":
-			return handleIgnoreList(ctx, client, evt)
+			return handleIgnoreList(ctx, client, evt, ignoreStore)
 
 		case "remover":
 			if len(args) < 2 {
 				return whatsapp.SendText(ctx, client, evt,
 					"❌ Use: `!ignorar remover <número>`", true)
 			}
-			removed, err := ignore.Remove(phone.NormalizeNumber(args[1]))
+			removed, err := ignoreStore.Remove(phone.NormalizeNumber(args[1]))
 			if err != nil {
 				return whatsapp.SendText(ctx, client, evt,
 					"❌ Erro ao remover: "+err.Error(), true)
@@ -39,7 +39,7 @@ func IgnoreCommand() func(ctx context.Context, client *whatsmeow.Client, evt *ev
 				"✅ Número removido da lista de ignorados.", true)
 
 		default:
-			err := ignore.Add(phone.NormalizeNumber(args[0]))
+			err := ignoreStore.Add(phone.NormalizeNumber(args[0]))
 			if err != nil {
 				return whatsapp.SendText(ctx, client, evt,
 					"❌ Erro ao ignorar: "+err.Error(), true)
@@ -50,8 +50,8 @@ func IgnoreCommand() func(ctx context.Context, client *whatsmeow.Client, evt *ev
 	}
 }
 
-func handleIgnoreList(ctx context.Context, client *whatsmeow.Client, evt *events.Message) error {
-	list := ignore.List()
+func handleIgnoreList(ctx context.Context, client *whatsmeow.Client, evt *events.Message, ignoreStore *ignore.Store) error {
+	list := ignoreStore.List()
 	if len(list) == 0 {
 		return whatsapp.SendText(ctx, client, evt,
 			"📋 Nenhum número ignorado.", true)

@@ -29,6 +29,7 @@ type GeoResult struct {
 	Timezone    string
 }
 
+// NewGeoCoding cria client com timeout 10s. Nominatim é primário, Open-Meteo é fallback.
 func NewGeoCoding(nominatimURL, openMeteoURL string, logger *zap.Logger) *GeoCoding {
 	return &GeoCoding{
 		NominatimURL: nominatimURL,
@@ -38,6 +39,8 @@ func NewGeoCoding(nominatimURL, openMeteoURL string, logger *zap.Logger) *GeoCod
 	}
 }
 
+// Lookup busca coordenadas para uma query de lugar.
+// Tenta Nominatim primeiro (mais preciso no Brasil); fallback para Open-Meteo.
 func (g *GeoCoding) Lookup(ctx context.Context, query string, limit int) ([]GeoResult, error) {
 	if results, err := g.lookupNominatim(ctx, query, limit); err == nil && len(results) > 0 {
 		return results, nil
@@ -46,6 +49,9 @@ func (g *GeoCoding) Lookup(ctx context.Context, query string, limit int) ([]GeoR
 	return g.lookupOpenMeteo(ctx, query, limit)
 }
 
+// lookupNominatim consulta Nominatim (OpenStreetMap).
+// Monta DisplayName a partir de address.city/town/village + state — nunca usa display_name cru.
+// User-Agent obrigatório: "Shinobu-Whatsapp/1.0".
 func (g *GeoCoding) lookupNominatim(ctx context.Context, query string, limit int) ([]GeoResult, error) {
 	params := url.Values{}
 	params.Set("q", query)
@@ -142,6 +148,8 @@ func (g *GeoCoding) lookupNominatim(ctx context.Context, query string, limit int
 	return results, nil
 }
 
+// lookupOpenMeteo fallback de geocoding via Open-Meteo.
+// DisplayName montado como "Cidade, Estado" a partir de name + admin1.
 func (g *GeoCoding) lookupOpenMeteo(ctx context.Context, query string, limit int) ([]GeoResult, error) {
 	params := url.Values{}
 	params.Set("name", query)

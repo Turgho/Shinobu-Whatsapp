@@ -22,6 +22,22 @@ const (
 	handlerTimeoutCommand = 120 * time.Second
 )
 
+// groupNLTriggers são verbos de intenção que disparam NLU em grupos
+// sem necessidade de menção explícita. Case-insensitive, checados via
+// HasPrefix após lower + trim.
+var groupNLTriggers = []string{
+	"coloca", "toca", "baixa", "manda", "me manda",
+	"qual", "quero", "preciso", "como", "quando", "onde",
+	"tem ", "vai ter", "vai chover", "lembra", "agenda",
+	"me lembra", "pesquisa", "busca", "procura",
+}
+
+// groupNLDirectAddress são padrões de endereçamento direto que disparam
+// NLU em grupos. Checados via Contains após lower.
+var groupNLDirectAddress = []string{
+	"me fala", "me diz", "me manda", "você sabe", "sabe me dizer",
+}
+
 // dispatchableCommands são os comandos públicos que a NLU pode despachar.
 // Comandos de admin/owner não entram aqui — exigem verificação de dono.
 var dispatchableCommands = map[string]bool{
@@ -31,6 +47,16 @@ var dispatchableCommands = map[string]bool{
 	"efeito":      true,
 	"aniversário": true,
 	"agenda":      true,
+	"cotacao":     true,
+	"feriado":     true,
+	"noticia":     true,
+	"receita":     true,
+	"piada":       true,
+	"fato":        true,
+	"filme":       true,
+	"contagem":    true,
+	"unsticker":   true,
+	"traduz":      true,
 }
 
 func dispatchableCommand(name string) bool {
@@ -50,6 +76,7 @@ type Router struct {
 	client      *whatsmeow.Client
 	log         *zap.Logger
 	store       *history.Store
+	ignoreStore *ignore.Store
 
 	rateLimitMu    sync.Mutex
 	rateLimitMap   map[string]*rateLimitEntry
@@ -61,7 +88,7 @@ type Router struct {
 	aiConfig    *ia.Config
 }
 
-func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *history.Store) *Router {
+func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *history.Store, ignoreStore *ignore.Store) *Router {
 	return &Router{
 		commands:       make(map[string]command),
 		aliases:        make(map[string]string),
@@ -69,6 +96,7 @@ func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *
 		client:         client,
 		log:            log,
 		store:          store,
+		ignoreStore:    ignoreStore,
 		rateLimitMap:   make(map[string]*rateLimitEntry),
 		rateLimitMax:   10,
 		rateLimitEvery: time.Minute,
@@ -224,12 +252,13 @@ func (r *Router) HandleMessage(evt *events.Message) {
 
 	sender := evt.Info.Sender.String()
 	senderUser := evt.Info.Sender.User
-	if ignore.IsIgnored(sender) || ignore.IsIgnored(senderUser) {
+	if r.ignoreStore.IsIgnored(sender) || r.ignoreStore.IsIgnored(senderUser) {
 		r.log.Debug("Mensagem ignorada", zap.String("sender", sender))
 		return
 	}
 
-	if !r.checkRateLimit(sender) {
+	rateLimitKey := evt.Info.Sender.ToNonAD().String()
+	if !r.checkRateLimit(rateLimitKey) {
 		return
 	}
 
@@ -243,13 +272,62 @@ func (r *Router) HandleMessage(evt *events.Message) {
 	}
 }
 
+// isNLApplicable decide se uma mensagem em grupo merece processamento NLU.
+// Fora de grupos retorna sempre true. Em grupos ativa quando:
+//  1. Menção explícita (nome ou @jid)
+//  2. Pergunta com "?" e >4 palavras
+//  3. Começa com verbo de intenção (groupNLTriggers)
+//  4. Contém padrão de endereçamento direto (groupNLDirectAddress)
+//
+// Thresholds: <3 palavras sem "?" ignora (evita "kkk", "boa!", etc).
 func (r *Router) isNLApplicable(evt *events.Message, msg string) bool {
 	chat := evt.Info.Chat.String()
 	isGroup := strings.HasSuffix(chat, "@g.us")
 	if !isGroup {
 		return true
 	}
-	return isMentioned(msg, r.botJID)
+
+	// Heurística 1: menção explícita ao nome ou @jid
+	if isMentioned(msg, r.botJID) {
+		r.log.Debug("NLU triggered", zap.String("reason", "mention"), zap.String("chat", chat))
+		return true
+	}
+
+	lower := strings.ToLower(msg)
+	words := strings.Fields(lower)
+	wordCount := len(words)
+
+	// Mensagens muito curtas (<3 palavras) sem "?" são ignoradas
+	// para evitar responder "kkk", "boa!", "tá bom" etc.
+	hasQuestion := strings.HasSuffix(strings.TrimSpace(msg), "?")
+	if wordCount < 3 && !hasQuestion {
+		return false
+	}
+
+	// Heurística 2: pergunta direta terminando em "?" com conteúdo
+	if hasQuestion && wordCount > 4 {
+		r.log.Debug("NLU triggered", zap.String("reason", "question"), zap.String("chat", chat))
+		return true
+	}
+
+	// Heurística 3: começa com verbo de intenção
+	trimmed := strings.TrimSpace(lower)
+	for _, verb := range groupNLTriggers {
+		if strings.HasPrefix(trimmed, verb) {
+			r.log.Debug("NLU triggered", zap.String("reason", "intent_verb"), zap.String("verb", verb), zap.String("chat", chat))
+			return true
+		}
+	}
+
+	// Heurística 4: contém padrão de endereçamento direto
+	for _, pattern := range groupNLDirectAddress {
+		if strings.Contains(lower, pattern) {
+			r.log.Debug("NLU triggered", zap.String("reason", "direct_address"), zap.String("pattern", pattern), zap.String("chat", chat))
+			return true
+		}
+	}
+
+	return false
 }
 
 func (r *Router) handlePrefixedMessage(evt *events.Message, msg string) {
