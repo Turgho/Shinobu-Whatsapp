@@ -11,7 +11,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-func TestJobCommand() func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+func TestJobCommand(stickerStore *sticker.Store) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		audioPath := "assets/audios/play_tv.ogg"
 		stickerName := "play_tv"
@@ -33,7 +33,7 @@ func TestJobCommand() func(ctx context.Context, client *whatsmeow.Client, evt *e
 			errs = append(errs, fmt.Sprintf("@all: %v", err))
 		}
 
-		if d, ok := sticker.Get(stickerName); ok {
+		if d, ok := stickerStore.Get(stickerName); ok {
 			uploaded := &whatsmeow.UploadResponse{
 				URL:           d.URL,
 				DirectPath:    d.DirectPath,

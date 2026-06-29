@@ -17,8 +17,9 @@ func Send(
 	evt *events.Message,
 	name string,
 	reply bool,
+	store *Store,
 ) error {
-	d, ok := Get(name)
+	d, ok := store.Get(name)
 	if !ok {
 		return fmt.Errorf("sticker %q não encontrado", name)
 	}

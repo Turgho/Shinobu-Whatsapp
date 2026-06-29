@@ -19,7 +19,7 @@ import (
 //	!fig salvar <nome>   — salva um sticker (mande junto ou cite um)
 //	!fig remover <nome>  — remove um sticker salvo
 //	!fig lista           — lista todos os stickers cadastrados
-func HandleDM(ctx context.Context, client *whatsmeow.Client, evt *events.Message, ownerNumber string) {
+func HandleDM(ctx context.Context, client *whatsmeow.Client, evt *events.Message, ownerNumber string, store *Store) {
 	if evt == nil || evt.Message == nil || evt.Info.IsGroup {
 		return
 	}
@@ -39,17 +39,17 @@ func HandleDM(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	switch cmd {
 	case "salvar":
-		handleSave(ctx, client, evt, parts)
+		handleSave(ctx, client, evt, parts, store)
 	case "remover":
-		handleDelete(ctx, client, evt, parts)
+		handleDelete(ctx, client, evt, parts, store)
 	case "lista":
-		handleList(ctx, client, evt)
+		handleList(ctx, client, evt, store)
 	}
 }
 
 // ─── Sub-handlers ─────────────────────────────────────────────────────────────
 
-func handleSave(ctx context.Context, client *whatsmeow.Client, evt *events.Message, parts []string) {
+func handleSave(ctx context.Context, client *whatsmeow.Client, evt *events.Message, parts []string, store *Store) {
 	if len(parts) < 3 {
 		reply(ctx, client, evt, "❌ Use: `!fig salvar <nome>` — mande ou cite um sticker junto.")
 		return
@@ -66,7 +66,7 @@ func handleSave(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		return
 	}
 
-	if err := Save(name, sticker); err != nil {
+	if err := store.Save(name, sticker); err != nil {
 		reply(ctx, client, evt, "❌ Erro ao salvar: "+err.Error())
 		return
 	}
@@ -74,7 +74,7 @@ func handleSave(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 	reply(ctx, client, evt, fmt.Sprintf("✅ Sticker *%s* salvo!", NormalizeName(name)))
 }
 
-func handleDelete(ctx context.Context, client *whatsmeow.Client, evt *events.Message, parts []string) {
+func handleDelete(ctx context.Context, client *whatsmeow.Client, evt *events.Message, parts []string, store *Store) {
 	if len(parts) < 3 {
 		reply(ctx, client, evt, "❌ Use: `!fig remover <nome>`")
 		return
@@ -82,7 +82,7 @@ func handleDelete(ctx context.Context, client *whatsmeow.Client, evt *events.Mes
 
 	name := parts[2]
 
-	deleted, err := Delete(name)
+	deleted, err := store.Delete(name)
 	if err != nil {
 		reply(ctx, client, evt, "❌ Erro ao remover: "+err.Error())
 		return
@@ -95,8 +95,8 @@ func handleDelete(ctx context.Context, client *whatsmeow.Client, evt *events.Mes
 	reply(ctx, client, evt, fmt.Sprintf("🗑️ Sticker *%s* removido.", NormalizeName(name)))
 }
 
-func handleList(ctx context.Context, client *whatsmeow.Client, evt *events.Message) {
-	names := List()
+func handleList(ctx context.Context, client *whatsmeow.Client, evt *events.Message, store *Store) {
+	names := store.List()
 	if len(names) == 0 {
 		reply(ctx, client, evt, "📋 Nenhum sticker cadastrado ainda.")
 		return

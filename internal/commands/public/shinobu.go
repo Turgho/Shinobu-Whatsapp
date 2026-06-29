@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -37,7 +38,7 @@ func dupKey(chat, prompt string) string {
 	return fmt.Sprintf("%x", h[:8])
 }
 
-func ShinobuCommand(store *history.Store, cfg *configs.Config) commands.HandlerFunc {
+func ShinobuCommand(store *history.Store, cfg *configs.Config, stickerStore *sticker.Store) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		chat := evt.Info.Chat.String()
 		sender := evt.Info.Sender.User
@@ -68,24 +69,25 @@ func ShinobuCommand(store *history.Store, cfg *configs.Config) commands.HandlerF
 
 		// Cache de duplicatas: mesmo prompt no mesmo chat em <30s.
 		if cached := getCachedAnswer(chat, prompt); cached != "" {
-			return sendShinobuReply(ctx, client, evt, cached, false, mentions)
+			return sendShinobuReply(ctx, client, evt, cached, false, mentions, stickerStore)
 		}
 
 		iaCfg := &ia.Config{
-			GroqURL:   cfg.Groq.URL,
-			GroqKey:   cfg.Groq.APIKey,
-			TavilyKey: cfg.Tavily.APIKey,
+			GroqURL:    cfg.Groq.URL,
+			GroqKey:    cfg.Groq.APIKey,
+			TavilyKey:  cfg.Tavily.APIKey,
+			HTTPClient: &http.Client{Timeout: 30 * time.Second},
 		}
 
 		answer, usedSearch, err := ia.AskIA(ctx, iaCfg, chat, prompt, isOwner, sender, store)
 		if err != nil {
-			return whatsapp.Reply(ctx, client, evt, "❌ Falha ao consultar a Shinobu.")
+			return whatsapp.Reply(ctx, client, evt, msgShinobuFail)
 		}
 
 		_ = store.Save(ctx, chat, history.AssistantSenderName, answer)
 		setCachedAnswer(chat, prompt, answer)
 
-		return sendShinobuReply(ctx, client, evt, answer, usedSearch, mentions)
+		return sendShinobuReply(ctx, client, evt, answer, usedSearch, mentions, stickerStore)
 	}
 }
 
@@ -114,7 +116,7 @@ func setCachedAnswer(chat, prompt, answer string) {
 }
 
 // sendShinobuReply envia a resposta e, se houve busca web, anexa sticker smart_ruby.
-func sendShinobuReply(ctx context.Context, client *whatsmeow.Client, evt *events.Message, answer string, usedSearch bool, mentions []string) error {
+func sendShinobuReply(ctx context.Context, client *whatsmeow.Client, evt *events.Message, answer string, usedSearch bool, mentions []string, stickerStore *sticker.Store) error {
 	if len(mentions) > 0 {
 		if err := whatsapp.ReplyWithMentions(ctx, client, evt, answer, mentions); err != nil {
 			return err
@@ -125,7 +127,7 @@ func sendShinobuReply(ctx context.Context, client *whatsmeow.Client, evt *events
 		}
 	}
 	if usedSearch {
-		_ = sticker.Send(ctx, client, evt, "smart_ruby", false)
+		_ = sticker.Send(ctx, client, evt, "smart_ruby", false, stickerStore)
 	}
 	return nil
 }
