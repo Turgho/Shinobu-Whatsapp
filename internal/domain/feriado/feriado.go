@@ -32,9 +32,9 @@ type FeriadoClient struct {
 	logger     *zap.Logger
 }
 
-func NewFeriadoClient(logger *zap.Logger) *FeriadoClient {
+func NewFeriadoClient(apiURL string, logger *zap.Logger) *FeriadoClient {
 	return &FeriadoClient{
-		APIURL: "https://brasilapi.com.br/api/feriados/v1",
+		APIURL: apiURL,
 		httpClient: &http.Client{
 			Timeout: 8 * time.Second,
 		},

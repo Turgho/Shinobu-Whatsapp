@@ -2,6 +2,7 @@ bot:
   name: Shinobu
   prefix: "!"          # prefixo dos comandos
   environment: "development"
+  timezone: "America/Sao_Paulo"
 
 database:
   driver: sqlite3
@@ -18,6 +19,8 @@ apiUrls:
   geocoding: "https://nominatim.openstreetmap.org/search"
   openMeteoGeo: "https://geocoding-api.open-meteo.com/v1/search"
   weather: "https://api.open-meteo.com/v1/forecast"
+  cotacao: "https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL"
+  feriado: "https://brasilapi.com.br/api/feriados/v1"
 
 scheduledJobs:
   - name: "sextou"

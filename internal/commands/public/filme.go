@@ -26,7 +26,7 @@ func FilmeCommand(
 	}
 
 	msgs := []history.IAMessage{
-		{Role: "system", Content: "Recomende um filme para assistir. Se um gênero for fornecido, use-o. Responda com: título, ano, gênero e uma frase de por que vale assistir. Máximo 4 linhas. Sem introduções."},
+		{Role: "system", Content: "Recomende um filme para assistir. Se um gênero for fornecido, use-o. Responda usando apenas quebras de linha entre os campos, sem vírgulas ou traços. Formato:\n\ntítulo: <nome>\nano: <ano>\ngênero: <gênero>\npor que assistir: <frase>\n\nMáximo 4 linhas. Sem introduções."},
 		{Role: "user", Content: fmt.Sprintf("Recomende um filme. Gênero preferido: %s", genero)},
 	}
 

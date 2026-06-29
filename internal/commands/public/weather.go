@@ -25,7 +25,7 @@ func WeatherCommand(
 	weatherClient *weather.WeatherClient,
 ) error {
 	if len(args) == 0 {
-		return whatsapp.Reply(ctx, client, evt, 	msgNeedCityName)
+		return whatsapp.Reply(ctx, client, evt, msgNeedCityName)
 	}
 
 	var targetDate time.Time

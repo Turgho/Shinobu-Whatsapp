@@ -24,15 +24,15 @@ type IAResponse struct {
 }
 
 // AskIA orquestra o pipeline de resposta da IA:
-// 1. Limpa prompt (remove @lid) e detecta prompt injection
-// 2. Classifica modo: breve, normal ou web
-// 3. Decide se precisa de busca web: keywords (zero tokens) → trivial filter →
-//    cache (5 min) → Groq classifier (fallback, só para mensagens ambíguas)
-// 4. Se precisar, busca contexto na Tavily e trunca para 1500 chars
-// 5. Monta mensagens do sistema (personalidade, dono, resumo, transcript)
-// 6. Monta user message com base no modo (contexto web + prompt)
-// 7. Chama Groq e retorna resposta
-// 8. Agenda refresh assíncrono do resumo da conversa
+//  1. Limpa prompt (remove @lid) e detecta prompt injection
+//  2. Classifica modo: breve, normal ou web
+//  3. Decide se precisa de busca web: keywords (zero tokens) → trivial filter →
+//     cache (5 min) → Groq classifier (fallback, só para mensagens ambíguas)
+//  4. Se precisar, busca contexto na Tavily e trunca para 1500 chars
+//  5. Monta mensagens do sistema (personalidade, dono, resumo, transcript)
+//  6. Monta user message com base no modo (contexto web + prompt)
+//  7. Chama Groq e retorna resposta
+//  8. Agenda refresh assíncrono do resumo da conversa
 func AskIA(ctx context.Context, cfg *Config, chat, prompt string, isOwner bool, sender string, store *history.Store) (string, bool, error) {
 	prompt = cleanPrompt(prompt)
 

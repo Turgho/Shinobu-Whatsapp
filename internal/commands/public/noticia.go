@@ -20,6 +20,7 @@ func NoticiaCommand(
 	evt *events.Message,
 	_ []string,
 	aiCfg *ia.Config,
+	loc *time.Location,
 ) error {
 	if aiCfg.TavilyKey == "" {
 		return whatsapp.Reply(ctx, client, evt, msgNoticiaFail)
@@ -30,7 +31,7 @@ func NoticiaCommand(
 		return whatsapp.Reply(ctx, client, evt, msgNoticiaFail)
 	}
 
-	system := "Você é a Shinobu, uma vampira sarcástica. Resuma as principais notícias do dia em 3 a 5 bullets. Tom seco e direto, sem rodeios."
+	system := msgNoticiaSystem
 	user := fmt.Sprintf("Resuma estas notícias:\n\n%s", webContext)
 
 	msgs := []history.IAMessage{
@@ -38,19 +39,19 @@ func NoticiaCommand(
 		{Role: "user", Content: user},
 	}
 
-	answer, err := ia.QuickChat(ctx, aiCfg.HTTPClient, aiCfg.GroqURL, aiCfg.GroqKey, ia.ModelScoutFast, msgs, 0.72, 300)
+	answer, err := ia.QuickChat(ctx, aiCfg.HTTPClient, aiCfg.GroqURL, aiCfg.GroqKey, ia.ModelScoutFast, msgs, 0.2, 350)
 	if err != nil {
 		return whatsapp.Reply(ctx, client, evt, msgNoticiaFail)
 	}
 
-	now := time.Now().Format("02/01/2006 15:04")
+	now := time.Now().In(loc).Format("02/01/2006 15:04")
 	reply := fmt.Sprintf("📰 Notícias de hoje\n\n%s\n\n🕐 %s", strings.TrimSpace(answer), now)
 
 	return whatsapp.Reply(ctx, client, evt, reply)
 }
 
-func NoticiaHandler(aiCfg *ia.Config) commands.HandlerFunc {
+func NoticiaHandler(aiCfg *ia.Config, loc *time.Location) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
-		return NoticiaCommand(ctx, client, evt, args, aiCfg)
+		return NoticiaCommand(ctx, client, evt, args, aiCfg, loc)
 	}
 }

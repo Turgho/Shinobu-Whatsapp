@@ -25,28 +25,16 @@ func UnstickerCommand(
 		return whatsapp.Reply(ctx, client, evt, msgUnstickerNoMedia)
 	}
 
-	// Salva o WebP original em temp.
 	inPath := filepath.Join(os.TempDir(), fmt.Sprintf("unsticker_input_%d.webp", evt.Info.Timestamp.UnixNano()))
-	outPath := filepath.Join(os.TempDir(), fmt.Sprintf("unsticker_output_%d", evt.Info.Timestamp.UnixNano()))
-
 	if err := os.WriteFile(inPath, dl.Data, 0644); err != nil {
 		return whatsapp.Reply(ctx, client, evt, msgUnstickerFail)
 	}
 	defer os.Remove(inPath)
 
-	isAnimated := dl.Animated
-
-	if isAnimated {
-		outPath += ".gif"
-		cmd := ffmpeg.FfmpegCmd(ctx,
-			"-i", inPath,
-			"-vf", "fps=15,scale=512:-1",
-			outPath,
-		)
-		if output, err := cmd.CombinedOutput(); err != nil {
+	if dl.Animated {
+		outPath, err := ffmpeg.ConvertWebPToGIF(ctx, inPath)
+		if err != nil {
 			return whatsapp.Reply(ctx, client, evt, msgUnstickerFail)
-		} else if len(output) > 0 {
-			// Apenas loga em debug se FFmpeg emitiu warnings
 		}
 		defer os.Remove(outPath)
 
@@ -63,14 +51,9 @@ func UnstickerCommand(
 		return whatsapp.SendVideo(ctx, client, evt, &uploaded, msgUnstickerCaption, true, 5, true)
 	}
 
-	outPath += ".png"
-	cmd := ffmpeg.FfmpegCmd(ctx,
-		"-i", inPath,
-		outPath,
-	)
-	if output, err := cmd.CombinedOutput(); err != nil {
+	outPath, err := ffmpeg.ConvertWebPToPNG(ctx, inPath)
+	if err != nil {
 		return whatsapp.Reply(ctx, client, evt, msgUnstickerFail)
-	} else if len(output) > 0 {
 	}
 	defer os.Remove(outPath)
 

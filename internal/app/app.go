@@ -275,9 +275,9 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		},
 	}, public.AudioEffectsCommand)
 
-	cotacaoClient := cotacao.NewCotacaoClient(logger.Named("COTACAO"))
+	cotacaoClient := cotacao.NewCotacaoClient(cfg.ApiURLs.Cotacao, logger.Named("COTACAO"))
 
-	feriadoClient := feriado.NewFeriadoClient(logger.Named("FERIADO"))
+	feriadoClient := feriado.NewFeriadoClient(cfg.ApiURLs.Feriado, logger.Named("FERIADO"))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "cotacao",
@@ -300,12 +300,18 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		HTTPClient: &http.Client{Timeout: 30 * time.Second},
 	}
 
+	loc, errLoc := time.LoadLocation(cfg.Bot.Timezone)
+	if errLoc != nil {
+		logger.Warn("timezone inválida, usando Local", zap.String("timezone", cfg.Bot.Timezone), zap.Error(errLoc))
+		loc = time.Local
+	}
+
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "noticia",
 		Description: "Principais notícias do dia",
 		Type:        commands.CommandTypeUtility,
 		Private:     false,
-	}, public.NoticiaHandler(aiCfg))
+	}, public.NoticiaHandler(aiCfg, loc))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "receita",
@@ -346,7 +352,7 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 			{Name: "data", Required: true},
 		},
 		Private: false,
-	}, public.ContagemHandler())
+	}, public.ContagemHandler(loc))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "unsticker",
@@ -371,7 +377,7 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 			{Name: "DD/MM", Required: true},
 			{Name: "mensagem", Required: true},
 		},
-	}, public.AgendaHandler(sched, dynStore, logger))
+	}, public.AgendaHandler(sched, dynStore, logger, loc))
 }
 
 func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *history.Store, logger *zap.Logger, ignoreStore *ignore.Store, stickerStore *sticker.Store) {
@@ -484,10 +490,11 @@ func registerAliases(r *commands.Router) {
 		"lembrete":    "agenda",
 
 		// Cotação
-		"dolar":  "cotacao",
-		"dólar":  "cotacao",
-		"euro":   "cotacao",
-		"cot":    "cotacao",
+		"cotação": "cotacao",
+		"dolar":   "cotacao",
+		"dólar":   "cotacao",
+		"euro":    "cotacao",
+		"cot":     "cotacao",
 
 		// Feriado
 		"feriados": "feriado",
@@ -517,8 +524,9 @@ func registerAliases(r *commands.Router) {
 		"countdown": "contagem",
 
 		// Unsticker
-		"desticker":       "unsticker",
+		"desticker":        "unsticker",
 		"figurinha2imagem": "unsticker",
+		"us":               "unsticker",
 
 		// Traduz
 		"traduzir":  "traduz",

@@ -3,24 +3,24 @@ package public
 // Mensagens amigáveis para erros comuns — voz da Shinobu, sem expor detalhes internos.
 const (
 	// Clima
-	msgCityNotFound    = "Não achei esse lugar. Pode repetir o nome?"
-	msgWeatherFailed   = "Não consegui buscar o clima agora. Tenta de novo em alguns segundos."
-	msgNeedCityName    = "Fala o nome da cidade também."
+	msgCityNotFound  = "Não achei esse lugar. Pode repetir o nome?"
+	msgWeatherFailed = "Não consegui buscar o clima agora. Tenta de novo em alguns segundos."
+	msgNeedCityName  = "Fala o nome da cidade também."
 
 	// Agenda
-	msgInvalidDate         = "Não entendi a data. Tenta assim: amanhã às 9h, ou 28/06 14:00."
-	msgPastDate            = "Não posso agendar lembretes no passado, tolo."
-	msgDateLimit           = "Só posso agendar com até 30 dias de antecedência."
-	msgSaveReminderFail    = "Não consegui salvar o lembrete. Tenta de novo."
-	msgRemoveReminderFail  = "Não consegui remover o lembrete."
-	msgInvalidNumber       = "Esse número não é válido."
-	msgNoReminders         = "Nenhum lembrete agendado."
-	msgReminderUsage       = "Use: `agenda remover <número>`"
+	msgInvalidDate        = "Não entendi a data. Tenta assim: amanhã às 9h, ou 28/06 14:00."
+	msgPastDate           = "Não posso agendar lembretes no passado, tolo."
+	msgDateLimit          = "Só posso agendar com até 30 dias de antecedência."
+	msgSaveReminderFail   = "Não consegui salvar o lembrete. Tenta de novo."
+	msgRemoveReminderFail = "Não consegui remover o lembrete."
+	msgInvalidNumber      = "Esse número não é válido."
+	msgNoReminders        = "Nenhum lembrete agendado."
+	msgReminderUsage      = "Use: `agenda remover <número>`"
 
 	// Play
-	msgNoQuery        = "Fala o nome ou link da música."
-	msgDownloadFail    = "Não achei essa música. Tenta com outro nome."
-	msgSendAudioFail   = "Não consegui enviar o áudio."
+	msgNoQuery       = "Fala o nome ou link da música."
+	msgDownloadFail  = "Não achei essa música. Tenta com outro nome."
+	msgSendAudioFail = "Não consegui enviar o áudio."
 
 	// Efeito
 	msgNoAudioForEffect = "Manda um áudio primeiro, ou responde a um áudio com o comando."
@@ -28,7 +28,7 @@ const (
 	msgUploadAudioFail  = "Não consegui enviar o áudio modificado."
 
 	// Sticker
-	msgNoMediaForSticker = "Manda uma imagem ou vídeo, ou responde a uma mídia com o comando."
+	msgNoMediaForSticker  = "Manda uma imagem ou vídeo, ou responde a uma mídia com o comando."
 	msgConvertStickerFail = "Não consegui criar a figurinha. Tem certeza que é uma imagem ou vídeo?"
 	msgSendStickerFail    = "Não consegui enviar a figurinha."
 
@@ -43,7 +43,8 @@ const (
 	msgFeriadoNone = "Não encontrei feriados próximos."
 
 	// Notícia
-	msgNoticiaFail = "Não consegui buscar as notícias agora. Tenta de novo."
+	msgNoticiaSystem = "Você é um jornalista imparcial. Resuma as principais notícias do dia em 3 a 5 bullets. Tom neutro e informativo, sem opinião pessoal. Use apenas fatos e dados objetivos."
+	msgNoticiaFail   = "Não consegui buscar as notícias agora. Tenta de novo."
 
 	// Receita
 	msgReceitaNoQuery = "Qual receita você quer? Ex: !receita bolo de cenoura"

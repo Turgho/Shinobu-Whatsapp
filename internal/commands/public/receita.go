@@ -40,7 +40,7 @@ func ReceitaCommand(
 		{Role: "user", Content: user},
 	}
 
-	answer, err := ia.QuickChat(ctx, aiCfg.HTTPClient, aiCfg.GroqURL, aiCfg.GroqKey, ia.ModelScoutFast, msgs, 0.72, 500)
+	answer, err := ia.QuickChat(ctx, aiCfg.HTTPClient, aiCfg.GroqURL, aiCfg.GroqKey, ia.ModelScoutFast, msgs, 0.72, 800)
 	if err != nil {
 		return whatsapp.Reply(ctx, client, evt, msgReceitaFail)
 	}
