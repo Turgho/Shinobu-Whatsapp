@@ -70,7 +70,7 @@ func (c *JokeClient) Ping(ctx context.Context) error {
 
 // Fetch busca uma piada aleatória em PT-BR.
 func (c *JokeClient) Fetch(ctx context.Context) (*Joke, error) {
-	url := c.baseURL + "/joke/Any?lang=pt&safe-mode"
+	url := c.baseURL + "/joke/Any?lang=pt"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("joke: criar requisição: %w", err)
