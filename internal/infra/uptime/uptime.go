@@ -10,14 +10,6 @@ func Start() {
 	start = time.Now()
 }
 
-// Duration devolve o tempo desde Start(); zero se Start ainda não foi chamado.
-func Duration() time.Duration {
-	if start.IsZero() {
-		return 0
-	}
-	return time.Since(start)
-}
-
 // ProcessStartTime devolve o time.Time gravado em Start (zero se não inicializado).
 func ProcessStartTime() time.Time {
 	return start
