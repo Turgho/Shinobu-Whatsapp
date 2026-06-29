@@ -108,9 +108,9 @@ func injectStickerMeta(webpPath, author, pack string) error {
 	exifAttr := []byte{
 		0x49, 0x49, 0x2A, 0x00, // TIFF little-endian header + magic
 		0x08, 0x00, 0x00, 0x00, // offset do IFD
-		0x01, 0x00,             // número de tags (1)
-		0x41, 0x57,             // tag ID — "AW" (Application Notes)
-		0x07, 0x00,             // tipo de dado (undefined)
+		0x01, 0x00, // número de tags (1)
+		0x41, 0x57, // tag ID — "AW" (Application Notes)
+		0x07, 0x00, // tipo de dado (undefined)
 		0x00, 0x00, 0x00, 0x00, // placeholder: tamanho do payload
 		0x16, 0x00, 0x00, 0x00, // offset do payload
 	}
