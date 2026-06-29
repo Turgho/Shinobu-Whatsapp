@@ -26,16 +26,16 @@ type CotacaoResult struct {
 
 // apiResponse mapeia a resposta da AwesomeAPI.
 type apiResponse map[string]struct {
-	Code      string `json:"code"`
-	Codein    string `json:"codein"`
-	Name      string `json:"name"`
-	High      string `json:"high"`
-	Low       string `json:"low"`
-	VarBid    string `json:"varBid"`
-	PctChange string `json:"pctChange"`
-	Bid       string `json:"bid"`
-	Ask       string `json:"ask"`
-	Timestamp string `json:"timestamp"`
+	Code       string `json:"code"`
+	Codein     string `json:"codein"`
+	Name       string `json:"name"`
+	High       string `json:"high"`
+	Low        string `json:"low"`
+	VarBid     string `json:"varBid"`
+	PctChange  string `json:"pctChange"`
+	Bid        string `json:"bid"`
+	Ask        string `json:"ask"`
+	Timestamp  string `json:"timestamp"`
 	CreateDate string `json:"create_date"`
 }
 
@@ -47,10 +47,9 @@ type CotacaoClient struct {
 }
 
 // NewCotacaoClient cria um cliente com timeout de 8s.
-func NewCotacaoClient(logger *zap.Logger) *CotacaoClient {
+func NewCotacaoClient(apiURL string, logger *zap.Logger) *CotacaoClient {
 	return &CotacaoClient{
-		// Suporta até 30 pares por requisição.
-		APIURL: "https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL",
+		APIURL: apiURL,
 		httpClient: &http.Client{
 			Timeout: 8 * time.Second,
 		},
