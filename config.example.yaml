@@ -22,7 +22,6 @@ apiUrls:
   weather: "https://api.open-meteo.com/v1/forecast"
   cotacao: "https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL"
   feriado: "https://brasilapi.com.br/api/feriados/v1"
-  jokeapi: "https://v2.jokeapi.dev"
 
 scheduledJobs:
   - name: "sextou"
