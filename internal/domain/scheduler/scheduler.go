@@ -104,6 +104,9 @@ func (s *Scheduler) RunCheck() {
 	s.checkAndRun(time.Now())
 }
 
+// checkAndRun itera sobre os jobs registrados, executa os que estão no horário.
+// O mutex é liberado durante a execução do job (linhas Unlock/Lock) para não
+// bloquear registro de novos jobs ou o ticker enquanto um job roda.
 func (s *Scheduler) checkAndRun(now time.Time) {
 	s.mu.Lock()
 
