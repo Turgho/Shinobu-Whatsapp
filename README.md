@@ -68,6 +68,16 @@ cp config.example.yaml config.yaml
 
 O arquivo cobre `bot`, `database`, `log`, `usersJID`, `apiUrls` e `scheduledJobs`. Os campos podem ser sobrescritos por variáveis de ambiente via **Viper**.
 
+#### Configurações do bot
+
+| Chave | Tipo | Default | Descrição |
+|-------|------|---------|-----------|
+| `bot.name` | string | `Shinobu` | Nome do bot |
+| `bot.prefix` | string | `!` | Prefixo dos comandos |
+| `bot.environment` | string | `development` | Ambiente de execução |
+| `bot.timezone` | string | `America/Sao_Paulo` | Fuso horário |
+| `bot.nlpGroupTrigger` | bool | `false` | Se `true`, NLU dispara em grupo sem mencionar Shinobu |
+
 ### .env
 
 ```env
@@ -123,6 +133,16 @@ Na primeira execução, escaneie o QR Code exibido no terminal. A sessão WhatsA
 | `!agenda lista` | Lista lembretes agendados |
 | `!agenda remover <número>` | Remove um lembrete pelo número da lista |
 | `!mambo`, `!dio`, `!cafe` | Reproduz áudios OGG estáticos |
+| `!cotacao` (atalho: `!cot`, `!dolar`, `!euro`) | Cotação do dólar e euro em reais |
+| `!feriado` (atalho: `!feriados`) | Próximos feriados nacionais |
+| `!noticia` (atalho: `!news`) | Principais notícias do dia |
+| `!receita <prato>` | Busca uma receita culinária |
+| `!piada` | Conta uma piada |
+| `!fato` (atalho: `!curiosidade`) | Compartilha um fato curioso |
+| `!filme [gênero]` (atalho: `!movie`) | Recomenda um filme |
+| `!contagem <evento> <data>` (atalho: `!dias`) | Conta os dias para uma data |
+| `!unsticker` (atalho: `!us`) | Converte figurinha de volta em imagem |
+| `!traduz [idioma]` (atalho: `!translate`) | Traduz texto para português ou outro idioma |
 
 > A IA também entende comandos sem prefixo quando mencionada: *"Shinobu, toca uma música do Metallica"*, *"Shinobu, qual o clima em Campinas?"*, *"Shinobu, me lembra daqui 10 minutos de ligar pro médico"*.
 
@@ -190,6 +210,10 @@ Na primeira execução, escaneie o QR Code exibido no terminal. A sessão WhatsA
 - Tom diferenciado para o owner.
 - **NLU (linguagem natural):** detecta intenção e despacha comandos internamente sem prefixo.
   Resolve datas relativas ("amanhã", "sexta", "daqui 10 minutos") para ISO8601 antes de despachar.
+  - **DMs:** sempre ativa — qualquer mensagem sem prefixo passa pela NLU
+  - **Grupos (default):** só dispara quando "shinobu" ou o JID do bot é mencionado explicitamente
+  - **Grupos (`nlpGroupTrigger: true`):** heurísticas adicionais ativas (pergunta com `?`, verbos de intenção, endereçamento direto)
+  - `isMentioned` usa match de palavra isolada — "shinobuzinho" não dispara
 
 ### Modelos
 
@@ -266,11 +290,16 @@ Envia sequencialmente: áudio PTT → mensagem com `@all` → sticker salvo.
 │   └── dynamic_jobs.json                    # Lembretes agendados
 │
 └── internal/
-    ├── app/app.go                           # Inicialização de deps, router, handlers, scheduler
+    ├── app/                                 # Inicialização de todas as deps
+    │   ├── app.go                             # lifecycle: Run, buildLogger, connectDatabase, buildRouter
+    │   ├── app_commands.go                    # Registro de comandos públicos e admin
+    │   └── app_aliases.go                     # Mapeamento de aliases e erros comuns
     ├── bot/                                 # Sessão whatsmeow + dispatcher de eventos
     ├── commands/
-    │   ├── router.go                        # Roteamento prefixo + NLU + middlewares
-    │   ├── middleware.go                    # IgnoreOld, NotFound, PrivateCommands
+    │   ├── router.go                        # Router struct, registro, pipeline de mensagens
+    │   ├── nlu.go                           # Triggers NLU, detecção de menção, dispatch via NLU
+    │   ├── ratelimit.go                     # Rate limiting por sender
+    │   ├── middleware.go                     # IgnoreOld, NotFound, PrivateCommands
     │   ├── types.go                         # CommandMeta, HandlerFunc, ArgMeta
     │   ├── admin/                           # stats, shutdown, restart, fig, ignorar, memoria, testjob
     │   └── public/                          # clima, play, sticker, efeito, shinobu, agenda, aniversário
@@ -279,6 +308,17 @@ Envia sequencialmente: áudio PTT → mensagem com `@all` → sticker salvo.
     │   ├── geocoding/                       # Nominatim (primário) + Open-Meteo (fallback)
     │   ├── history/                         # Histórico SQLite + user_facts + resumo
     │   ├── ia/                              # Groq, Tavily, NLU, prompts, memória
+    │   │   ├── ia.go                          # Orquestração: AskIA, callGroq, QuickChat
+    │   │   ├── intent.go                      # DetectIntent (classificação de intenção)
+    │   │   ├── prompts.go                     # Personalidade, modos de resposta
+    │   │   ├── search.go                      # shouldSearchWeb, classifyNeedsWebSearch
+    │   │   ├── keywords.go                    # Palavras-chave para busca web
+    │   │   ├── summary.go                     # refreshChatSummary, generateConversationSummary
+    │   │   ├── facts.go                       # extractAndStoreFacts (fatos atômicos)
+    │   │   ├── tavily.go                      # Integração Tavily
+    │   │   ├── groq.go                        # Chamadas à API Groq
+    │   │   ├── models.go                      # Constantes de modelo e config
+    │   │   └── utils.go                       # Helpers (cleanPrompt, sanitizePrompt, truncateText)
     │   ├── ignore/                          # Store JSON de números ignorados
     │   ├── music/                           # Efeitos ffmpeg, MIME, requisição yt-dlp
     │   ├── scheduler/                       # Scheduler genérico + DynamicJob + DynamicStore
@@ -319,7 +359,7 @@ func HelloCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Mes
 }
 ```
 
-**2.** Registre em `internal/app/app.go`:
+**2.** Registre em `internal/app/app_commands.go`:
 
 ```go
 r.RegisterCommand(commands.CommandMeta{
@@ -336,7 +376,6 @@ Para comandos com dependências: use o padrão closure `XyzHandler(dep) HandlerF
 
 ## Melhorias previstas
 
-- **Linguagem natural completa:** qualquer pedido sem prefixo interpretado pela IA, que executa o comando internamente (sem necessidade de decorar sintaxe)
 - **Memória por usuário em grupos:** separar contexto por remetente dentro de um mesmo grupo
 - **`!memoria` completo:** comando admin para inspecionar e limpar resumo/fatos da IA
 - **Previsão do tempo por data:** `!clima São Paulo sexta` ou via linguagem natural
