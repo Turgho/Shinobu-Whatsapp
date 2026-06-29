@@ -351,6 +351,20 @@ func (s *Store) NeedsSummary(ctx context.Context, chat string, minMessages int, 
 	return time.Since(t) > 2*time.Hour, nil
 }
 
+// CountWordInMessages conta quantas vezes uma palavra aparece nas mensagens de um remetente específico.
+func (s *Store) CountWordInMessages(ctx context.Context, chat, sender, word string) (int, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM messages
+		WHERE chat = ? AND sender = ? AND text LIKE ?
+	`, chat, sender, "%"+word+"%").Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 // Close libera a conexão SQLite.
 func (s *Store) Close() error {
 	return s.db.Close()

@@ -209,6 +209,12 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 			{Name: "mensagem", Required: true},
 		},
 	}, public.AgendaHandler(sched, dynStore, logger, loc))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "mikael",
+		Description: "Conta quantas vezes o Mikael escreveu 'pix' no grupo",
+		Type:        commands.CommandTypeFun,
+	}, public.MikaelHandler(store, &cfg.Mikael))
 }
 
 func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *history.Store, logger *zap.Logger, ignoreStore *ignore.Store, stickerStore *sticker.Store) {
