@@ -14,6 +14,7 @@ type Config struct {
 	UsersJID      UsersJID           `mapstructure:"usersJID"`
 	ApiURLs       ApiURLs            `mapstructure:"apiUrls"`
 	ScheduledJobs []WeekdayJobConfig `mapstructure:"scheduledJobs"`
+	Mikael        MikaelConfig       `mapstructure:"mikael"`
 
 	Groq   GroqConfig
 	Tavily TavilyConfig
@@ -135,4 +136,8 @@ type MusicConfig struct {
 
 type OwnerConfig struct {
 	Number string
+}
+
+type MikaelConfig struct {
+	Groups []string `mapstructure:"groups"`
 }
