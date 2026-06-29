@@ -44,6 +44,7 @@ type Router struct {
 	maintenance     atomic.Bool
 	aiConfig        *ia.Config
 	nlpGroupTrigger bool
+	mikaelGroups    map[string]bool
 }
 
 func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *history.Store, ignoreStore *ignore.Store) *Router {
@@ -80,6 +81,14 @@ func (r *Router) SetNLPGroupTrigger(on bool) {
 func (r *Router) SetMaintenance(on bool) {
 	r.maintenance.Store(on)
 	r.log.Info("Modo manutenção alterado", zap.Bool("on", on))
+}
+
+func (r *Router) SetMikaelGroups(groups []string) {
+	r.mikaelGroups = make(map[string]bool, len(groups))
+	for _, g := range groups {
+		r.mikaelGroups[g] = true
+	}
+	r.log.Info("Mikael groups definidos", zap.Int("count", len(groups)))
 }
 
 func (r *Router) IsMaintenance() bool {
@@ -193,6 +202,13 @@ func (r *Router) HandleMessage(evt *events.Message) {
 	if r.ignoreStore.IsIgnored(sender) || r.ignoreStore.IsIgnored(senderUser) {
 		r.log.Debug("Mensagem ignorada", zap.String("sender", sender))
 		return
+	}
+
+	// Salva mensagens de grupos mikael para contagem de palavras
+	chat := evt.Info.Chat.String()
+	if r.mikaelGroups[chat] {
+		senderNonAD := evt.Info.Sender.ToNonAD().String()
+		_ = r.store.Save(context.Background(), chat, senderNonAD, msg)
 	}
 
 	rateLimitKey := evt.Info.Sender.ToNonAD().String()
