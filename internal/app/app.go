@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/http"
 	"os/exec"
 	"time"
 
@@ -12,11 +13,15 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands/admin"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands/public"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/birthday"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/cotacao"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/feriado"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/geocoding"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ia"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ignore"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/music"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/scheduler"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/sticker"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/weather"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/weekday"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/configs"
@@ -69,13 +74,16 @@ func Run() error {
 		return fmt.Errorf("erro ao conectar no WhatsApp: %w", err)
 	}
 
-	r := buildRouter(cfg, client.WAClient, logger, store)
+	ignoreStore := ignore.NewStore()
+	stickerStore := sticker.NewStore()
+	r := buildRouter(cfg, client.WAClient, logger, store, ignoreStore)
 
 	r.SetAIConfig(&ia.Config{
-		GroqURL:   cfg.Groq.URL,
-		GroqKey:   cfg.Groq.APIKey,
-		TavilyKey: cfg.Tavily.APIKey,
-		Log:       logger.Named("AI"),
+		GroqURL:    cfg.Groq.URL,
+		GroqKey:    cfg.Groq.APIKey,
+		TavilyKey:  cfg.Tavily.APIKey,
+		HTTPClient: &http.Client{Timeout: 30 * time.Second},
+		Log:        logger.Named("AI"),
 	})
 
 	r.StartRateLimitCleanup(ctx)
@@ -85,8 +93,8 @@ func Run() error {
 	dynStore := scheduler.NewDynamicStore("storage/dynamic_jobs.json", dynLogger)
 	sched := scheduler.NewScheduler(logger.Named("SCHEDULER"))
 
-	registerPublicCommands(r, cfg, logger, store, sched, dynStore)
-	registerAdminCommands(r, cfg, store, logger)
+	registerPublicCommands(r, cfg, logger, store, sched, dynStore, stickerStore)
+	registerAdminCommands(r, cfg, store, logger, ignoreStore, stickerStore)
 	registerAliases(r)
 
 	// Carrega jobs dinâmicos persistidos, ignorando expirados
@@ -128,7 +136,7 @@ func Run() error {
 			AudioPath:    j.AudioPath,
 			StickerName:  j.StickerName,
 			TargetGroups: j.TargetGroups,
-		}); job != nil {
+		}, stickerStore); job != nil {
 			sched.Register(job)
 		}
 	}
@@ -174,8 +182,8 @@ func connectDatabase(cfg *configs.Config, logger *zap.Logger) (*sql.DB, error) {
 	return db, nil
 }
 
-func buildRouter(cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Logger, store *history.Store) *commands.Router {
-	r := commands.NewRouter(cfg.Bot.Prefix, waClient, logger.Named("ROUTER"), store)
+func buildRouter(cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Logger, store *history.Store, ignoreStore *ignore.Store) *commands.Router {
+	r := commands.NewRouter(cfg.Bot.Prefix, waClient, logger.Named("ROUTER"), store, ignoreStore)
 
 	r.Use(commands.IgnoreSelfMiddleware)
 	r.Use(commands.IgnoreOldMessagesMiddleware)
@@ -185,7 +193,7 @@ func buildRouter(cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Lo
 	return r
 }
 
-func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logger, store *history.Store, sched *scheduler.Scheduler, dynStore *scheduler.DynamicStore) {
+func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logger, store *history.Store, sched *scheduler.Scheduler, dynStore *scheduler.DynamicStore, stickerStore *sticker.Store) {
 	geoClient := geocoding.NewGeoCoding(cfg.ApiURLs.Geocoding, cfg.ApiURLs.OpenMeteoGeo, logger.Named("GEOCODING"))
 	weatherClient := weather.NewWeatherClient(cfg.ApiURLs.Weather, logger.Named("WEATHER"))
 
@@ -230,26 +238,26 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Name:        "mambo",
 		Description: "M A M B O 🏇",
 		Type:        commands.CommandTypeFun,
-	}, public.FixedBundledAudioCommand("assets/audios/mambo.ogg", ""))
+	}, public.FixedBundledAudioCommand("assets/audios/mambo.ogg", "", stickerStore))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "dio",
 		Description: "Talvez o tempo pare...",
 		Type:        commands.CommandTypeFun,
-	}, public.FixedBundledAudioCommand("assets/audios/zawarudo.ogg", "zawarudo"))
+	}, public.FixedBundledAudioCommand("assets/audios/zawarudo.ogg", "zawarudo", stickerStore))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "cafe",
 		Description: "Não importa a hora!",
 		Type:        commands.CommandTypeFun,
-	}, public.FixedBundledAudioCommand("assets/audios/hora_cafe.ogg", "hora_cafe"))
+	}, public.FixedBundledAudioCommand("assets/audios/hora_cafe.ogg", "hora_cafe", stickerStore))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "shinobu",
 		Description: "converse com shinobu",
 		Type:        commands.CommandTypeAI,
 		Args:        []commands.ArgMeta{{Name: "escreva algo", Required: false}},
-	}, public.ShinobuCommand(store, cfg))
+	}, public.ShinobuCommand(store, cfg, stickerStore))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "aniversário",
@@ -267,18 +275,106 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		},
 	}, public.AudioEffectsCommand)
 
+	cotacaoClient := cotacao.NewCotacaoClient(logger.Named("COTACAO"))
+
+	feriadoClient := feriado.NewFeriadoClient(logger.Named("FERIADO"))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "cotacao",
+		Description: "Cotação do dólar e euro em reais",
+		Type:        commands.CommandTypeUtility,
+		Private:     false,
+	}, public.CotacaoHandler(cotacaoClient))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "feriado",
+		Description: "Próximos feriados nacionais",
+		Type:        commands.CommandTypeUtility,
+		Private:     false,
+	}, public.FeriadoHandler(feriadoClient))
+
+	aiCfg := &ia.Config{
+		GroqURL:    cfg.Groq.URL,
+		GroqKey:    cfg.Groq.APIKey,
+		TavilyKey:  cfg.Tavily.APIKey,
+		HTTPClient: &http.Client{Timeout: 30 * time.Second},
+	}
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "noticia",
+		Description: "Principais notícias do dia",
+		Type:        commands.CommandTypeUtility,
+		Private:     false,
+	}, public.NoticiaHandler(aiCfg))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "receita",
+		Description: "Busca uma receita",
+		Type:        commands.CommandTypeUtility,
+		Args:        []commands.ArgMeta{{Name: "prato", Required: true}},
+		Private:     false,
+	}, public.ReceitaHandler(aiCfg))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "piada",
+		Description: "Conta uma piada",
+		Type:        commands.CommandTypeFun,
+		Private:     false,
+	}, public.PiadaHandler(aiCfg))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "fato",
+		Description: "Compartilha um fato curioso",
+		Type:        commands.CommandTypeFun,
+		Private:     false,
+	}, public.FatoHandler(aiCfg))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "filme",
+		Description: "Recomenda um filme",
+		Type:        commands.CommandTypeFun,
+		Args:        []commands.ArgMeta{{Name: "gênero", Required: false}},
+		Private:     false,
+	}, public.FilmeHandler(aiCfg))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "contagem",
+		Description: "Conta os dias para uma data",
+		Type:        commands.CommandTypeUtility,
+		Args: []commands.ArgMeta{
+			{Name: "evento", Required: true},
+			{Name: "data", Required: true},
+		},
+		Private: false,
+	}, public.ContagemHandler())
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "unsticker",
+		Description: "Converte figurinha de volta em imagem",
+		Type:        commands.CommandTypeMedia,
+		Private:     false,
+	}, public.UnstickerHandler())
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "traduz",
+		Description: "Traduz texto para português",
+		Type:        commands.CommandTypeUtility,
+		Args:        []commands.ArgMeta{{Name: "texto", Required: false}},
+		Private:     false,
+	}, public.TraduzHandler(aiCfg))
+
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "agenda",
 		Description: "Agenda um lembrete. Ex: agenda 2026-06-28T09:00 tomar remédio",
 		Type:        commands.CommandTypeUtility,
 		Args: []commands.ArgMeta{
-			{Name: "data ISO8601", Required: true},
+			{Name: "DD/MM", Required: true},
 			{Name: "mensagem", Required: true},
 		},
 	}, public.AgendaHandler(sched, dynStore, logger))
 }
 
-func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *history.Store, logger *zap.Logger) {
+func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *history.Store, logger *zap.Logger, ignoreStore *ignore.Store, stickerStore *sticker.Store) {
 	musicCfg := &music.Config{
 		ServerURL: cfg.Music.ServerURL,
 		APIToken:  cfg.Music.APIToken,
@@ -313,21 +409,21 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *histo
 			{Name: "nome", Required: false},
 		},
 		Private: true,
-	}, admin.SaveStickerCommand(cfg.UsersJID.Owner))
+	}, admin.SaveStickerCommand(cfg.UsersJID.Owner, stickerStore))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "ignorar",
 		Description: "Ignorar mensagens de un número",
 		Type:        commands.CommandTypeAdmin,
 		Private:     true,
-	}, admin.IgnoreCommand())
+	}, admin.IgnoreCommand(ignoreStore))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "testjob",
 		Description: "Testa o job semanal (audio+@all+sticker) no chat atual",
 		Type:        commands.CommandTypeOwner,
 		Private:     true,
-	}, admin.TestJobCommand())
+	}, admin.TestJobCommand(stickerStore))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "manutencao",
@@ -377,15 +473,56 @@ func registerAliases(r *commands.Router) {
 		"a": "aniversário",
 
 		// Common misspellings
-		"plau":      "play",
-		"plei":      "play",
-		"stiker":    "sticker",
-		"figurinha": "sticker",
-		"clim":      "clima",
-		"tempo":     "clima",
-		"aniver":    "aniversário",
+		"plau":        "play",
+		"plei":        "play",
+		"stiker":      "sticker",
+		"figurinha":   "sticker",
+		"clim":        "clima",
+		"tempo":       "clima",
+		"aniver":      "aniversário",
 		"aniversario": "aniversário",
-		"lembrete":  "agenda",
+		"lembrete":    "agenda",
+
+		// Cotação
+		"dolar":  "cotacao",
+		"dólar":  "cotacao",
+		"euro":   "cotacao",
+		"cot":    "cotacao",
+
+		// Feriado
+		"feriados": "feriado",
+
+		// Notícia
+		"noticias": "noticia",
+		"notícia":  "noticia",
+		"notícias": "noticia",
+		"news":     "noticia",
+
+		// Receita
+		"receitas": "receita",
+
+		// Piada
+		"piadas": "piada",
+
+		// Fato
+		"fatos":       "fato",
+		"curiosidade": "fato",
+
+		// Filme
+		"filmes": "filme",
+		"movie":  "filme",
+
+		// Contagem
+		"dias":      "contagem",
+		"countdown": "contagem",
+
+		// Unsticker
+		"desticker":       "unsticker",
+		"figurinha2imagem": "unsticker",
+
+		// Traduz
+		"traduzir":  "traduz",
+		"translate": "traduz",
 	}
 
 	for alias, target := range aliases {
