@@ -146,7 +146,7 @@ Regras:
 		},
 	}
 
-	return callGroq(ctx, cfg.GroqURL, cfg.GroqKey, "meta-llama/llama-4-scout-17b-16e-instruct", msgs, 0, 220)
+	return callGroq(ctx, cfg.HTTPClient, cfg.GroqURL, cfg.GroqKey, modelScoutFast, msgs, 0, 220)
 }
 
 type extractedFact struct {
@@ -209,7 +209,7 @@ Regras:
 			{Role: "user", Content: userContent},
 		}
 
-		raw, err := callGroq(ctx, cfg.GroqURL, cfg.GroqKey, modelScoutFast, msgs, 0, 200)
+		raw, err := callGroq(ctx, cfg.HTTPClient, cfg.GroqURL, cfg.GroqKey, modelFastClass, msgs, 0, 200)
 		if err != nil {
 			logger.Debug("extractAndStoreFacts: groq error", zap.Error(err))
 			return

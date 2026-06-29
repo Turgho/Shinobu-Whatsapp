@@ -115,7 +115,7 @@ func classifyNeedsWebSearch(ctx context.Context, cfg *Config, prompt string) boo
 	promptCut := truncateText(strings.TrimSpace(prompt), maxRunesSearchClassifier)
 
 	req := IARequest{
-		Model: modelScoutFast,
+		Model: modelFastClass,
 		Messages: []history.IAMessage{
 			{
 				Role: "system",
@@ -129,7 +129,7 @@ func classifyNeedsWebSearch(ctx context.Context, cfg *Config, prompt string) boo
 		MaxTokens:   10,
 	}
 
-	resp, err := groqChat(ctx, cfg.GroqURL, cfg.GroqKey, req)
+	resp, err := groqChat(ctx, cfg.HTTPClient, cfg.GroqURL, cfg.GroqKey, req)
 	if err != nil {
 		if cfg.Log != nil {
 			cfg.Log.Warn("Classificador de busca web falhou, assumindo false", zap.Error(err))

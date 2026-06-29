@@ -7,17 +7,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-
-	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/httpclient"
+	"time"
 )
 
-func groqChat(ctx context.Context, groqURL, groqKey string, req IARequest) (IAResponse, error) {
+func groqChat(ctx context.Context, httpClient *http.Client, groqURL, groqKey string, req IARequest) (IAResponse, error) {
 	var zero IAResponse
 	if groqURL == "" {
 		return zero, fmt.Errorf("GROQ_URL não definido")
 	}
 	if groqKey == "" {
 		return zero, fmt.Errorf("GROQ_API_KEY não definido")
+	}
+
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: 30 * time.Second}
 	}
 
 	body, err := json.Marshal(req)
@@ -32,7 +35,7 @@ func groqChat(ctx context.Context, groqURL, groqKey string, req IARequest) (IARe
 	httpReq.Header.Set("Authorization", "Bearer "+groqKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := httpclient.Client.Do(httpReq)
+	resp, err := httpClient.Do(httpReq)
 	if err != nil {
 		return zero, fmt.Errorf("groq: http: %w", err)
 	}
