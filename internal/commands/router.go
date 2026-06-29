@@ -171,7 +171,15 @@ func (r *Router) runMiddlewares(cmdName string, evt *events.Message) bool {
 //  5. Se não tem prefixo E (DM ou menção) → NLU via handleNaturalLanguage
 //  6. Caso contrário → ignora
 func (r *Router) HandleMessage(evt *events.Message) {
-	if strings.HasSuffix(evt.Info.Chat.String(), "@broadcast") {
+	// Ignora mensagens de broadcast e status do WhatsApp.
+	// Status updates usam chat JID "status@broadcast" (Server: "broadcast").
+	// Broadcast lists usam JIDs como "123456@broadcast".
+	// Ambos devem ser ignorados — respostas a status são visíveis publicamente.
+	if evt.Info.Chat.Server == "broadcast" {
+		r.log.Debug("Mensagem de broadcast ignorada",
+			zap.String("chat", evt.Info.Chat.String()),
+			zap.String("sender", evt.Info.Sender.String()),
+		)
 		return
 	}
 
