@@ -12,9 +12,6 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-// mikaelLid é o lid (user JID) do Mikael.
-const mikaelLid = "5511999998888" // Substitua pelo lid real do Mikael
-
 func MikaelCommand(
 	ctx context.Context,
 	client *whatsmeow.Client,
@@ -23,12 +20,16 @@ func MikaelCommand(
 	store *history.Store,
 	cfg *configs.MikaelConfig,
 ) error {
+	if cfg.LID == "" {
+		return whatsapp.Reply(ctx, client, evt, "❌ LID do Mikael não configurado.")
+	}
+
 	chat := evt.Info.Chat.String()
 	if !isMikaelGroup(chat, cfg) {
 		return whatsapp.Reply(ctx, client, evt, "❌ Este comando só funciona em grupos autorizados.")
 	}
 
-	count, err := store.CountWordInMessages(ctx, chat, mikaelLid, "pix")
+	count, err := store.CountWordInMessages(ctx, chat, cfg.LID, "pix")
 	if err != nil {
 		return whatsapp.Reply(ctx, client, evt, "❌ Não consegui contar as mensagens.")
 	}
