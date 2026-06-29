@@ -30,6 +30,7 @@ func AgendaCommand(
 	dynSched *scheduler.Scheduler,
 	dynStore *scheduler.DynamicStore,
 	logger *zap.Logger,
+	loc *time.Location,
 ) error {
 	if len(args) == 0 {
 		return whatsapp.Reply(ctx, client, evt,
@@ -42,17 +43,17 @@ func AgendaCommand(
 
 	switch strings.ToLower(args[0]) {
 	case "lista", "list":
-		return agendaLista(ctx, client, evt, dynStore)
+		return agendaLista(ctx, client, evt, dynStore, loc)
 	case "remover", "remove":
-		return agendaRemover(ctx, client, evt, args, dynStore, dynSched, logger)
+		return agendaRemover(ctx, client, evt, args, dynStore, dynSched, logger, loc)
 	}
 
-	runAt, err := parseAgendaTime(args[0])
+	runAt, err := parseAgendaTime(args[0], loc)
 	if err != nil {
 		return whatsapp.Reply(ctx, client, evt, msgInvalidDate)
 	}
 
-	now := time.Now()
+	now := time.Now().In(loc)
 	if runAt.Before(now) {
 		return whatsapp.Reply(ctx, client, evt, msgPastDate)
 	}
@@ -92,13 +93,14 @@ func agendaLista(
 	client *whatsmeow.Client,
 	evt *events.Message,
 	dynStore *scheduler.DynamicStore,
+	loc *time.Location,
 ) error {
 	all := dynStore.LoadAll()
 	if len(all) == 0 {
 		return whatsapp.Reply(ctx, client, evt, msgNoReminders)
 	}
 
-	now := time.Now()
+	now := time.Now().In(loc)
 	var future []scheduler.DataWithTime
 	for _, d := range all {
 		t, err := time.Parse(time.RFC3339, d.RunAt)
@@ -138,6 +140,7 @@ func agendaRemover(
 	dynStore *scheduler.DynamicStore,
 	dynSched *scheduler.Scheduler,
 	logger *zap.Logger,
+	loc *time.Location,
 ) error {
 	if len(args) < 2 {
 		return whatsapp.Reply(ctx, client, evt, msgReminderUsage)
@@ -149,7 +152,7 @@ func agendaRemover(
 	}
 
 	all := dynStore.LoadAll()
-	now := time.Now()
+	now := time.Now().In(loc)
 	var future []scheduler.DataWithTime
 	for _, d := range all {
 		t, err := time.Parse(time.RFC3339, d.RunAt)
@@ -183,18 +186,19 @@ func AgendaHandler(
 	sched *scheduler.Scheduler,
 	dynStore *scheduler.DynamicStore,
 	logger *zap.Logger,
+	loc *time.Location,
 ) commands.HandlerFunc {
 	l := logger.Named("AGENDA")
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
-		return AgendaCommand(ctx, client, evt, args, sched, dynStore, l)
+		return AgendaCommand(ctx, client, evt, args, sched, dynStore, l, loc)
 	}
 }
 
 // parseRelativeDuration converte "daqui 5 minutos", "em 2 horas" etc. em time.Time.
 // Retorna false se não reconhecer o formato.
-func parseRelativeDuration(input string) (time.Time, bool) {
+func parseRelativeDuration(input string, loc *time.Location) (time.Time, bool) {
 	s := strings.ToLower(strings.TrimSpace(input))
-	now := time.Now().In(locBrazil())
+	now := time.Now().In(loc)
 
 	type unitPattern struct {
 		prefixes []string
@@ -229,28 +233,19 @@ func parseRelativeDuration(input string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-func locBrazil() *time.Location {
-	loc, err := time.LoadLocation("America/Sao_Paulo")
-	if err != nil {
-		return time.Local
-	}
-	return loc
-}
-
 // parseAgendaTime aceita ISO8601, DD/MM HH:MM, DD/MM/YYYY HH:MM, "D de mês HH:MM",
 // "D de mês de YYYY HH:MM", ou tempo relativo ("daqui 5 minutos").
 // Tenta 14 layouts em ordem de especificidade. Sem hora → assume 08:00 local.
 // Sem ano → assume ano atual; se já passou, avança para o próximo.
-func parseAgendaTime(input string) (time.Time, error) {
+func parseAgendaTime(input string, loc *time.Location) (time.Time, error) {
 	s := strings.TrimSpace(input)
 	s = strings.Trim(s, "`\"'")
 
-	if t, ok := parseRelativeDuration(s); ok {
+	if t, ok := parseRelativeDuration(s, loc); ok {
 		return t, nil
 	}
 
 	s = normalizePtMonths(s)
-	loc := locBrazil()
 
 	layouts := []string{
 		time.RFC3339,
