@@ -3,6 +3,7 @@ package birthday
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -171,19 +172,15 @@ func handleList(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 	}
 
 	now := time.Now()
-	var upcoming, past []Entry
-	for _, e := range entries {
-		next := time.Date(now.Year(), time.Month(e.Month), e.Day, 0, 0, 0, 0, now.Location())
-		if next.Before(now) {
-			past = append(past, e)
-		} else {
-			upcoming = append(upcoming, e)
-		}
-	}
+	sort.SliceStable(entries, func(i, j int) bool {
+		dateI := time.Date(now.Year(), time.Month(entries[i].Month), entries[i].Day, 0, 0, 0, 0, now.Location())
+		dateJ := time.Date(now.Year(), time.Month(entries[j].Month), entries[j].Day, 0, 0, 0, 0, now.Location())
+		return dateI.Before(dateJ)
+	})
 
 	var sb strings.Builder
-	sb.WriteString("🎂 *Aniversários do grupo:*\n\n")
-	for _, e := range append(upcoming, past...) {
+	sb.WriteString("🎂 *Aniversários do grupo (ordenados por data):*\n\n")
+	for _, e := range entries {
 		sb.WriteString(fmt.Sprintf("🎈 *%s* — %02d/%02d\n", e.Name, e.Day, e.Month))
 	}
 
