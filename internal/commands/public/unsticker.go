@@ -20,7 +20,7 @@ func UnstickerCommand(
 	evt *events.Message,
 	_ []string,
 ) error {
-	dl, err := media.DownloadFromEvent(ctx, client, evt, media.FilterVisual)
+	dl, err := media.DownloadFromEvent(ctx, client, evt, media.FilterSticker)
 	if err != nil {
 		return whatsapp.Reply(ctx, client, evt, msgUnstickerNoMedia)
 	}
