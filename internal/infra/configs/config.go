@@ -60,6 +60,7 @@ type ApiURLs struct {
 	Weather      string `mapstructure:"weather"`
 	Cotacao      string `mapstructure:"cotacao"`
 	Feriado      string `mapstructure:"feriado"`
+	JokeAPI      string `mapstructure:"jokeapi"`
 }
 
 func Load() *Config {
