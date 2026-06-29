@@ -2,10 +2,10 @@ package public
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands"
-	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/joke"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ia"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
@@ -16,30 +16,22 @@ func PiadaCommand(
 	client *whatsmeow.Client,
 	evt *events.Message,
 	_ []string,
-	jokeClient *joke.JokeClient,
+	aiCfg *ia.Config,
 ) error {
-	if err := jokeClient.Ping(ctx); err != nil {
-		return whatsapp.Reply(ctx, client, evt, msgPiadaFail)
+	msgs := []history.IAMessage{
+		{Role: "system", Content: "Conte uma piada curta e engraçada em português brasileiro. Máximo 4 linhas. Sem introduções."},
 	}
 
-	j, err := jokeClient.Fetch(ctx)
+	answer, err := ia.QuickChat(ctx, aiCfg.HTTPClient, aiCfg.GroqURL, aiCfg.GroqKey, ia.ModelScoutFast, msgs, 0.85, 150)
 	if err != nil {
 		return whatsapp.Reply(ctx, client, evt, msgPiadaFail)
 	}
 
-	var text string
-	switch j.Type {
-	case "twopart":
-		text = fmt.Sprintf("%s\n\n%s", j.Setup, j.Delivery)
-	case "single":
-		text = j.Joke
-	}
-
-	return whatsapp.Reply(ctx, client, evt, text)
+	return whatsapp.Reply(ctx, client, evt, answer)
 }
 
-func PiadaHandler(jokeClient *joke.JokeClient) commands.HandlerFunc {
+func PiadaHandler(aiCfg *ia.Config) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
-		return PiadaCommand(ctx, client, evt, args, jokeClient)
+		return PiadaCommand(ctx, client, evt, args, aiCfg)
 	}
 }

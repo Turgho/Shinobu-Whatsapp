@@ -14,7 +14,6 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ia"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ignore"
-	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/joke"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/music"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/scheduler"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/sticker"
@@ -153,14 +152,12 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Private:     false,
 	}, public.ReceitaHandler(aiCfg))
 
-	jokeClient := joke.NewJokeClient(cfg.ApiURLs.JokeAPI, logger.Named("JOKE"))
-
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "piada",
 		Description: "Conta uma piada",
 		Type:        commands.CommandTypeFun,
 		Private:     false,
-	}, public.PiadaHandler(jokeClient))
+	}, public.PiadaHandler(aiCfg))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "fato",
