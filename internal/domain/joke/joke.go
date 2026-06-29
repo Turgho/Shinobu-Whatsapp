@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"time"
 
@@ -70,7 +71,7 @@ func (c *JokeClient) Ping(ctx context.Context) error {
 
 // Fetch busca uma piada aleatória em PT-BR.
 func (c *JokeClient) Fetch(ctx context.Context) (*Joke, error) {
-	url := c.baseURL + "/joke/Any?lang=pt"
+	url := fmt.Sprintf("%s/joke/Any?lang=pt&r=%d", c.baseURL, rand.Int63())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("joke: criar requisição: %w", err)
@@ -96,8 +97,8 @@ func (c *JokeClient) Fetch(ctx context.Context) (*Joke, error) {
 		return nil, fmt.Errorf("joke: decode JSON: %w", err)
 	}
 
-	if raw.Error || !raw.Safe {
-		return nil, fmt.Errorf("joke: piada não segura ou erro da API")
+	if raw.Error {
+		return nil, fmt.Errorf("joke: erro da API")
 	}
 
 	j := &Joke{Type: raw.Type}
