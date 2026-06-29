@@ -13,24 +13,26 @@ import (
 )
 
 type DynamicJob struct {
-	ID      string
-	RunAt   time.Time
-	ChatJID string
-	Message string
+	ID         string
+	RunAt      time.Time
+	ChatJID    string
+	Message    string
+	MentionAll bool
 
 	client *whatsmeow.Client
 	logger *zap.Logger
 	done   atomic.Bool
 }
 
-func NewDynamicJob(id string, runAt time.Time, chatJID, message string, client *whatsmeow.Client, logger *zap.Logger) *DynamicJob {
+func NewDynamicJob(id string, runAt time.Time, chatJID, message string, mentionAll bool, client *whatsmeow.Client, logger *zap.Logger) *DynamicJob {
 	return &DynamicJob{
-		ID:      id,
-		RunAt:   runAt,
-		ChatJID: chatJID,
-		Message: message,
-		client:  client,
-		logger:  logger,
+		ID:         id,
+		RunAt:      runAt,
+		ChatJID:    chatJID,
+		Message:    message,
+		MentionAll: mentionAll,
+		client:     client,
+		logger:     logger,
 	}
 }
 
@@ -59,7 +61,11 @@ func (j *DynamicJob) Run(ctx context.Context) error {
 	sendCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	err = whatsapp.SendTextToJID(sendCtx, j.client, jid, j.Message, nil)
+	if j.MentionAll {
+		err = whatsapp.SendAllToJID(sendCtx, j.client, jid, j.Message)
+	} else {
+		err = whatsapp.SendTextToJID(sendCtx, j.client, jid, j.Message, nil)
+	}
 	if err != nil {
 		return fmt.Errorf("dynamic_job: enviar mensagem: %w", err)
 	}

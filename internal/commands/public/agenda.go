@@ -33,6 +33,7 @@ func AgendaCommand(
 		return whatsapp.Reply(ctx, client, evt,
 			"📋 *Agenda*\n\n"+
 				"`agenda <data> <mensagem>` — agendar lembrete\n"+
+				"`agenda <data> todos <mensagem>` — agendar com @all\n"+
 				"`agenda lista` — listar lembretes\n"+
 				"`agenda remover <n>` — remover lembrete",
 		)
@@ -60,11 +61,24 @@ func AgendaCommand(
 		return whatsapp.Reply(ctx, client, evt, msgDateLimit)
 	}
 
-	message := strings.Join(args[1:], " ")
+	// Detecta flag @all: "todos" na mensagem
+	rawMsg := strings.Join(args[1:], " ")
+	mentionAll := false
+	if idx := strings.Index(strings.ToLower(rawMsg), "todos"); idx >= 0 {
+		mentionAll = true
+		// Remove a palavra "todos" (case-insensitive) da mensagem
+		before := rawMsg[:idx]
+		after := rawMsg[idx+len("todos"):]
+		rawMsg = strings.TrimSpace(before + " " + after)
+	}
+	if rawMsg == "" {
+		return whatsapp.Reply(ctx, client, evt, msgEmptyReminder)
+	}
+
 	chatJID := evt.Info.Chat.String()
 	id := fmt.Sprintf("dyn_%d", time.Now().UnixNano())
 
-	job := scheduler.NewDynamicJob(id, runAt, chatJID, message, client, logger)
+	job := scheduler.NewDynamicJob(id, runAt, chatJID, rawMsg, mentionAll, client, logger)
 	if err := dynStore.Save(job); err != nil {
 		logger.Error("Erro ao persistir job dinâmico", zap.Error(err))
 		return whatsapp.Reply(ctx, client, evt, msgSaveReminderFail)
@@ -76,10 +90,16 @@ func AgendaCommand(
 	// (ex: "daqui 1 minuto"), reduzindo o delay máximo para 1 tick (15s).
 	dynSched.RunCheck()
 
-	reply := fmt.Sprintf("✅ Lembrete agendado!\n\n📅 %s\n🕐 %s\n📝 %s",
+	allTag := ""
+	if mentionAll {
+		allTag = "\n📢 @all"
+	}
+
+	reply := fmt.Sprintf("✅ Lembrete agendado!\n\n📅 %s\n🕐 %s\n📝 %s%s",
 		runAt.Format("02/01/2006"),
 		runAt.Format("15:04"),
-		message,
+		rawMsg,
+		allTag,
 	)
 	return whatsapp.Reply(ctx, client, evt, reply)
 }
@@ -118,10 +138,15 @@ func agendaLista(
 	var b strings.Builder
 	b.WriteString("📋 *Lembretes agendados:*\n\n")
 	for i, f := range future {
-		b.WriteString(fmt.Sprintf("%d. 📅 %s — %s\n",
+		tag := ""
+		if f.Data.MentionAll {
+			tag = " 📢@all"
+		}
+		b.WriteString(fmt.Sprintf("%d. 📅 %s — %s%s\n",
 			i+1,
 			f.ParsedAt.Format("02/01 15:04"),
 			f.Data.Message,
+			tag,
 		))
 	}
 

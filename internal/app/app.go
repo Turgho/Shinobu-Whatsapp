@@ -105,7 +105,7 @@ func Run() error {
 			continue
 		}
 
-		job := scheduler.NewDynamicJob(data.ID, runAt, data.ChatJID, data.Message, client.WAClient, dynLogger)
+		job := scheduler.NewDynamicJob(data.ID, runAt, data.ChatJID, data.Message, data.MentionAll, client.WAClient, dynLogger)
 		sched.Register(job)
 		dynLogger.Info("Job dinâmico restaurado",
 			zap.String("id", data.ID),
