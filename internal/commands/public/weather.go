@@ -25,7 +25,7 @@ func WeatherCommand(
 	weatherClient *weather.WeatherClient,
 ) error {
 	if len(args) == 0 {
-		return whatsapp.Reply(ctx, client, evt, "Por favor, informe o nome da cidade.")
+		return whatsapp.Reply(ctx, client, evt, 	msgNeedCityName)
 	}
 
 	var targetDate time.Time
@@ -44,7 +44,7 @@ func WeatherCommand(
 
 	results, err := geo.Lookup(ctx, query, 1)
 	if err != nil || len(results) == 0 {
-		return replyOrUnderlying(ctx, client, evt, "Não consegui encontrar a cidade.", err)
+		return replyOrUnderlying(ctx, client, evt, msgCityNotFound, err)
 	}
 
 	loc := results[0]
@@ -56,7 +56,7 @@ func WeatherCommand(
 		weatherData, err = weatherClient.GetCurrentWeather(ctx, loc.Latitude, loc.Longitude)
 	}
 	if err != nil {
-		return replyOrUnderlying(ctx, client, evt, "Não consegui pegar o clima.", err)
+		return replyOrUnderlying(ctx, client, evt, msgWeatherFailed, err)
 	}
 
 	msg := buildWeatherMessage(loc, weatherData, hasDate)

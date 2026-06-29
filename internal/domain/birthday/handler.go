@@ -81,7 +81,7 @@ func handleSaveSelf(ctx context.Context, client *whatsmeow.Client, evt *events.M
 
 	if err := Set(evt.Info.Chat.String(), userJID, name, day, month); err != nil {
 		return whatsapp.SendText(ctx, client, evt,
-			"❌ Erro ao salvar aniversário: "+err.Error(), true)
+			"❌ Não consegui salvar o aniversário.", true)
 	}
 
 	return whatsapp.SendText(ctx, client, evt,
@@ -110,7 +110,7 @@ func handleSaveOther(ctx context.Context, client *whatsmeow.Client, evt *events.
 
 	if err := Set(evt.Info.Chat.String(), mention, name, day, month); err != nil {
 		return whatsapp.SendText(ctx, client, evt,
-			"❌ Erro ao salvar aniversário: "+err.Error(), true)
+			"❌ Não consegui salvar o aniversário.", true)
 	}
 
 	return whatsapp.SendText(ctx, client, evt,
@@ -126,7 +126,7 @@ func handleRemoveSelf(ctx context.Context, client *whatsmeow.Client, evt *events
 	deleted, err := Remove(evt.Info.Chat.String(), userJID)
 	if err != nil {
 		return whatsapp.SendText(ctx, client, evt,
-			"❌ Erro ao remover: "+err.Error(), true)
+			"❌ Não consegui remover o aniversário.", true)
 	}
 	if !deleted {
 		return whatsapp.SendText(ctx, client, evt,
@@ -150,7 +150,7 @@ func handleRemoveOther(ctx context.Context, client *whatsmeow.Client, evt *event
 	deleted, err := Remove(evt.Info.Chat.String(), mention)
 	if err != nil {
 		return whatsapp.SendText(ctx, client, evt,
-			"❌ Erro ao remover: "+err.Error(), true)
+			"❌ Não consegui remover o aniversário.", true)
 	}
 	if !deleted {
 		return whatsapp.SendText(ctx, client, evt,

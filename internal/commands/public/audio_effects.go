@@ -44,23 +44,21 @@ func AudioEffectsCommand(ctx context.Context, client *whatsmeow.Client, evt *eve
 
 	dl, err := media.DownloadFromEvent(ctx, client, evt, media.FilterAudioOnly)
 	if err != nil {
-		return whatsapp.SendText(ctx, client, evt,
-			"📎 Envie um áudio e chame `!efeito <nome>`, ou responda a um áudio com o comando.", true)
+		return whatsapp.SendText(ctx, client, evt, msgNoAudioForEffect, true)
 	}
 
 	result, err := music.Apply(ctx, dl.Data, dl.Ext, effectName, intensity)
 	if err != nil {
-		return whatsapp.SendText(ctx, client, evt,
-			"❌ Não consegui processar o áudio. Certifique-se de que é um áudio válido.", true)
+		return whatsapp.SendText(ctx, client, evt, msgProcessAudioFail, true)
 	}
 
 	uploaded, err := client.Upload(ctx, result, whatsmeow.MediaAudio)
 	if err != nil {
-		return whatsapp.SendText(ctx, client, evt, "❌ Falha ao enviar o áudio modificado.", true)
+		return whatsapp.SendText(ctx, client, evt, msgUploadAudioFail, true)
 	}
 
 	if err := whatsapp.SendAudio(ctx, client, evt, &uploaded, "audio/mpeg", false, true); err != nil {
-		return whatsapp.SendText(ctx, client, evt, "❌ Falha ao enviar o áudio.", true)
+		return whatsapp.SendText(ctx, client, evt, msgSendAudioFail, true)
 	}
 
 	return nil
