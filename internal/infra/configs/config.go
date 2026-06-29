@@ -139,5 +139,6 @@ type OwnerConfig struct {
 }
 
 type MikaelConfig struct {
+	LID    string   `mapstructure:"lid"`
 	Groups []string `mapstructure:"groups"`
 }
