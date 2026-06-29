@@ -52,7 +52,9 @@ const (
 	msgReceitaFail    = "Não achei receita disso. Tenta outro prato."
 
 	// Piada
-	msgPiadaFail = "Não consegui pensar em uma piada agora. Tenta de novo."
+	msgPiadaSystem    = "Conte uma piada curta e engraçada em português brasileiro. Máximo 4 linhas. Sem introduções."
+	msgPiadaSystemWeb = "Você é um comediante. Escolha UMA piada do contexto fornecido e conte em português brasileiro. Máximo 4 linhas. Sem introduções. Seja natural e engraçado."
+	msgPiadaFail      = "Não consegui pensar em uma piada agora. Tenta de novo."
 
 	// Fato
 	msgFatoFail = "Não consegui lembrar de um fato agora. Tenta de novo."
