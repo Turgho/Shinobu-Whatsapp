@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
@@ -33,11 +34,13 @@ type Filter struct {
 	Video    bool
 	Audio    bool
 	Document bool // mp3/arquivo enviado como documento
+	Sticker  bool // figurinha WhatsApp (StickerMessage)
 }
 
 var (
 	FilterVisual    = Filter{Image: true, Video: true}
 	FilterAudioOnly = Filter{Audio: true, Document: true}
+	FilterSticker   = Filter{Image: true, Video: true, Sticker: true} // aceita também figurinhas como entrada
 )
 
 // DownloadFromEvent encontra e baixa mídia no evento ou na mensagem citada.
@@ -86,6 +89,10 @@ func extractDownloadable(evt *events.Message, f Filter) (*downloadable, error) {
 		return d, nil
 	}
 
+	if d := fromSticker(msg.GetStickerMessage(), f); d != nil {
+		return d, nil
+	}
+
 	quoted := msg.GetExtendedTextMessage().GetContextInfo().GetQuotedMessage()
 	if quoted == nil {
 		return nil, fmt.Errorf("nenhuma mídia encontrada na mensagem ou na citação")
@@ -101,7 +108,25 @@ func extractDownloadable(evt *events.Message, f Filter) (*downloadable, error) {
 		return d, nil
 	}
 
+	if d := fromSticker(quoted.GetStickerMessage(), f); d != nil {
+		return d, nil
+	}
+
 	return nil, fmt.Errorf("tipo de mídia não suportado pelo comando")
+}
+
+// fromSticker extrai o StickerMessage como mídia baixável.
+// StickerMessage é o tipo próprio de figurinhas do WhatsApp (não herda de ImageMessage).
+func fromSticker(stk *waE2E.StickerMessage, f Filter) *downloadable {
+	if !f.Sticker || isNil(stk) {
+		return nil
+	}
+	return &downloadable{
+		source:    stk,
+		ext:       ".webp",
+		animated:  stk.GetIsAnimated(),
+		mediaType: TypeImage,
+	}
 }
 
 func fromDirect(
