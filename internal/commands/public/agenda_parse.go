@@ -10,6 +10,45 @@ import (
 
 var relativeTimeRe = regexp.MustCompile(`(\d+)\s*(\w+)`)
 
+// parseRelativeDate lida com "hoje 14:00", "amanhã 08:00", "hoje", "amanhã".
+func parseRelativeDate(input string, loc *time.Location) (time.Time, bool) {
+	s := strings.ToLower(strings.TrimSpace(input))
+	now := time.Now().In(loc)
+
+	var base time.Time
+	switch {
+	case strings.HasPrefix(s, "hoje"):
+		base = now
+		s = strings.TrimPrefix(s, "hoje")
+	case strings.HasPrefix(s, "amanhã"):
+		base = now.AddDate(0, 0, 1)
+		s = strings.TrimPrefix(s, "amanhã")
+	case strings.HasPrefix(s, "amanha"):
+		base = now.AddDate(0, 0, 1)
+		s = strings.TrimPrefix(s, "amanha")
+	default:
+		return time.Time{}, false
+	}
+
+	s = strings.TrimSpace(s)
+	s = strings.TrimLeft(s, "àsas")
+
+	hour, min := 8, 0
+	if s != "" {
+		parts := strings.SplitN(s, ":", 2)
+		if len(parts) == 2 {
+			if h, err := strconv.Atoi(parts[0]); err == nil {
+				hour = h
+			}
+			if m, err := strconv.Atoi(parts[1]); err == nil {
+				min = m
+			}
+		}
+	}
+
+	return time.Date(base.Year(), base.Month(), base.Day(), hour, min, 0, 0, loc), true
+}
+
 // parseRelativeDuration converte "daqui 5 minutos", "em 2 horas" etc. em time.Time.
 // Retorna false se não reconhecer o formato.
 func parseRelativeDuration(input string, loc *time.Location) (time.Time, bool) {
@@ -56,6 +95,11 @@ func parseRelativeDuration(input string, loc *time.Location) (time.Time, bool) {
 func parseAgendaTime(input string, loc *time.Location) (time.Time, error) {
 	s := strings.TrimSpace(input)
 	s = strings.Trim(s, "`\"'")
+
+	// Palavras-chave de data: "hoje 14:00", "amanhã 08:00"
+	if t, ok := parseRelativeDate(s, loc); ok {
+		return t, nil
+	}
 
 	if t, ok := parseRelativeDuration(s, loc); ok {
 		return t, nil
