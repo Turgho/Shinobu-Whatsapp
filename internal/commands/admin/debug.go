@@ -10,6 +10,8 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
 )
 
 // resolveTargetJID extrai o JID alvo de uma mensagem: prioriza reply,
@@ -43,6 +45,22 @@ func truncateForWhatsApp(s string, max int) string {
 		return s
 	}
 	return s[:max] + "\n... (truncado)"
+}
+
+// protoToText formata uma mensagem protobuf no formato textproto.
+// Retorna string vazia se a entrada for nil ou se a marshaling falhar.
+func protoToText(m proto.Message) string {
+	if m == nil {
+		return ""
+	}
+	b, err := prototext.MarshalOptions{
+		Multiline: true,
+		Indent:    "  ",
+	}.Marshal(m)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 // pushNameFromEvent tenta extrair o push name do alvo a partir do evento.
@@ -135,7 +153,10 @@ func RawMsgHandler(ctx context.Context, cli *whatsmeow.Client, evt *events.Messa
 	}
 
 	qMsg := ext.GetContextInfo().GetQuotedMessage()
-	dump := fmt.Sprintf("%+v", qMsg)
+	dump := protoToText(qMsg)
+	if dump == "" {
+		dump = fmt.Sprintf("%+v", qMsg)
+	}
 	truncated := truncateForWhatsApp(dump, 3000)
 	body := fmt.Sprintf("📦 *Mensagem crua (whatsmeow)*\n```\n%s\n```", truncated)
 
@@ -184,7 +205,21 @@ func ChatInfoHandler(waClient *whatsmeow.Client) commands.HandlerFunc {
 // RawEventHandler dumps o evento completo do whatsmeow (Info + Message + RawMessage).
 func RawEventHandler(ctx context.Context, cli *whatsmeow.Client, evt *events.Message, _ []string) error {
 	// Sempre funciona — usa o evento atual, não requer reply
-	dump := fmt.Sprintf("%+v", evt)
+	var parts []string
+
+	parts = append(parts, "--- Info ---")
+	parts = append(parts, fmt.Sprintf("%+v", evt.Info))
+
+	if m := protoToText(evt.Message); m != "" {
+		parts = append(parts, "--- Message ---")
+		parts = append(parts, m)
+	}
+	if rm := protoToText(evt.RawMessage); rm != "" {
+		parts = append(parts, "--- RawMessage ---")
+		parts = append(parts, rm)
+	}
+
+	dump := strings.Join(parts, "\n")
 	truncated := truncateForWhatsApp(dump, 3000)
 	body := fmt.Sprintf("📦 *Evento completo (whatsmeow)*\n```\n%s\n```", truncated)
 
