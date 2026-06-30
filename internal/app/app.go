@@ -16,6 +16,7 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ia"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ignore"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/mikael"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/scheduler"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/sticker"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/weekday"
@@ -59,7 +60,9 @@ func Run() error {
 
 	store.StartCleanup(ctx, 24*time.Hour)
 
-	client, err := bot.NewClient(ctx, db)
+	mikaelStore := mikael.NewStore(store, store.DB(), cfg.Mikael.Groups, cfg.Mikael.LID, logger.Named("MIKAEL"))
+
+	client, err := bot.NewClient(ctx, db, logger.Named("CLIENT"))
 	if err != nil {
 		return fmt.Errorf("erro ao criar client WhatsApp: %w", err)
 	}
@@ -71,6 +74,7 @@ func Run() error {
 	ignoreStore := ignore.NewStore()
 	stickerStore := sticker.NewStore()
 	r := buildRouter(cfg, client.WAClient, logger, store, ignoreStore)
+	r.AddMessageHook(mikaelStore.SaveMessageHook())
 
 	r.SetAIConfig(&ia.Config{
 		GroqURL:    cfg.Groq.URL,
@@ -87,8 +91,8 @@ func Run() error {
 	dynStore := scheduler.NewDynamicStore("storage/dynamic_jobs.json", dynLogger)
 	sched := scheduler.NewScheduler(logger.Named("SCHEDULER"))
 
-	registerPublicCommands(r, cfg, logger, store, sched, dynStore, stickerStore)
-	registerAdminCommands(r, cfg, store, logger, ignoreStore, stickerStore)
+	registerPublicCommands(r, cfg, logger, store, sched, dynStore, stickerStore, mikaelStore)
+	registerAdminCommands(r, cfg, store, logger, ignoreStore, stickerStore, client.WAClient)
 	registerAliases(r)
 
 	// Carrega jobs dinâmicos persistidos, ignorando expirados
@@ -137,7 +141,7 @@ func Run() error {
 
 	sched.Start(ctx)
 
-	handler := bot.NewHandler(client.WAClient, r)
+	handler := bot.NewHandler(client.WAClient, r, logger.Named("HANDLER"))
 	client.RegisterHandlers(handler.EventHandler)
 
 	client.Listen()
@@ -184,7 +188,6 @@ func buildRouter(cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Lo
 	r.Use(commands.CommandNotFoundMiddleware(r))
 	r.Use(commands.PrivateCommandsMiddleware(r, cfg.UsersJID.Owner, cfg.UsersJID.Admins))
 	r.SetNLPGroupTrigger(cfg.Bot.NLPGroupTrigger)
-	r.SetMikaelGroups(cfg.Mikael.Groups)
 
 	return r
 }

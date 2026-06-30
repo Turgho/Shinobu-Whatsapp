@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -59,6 +60,8 @@ func NewCotacaoClient(apiURL string, logger *zap.Logger) *CotacaoClient {
 
 // Fetch busca as cotações de USD e EUR contra BRL em uma única chamada.
 func (c *CotacaoClient) Fetch(ctx context.Context) ([]CotacaoResult, error) {
+	c.logger.Debug("cotacao: buscando cotações", zap.String("url", c.APIURL))
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.APIURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cotacao: criar requisição: %w", err)
@@ -72,12 +75,27 @@ func (c *CotacaoClient) Fetch(ctx context.Context) ([]CotacaoResult, error) {
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("cotacao: ler body: %w", err)
+	}
+
+	c.logger.Debug("cotacao: resposta bruta",
+		zap.Int("status", resp.StatusCode),
+		zap.String("body", string(body)),
+	)
+
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("cotacao: status %d", resp.StatusCode)
+		c.logger.Warn("cotacao: status inesperado",
+			zap.Int("status", resp.StatusCode),
+			zap.String("url", c.APIURL),
+			zap.String("body", string(body)),
+		)
+		return nil, fmt.Errorf("cotacao: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
 	var raw apiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, fmt.Errorf("cotacao: decode JSON: %w", err)
 	}
 

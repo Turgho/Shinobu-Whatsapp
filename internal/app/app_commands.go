@@ -14,6 +14,7 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ia"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ignore"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/mikael"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/music"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/scheduler"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/sticker"
@@ -24,7 +25,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logger, store *history.Store, sched *scheduler.Scheduler, dynStore *scheduler.DynamicStore, stickerStore *sticker.Store) {
+func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logger, store *history.Store, sched *scheduler.Scheduler, dynStore *scheduler.DynamicStore, stickerStore *sticker.Store, mikaelStore *mikael.Store) {
 	geoClient := geocoding.NewGeoCoding(cfg.ApiURLs.Geocoding, cfg.ApiURLs.OpenMeteoGeo, logger.Named("GEOCODING"))
 	weatherClient := weather.NewWeatherClient(cfg.ApiURLs.Weather, logger.Named("WEATHER"))
 
@@ -214,10 +215,10 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Name:        "mikael",
 		Description: "Conta quantas vezes o Mikael escreveu 'pix' no grupo",
 		Type:        commands.CommandTypeFun,
-	}, public.MikaelHandler(store, &cfg.Mikael))
+	}, public.MikaelHandler(mikaelStore, logger))
 }
 
-func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *history.Store, logger *zap.Logger, ignoreStore *ignore.Store, stickerStore *sticker.Store) {
+func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *history.Store, logger *zap.Logger, ignoreStore *ignore.Store, stickerStore *sticker.Store, _ *whatsmeow.Client) {
 	musicCfg := &music.Config{
 		ServerURL: cfg.Music.ServerURL,
 		APIToken:  cfg.Music.APIToken,
@@ -228,7 +229,7 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *histo
 		Description: "Exibe estatísticas de runtime do bot",
 		Type:        commands.CommandTypeOwner,
 		Private:     true,
-	}, admin.StatsCommand(musicCfg))
+	}, admin.StatsCommand(musicCfg, logger))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "shutdown",
@@ -281,6 +282,7 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *histo
 		Type:        commands.CommandTypeAdmin,
 		Private:     true,
 	}, admin.MemoriaHandler(store, logger))
+
 }
 
 func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) commands.HandlerFunc {

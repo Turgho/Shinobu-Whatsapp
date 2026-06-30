@@ -12,14 +12,14 @@ import (
 //
 //	modelFastClass  → 14.4K RPD, 6K TPM  — classificação e extração JSON
 //	modelScoutFast  →  1K RPD, 30K TPM  — conversa, resumo, personalidade
-//	modelWebStrong  →  1K RPD, 12K TPM  — respostas com contexto Tavily
+//	modelWebStrong (gpt-oss-120b) → 1K RPD, 8K TPM, 200K TPD  — respostas com contexto Tavily
 //
 // Regra: tarefas sem personalidade (temperature=0, output JSON) → modelFastClass.
 // Tarefas com personalidade ou raciocínio → Scout ou 70b conforme contexto.
 const (
 	ModelFastClass = "llama-3.1-8b-instant"                      // classificação e extração estruturada
 	ModelScoutFast = "meta-llama/llama-4-scout-17b-16e-instruct" // conversa, resumo
-	ModelWebStrong = "llama-3.3-70b-versatile"                   // respostas com contexto Tavily
+	ModelWebStrong = "openai/gpt-oss-120b"                       // respostas com contexto Tavily
 )
 
 // Aliases internos para compatibilidade com código existente.
@@ -29,6 +29,7 @@ const (
 	modelWebStrong = ModelWebStrong
 )
 
+// Config agrupa as credenciais e dependências da IA (Groq + Tavily + HTTP).
 type Config struct {
 	GroqURL    string
 	GroqKey    string
