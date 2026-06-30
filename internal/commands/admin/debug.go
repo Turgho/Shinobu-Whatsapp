@@ -60,24 +60,45 @@ func WhoisHandler(waClient *whatsmeow.Client) commands.HandlerFunc {
 		target := resolveTargetJID(evt)
 
 		name := pushNameFromEvent(evt, target)
-		lidStr := "N/A"
-
-		userInfo, err := waClient.GetUserInfo(ctx, []types.JID{target})
-		if err == nil {
-			if info, ok := userInfo[target]; ok {
-				if !info.LID.IsEmpty() {
-					lidStr = info.LID.String()
-				}
-				if name == "" && info.VerifiedName != nil && info.VerifiedName.Details != nil {
-					if vn := info.VerifiedName.Details.GetVerifiedName(); vn != "" {
-						name = vn
+		if name == "" {
+			name = whatsapp.ResolveContactName(waClient, target)
+		}
+		if name == "" {
+			userInfo, err := waClient.GetUserInfo(ctx, []types.JID{target})
+			if err == nil {
+				if info, ok := userInfo[target]; ok {
+					if info.VerifiedName != nil && info.VerifiedName.Details != nil {
+						if vn := info.VerifiedName.Details.GetVerifiedName(); vn != "" {
+							name = vn
+						}
 					}
 				}
 			}
 		}
-
 		if name == "" {
-			name = "N/A"
+			name = "desconhecido"
+		}
+
+		isLID := target.Server == types.HiddenUserServer
+		var lidBase string
+		var pnResolved string
+		if isLID {
+			baseJID := whatsapp.StripLIDDeviceSuffix(target)
+			if baseJID != target {
+				lidBase = baseJID.String()
+			} else {
+				lidBase = target.String()
+			}
+			if pnJID, ok := whatsapp.ResolvePNFromLID(waClient, target); ok {
+				pnResolved = pnJID.String()
+			}
+		} else {
+			userInfo, err := waClient.GetUserInfo(ctx, []types.JID{target})
+			if err == nil {
+				if info, ok := userInfo[target]; ok && !info.LID.IsEmpty() {
+					lidBase = info.LID.String()
+				}
+			}
 		}
 
 		tipo := "DM"
@@ -89,7 +110,14 @@ func WhoisHandler(waClient *whatsmeow.Client) commands.HandlerFunc {
 		b.WriteString("🆔 *Informações do contato*\n")
 		b.WriteString(fmt.Sprintf("Nome: %s\n", name))
 		b.WriteString(fmt.Sprintf("JID: `%s`\n", target.String()))
-		b.WriteString(fmt.Sprintf("LID: `%s`\n", lidStr))
+		if isLID {
+			b.WriteString(fmt.Sprintf("LID base: `%s`\n", lidBase))
+		} else if lidBase != "" {
+			b.WriteString(fmt.Sprintf("LID: `%s`\n", lidBase))
+		}
+		if pnResolved != "" {
+			b.WriteString(fmt.Sprintf("PN resolvido: `%s`\n", pnResolved))
+		}
 		b.WriteString(fmt.Sprintf("Tipo: %s\n", tipo))
 		if evt.Info.IsGroup {
 			b.WriteString(fmt.Sprintf("Grupo JID: `%s`", evt.Info.Chat.String()))
