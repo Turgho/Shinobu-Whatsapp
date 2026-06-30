@@ -13,9 +13,6 @@ import (
 //	modelFastClass  → 14.4K RPD, 6K TPM  — classificação e extração JSON
 //	modelScoutFast  →  1K RPD, 30K TPM  — conversa, resumo, personalidade
 //	modelWebStrong (gpt-oss-120b) → 1K RPD, 8K TPM, 200K TPD  — respostas com contexto Tavily
-//
-// Regra: tarefas sem personalidade (temperature=0, output JSON) → modelFastClass.
-// Tarefas com personalidade ou raciocínio → Scout ou 70b conforme contexto.
 const (
 	ModelFastClass = "llama-3.1-8b-instant"                      // classificação e extração estruturada
 	ModelScoutFast = "meta-llama/llama-4-scout-17b-16e-instruct" // conversa, resumo
