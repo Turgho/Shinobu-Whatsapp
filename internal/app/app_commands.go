@@ -218,7 +218,7 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 	}, public.MikaelHandler(mikaelStore, logger))
 }
 
-func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *history.Store, logger *zap.Logger, ignoreStore *ignore.Store, stickerStore *sticker.Store, _ *whatsmeow.Client) {
+func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *history.Store, logger *zap.Logger, ignoreStore *ignore.Store, stickerStore *sticker.Store, waClient *whatsmeow.Client) {
 	musicCfg := &music.Config{
 		ServerURL: cfg.Music.ServerURL,
 		APIToken:  cfg.Music.APIToken,
@@ -283,6 +283,42 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *histo
 		Private:     true,
 	}, admin.MemoriaHandler(store, logger))
 
+	// --- Comandos de debug ---
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "whois",
+		Description: "Informações de JID/LID de um contato",
+		Type:        commands.CommandTypeAdmin,
+		Private:     true,
+	}, admin.WhoisHandler(waClient))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "rawmsg",
+		Description: "Dump da mensagem crua do whatsmeow (debug)",
+		Type:        commands.CommandTypeAdmin,
+		Private:     true,
+	}, admin.RawMsgHandler)
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "chatinfo",
+		Description: "Informações do chat atual",
+		Type:        commands.CommandTypeAdmin,
+		Private:     true,
+	}, admin.ChatInfoHandler(waClient))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "rawevent",
+		Description: "Dump do evento completo do whatsmeow (debug)",
+		Type:        commands.CommandTypeAdmin,
+		Private:     true,
+	}, admin.RawEventHandler)
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "groupjid",
+		Description: "JID do grupo atual",
+		Type:        commands.CommandTypeAdmin,
+		Private:     true,
+	}, admin.GroupJIDHandler)
 }
 
 func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) commands.HandlerFunc {
