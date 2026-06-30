@@ -8,20 +8,23 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/logger"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
+	"go.uber.org/zap"
 
 	qrterminal "github.com/mdp/qrterminal/v3"
 )
 
 type Client struct {
 	WAClient *whatsmeow.Client
+	log      *zap.Logger
 }
 
 // NewClient cria o client WhatsApp usando o banco de dados passado.
 // Tenta reutilizar um dispositivo existente; cria um novo apenas se não houver nenhum.
-func NewClient(ctx context.Context, db *sql.DB) (*Client, error) {
+func NewClient(ctx context.Context, db *sql.DB, log *zap.Logger) (*Client, error) {
 	dbLogger := logger.NewDatabaseLogger()
 	container := sqlstore.NewWithDB(db, "sqlite3", dbLogger)
 
@@ -44,7 +47,7 @@ func NewClient(ctx context.Context, db *sql.DB) (*Client, error) {
 	waLogger := logger.NewWhatsAppLogger()
 	client := whatsmeow.NewClient(deviceStore, waLogger)
 
-	return &Client{WAClient: client}, nil
+	return &Client{WAClient: client, log: log}, nil
 }
 
 // Connect conecta ao WhatsApp. Se não houver sessão salva, exibe o QR Code.
@@ -55,14 +58,14 @@ func (c *Client) Connect(ctx context.Context) error {
 			return fmt.Errorf("erro ao obter canal de QR Code: %w", err)
 		}
 
-		go func() {
+		gosafe.Go(c.log, func() {
 			for evt := range qrChan {
 				if evt.Event == "code" {
 					fmt.Println("Escaneie o QR Code:")
 					qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
 				}
 			}
-		}()
+		})
 	}
 
 	if err := c.WAClient.Connect(); err != nil {
