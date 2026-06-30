@@ -23,6 +23,8 @@ func formatoBR(v float64) string {
 // Se args[0] for "dolar"/"usd"/"dólar"/"dollar", mostra só USD.
 // Se args[0] for "euro"/"eur", mostra só EUR.
 // Caso contrário, mostra ambas.
+// Se args forem fornecidos mas não forem moeda conhecida, retorna ErrNotACommand
+// para que o pipeline de NLU tente fallback para IA geral.
 func CotacaoCommand(
 	ctx context.Context,
 	client *whatsmeow.Client,
@@ -30,6 +32,11 @@ func CotacaoCommand(
 	args []string,
 	cotacaoClient *cotacao.CotacaoClient,
 ) error {
+	// Se veio do NLU com args que não batem com moeda, não é cotação
+	if len(args) > 0 && parseCurrencyFilter(args) == "" {
+		return fmt.Errorf("%w: args não reconhecidos como moeda: %v", commands.ErrNotACommand, args)
+	}
+
 	rates, err := cotacaoClient.Fetch(ctx)
 	if err != nil {
 		return whatsapp.Reply(ctx, client, evt, msgCotacaoFail)

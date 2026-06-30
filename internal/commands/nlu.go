@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ia"
@@ -54,6 +55,14 @@ func (r *Router) handleNaturalLanguage(evt *events.Message, msg string) {
 		dispatchCtx, cancelDispatch := context.WithTimeout(context.Background(), handlerTimeoutCommand)
 		defer cancelDispatch()
 		if err := handler(dispatchCtx, r.client, evt, intent.Args); err != nil {
+			if errors.Is(err, ErrNotACommand) {
+				r.log.Debug("NLU: handler rejeitou comando, fallback IA",
+					zap.String("command", intent.Command),
+					zap.Error(err),
+				)
+				r.handleShinobuMention(evt, msg)
+				return
+			}
 			r.log.Warn("NLU: handler error",
 				append(eventFields(evt),
 					zap.String("command", intent.Command),

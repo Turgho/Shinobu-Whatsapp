@@ -2,10 +2,15 @@ package commands
 
 import (
 	"context"
+	"errors"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )
+
+// ErrNotACommand indica que o handler identificou que não é o comando certo
+// para a mensagem. O pipeline de NLU deve cair de volta para IA geral.
+var ErrNotACommand = errors.New("handler: not the right command for this input")
 
 // HandlerFunc é a assinatura de um handler de comando.
 // O contexto vem do Router (timeouts); args exclui o nome do comando.
