@@ -40,13 +40,15 @@ type Router struct {
 	rateLimitMax   int
 	rateLimitEvery time.Duration
 
+	messageHooks    []func(ctx context.Context, evt *events.Message, msg string)
 	botJID          string
 	maintenance     atomic.Bool
 	aiConfig        *ia.Config
 	nlpGroupTrigger bool
-	mikaelGroups    map[string]bool
 }
 
+// NewRouter cria um router com prefixo de comando, client WhatsApp e dependências.
+// Rate limit padrão: 10 mensagens por minuto por sender.
 func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *history.Store, ignoreStore *ignore.Store) *Router {
 	return &Router{
 		commands:       make(map[string]command),
@@ -64,39 +66,44 @@ func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *
 
 // --- Setters de configuração ---
 
+// SetBotJID define o JID do bot para detecção de menção em mensagens.
 func (r *Router) SetBotJID(jid string) {
 	r.botJID = jid
 }
 
+// SetAIConfig configura o provider de IA (Groq + Tavily) para NLU e respostas.
 func (r *Router) SetAIConfig(cfg *ia.Config) {
 	r.aiConfig = cfg
 	r.log.Info("AI config definido", zap.Bool("groq", cfg.GroqKey != ""), zap.Bool("tavily", cfg.TavilyKey != ""))
 }
 
+// SetNLPGroupTrigger ativa/desativa heurísticas NLU em grupos sem menção explícita.
 func (r *Router) SetNLPGroupTrigger(on bool) {
 	r.nlpGroupTrigger = on
 	r.log.Info("NLP group trigger alterado", zap.Bool("enabled", on))
 }
 
+// SetMaintenance ativa/desativa modo manutenção (comandos bloqueados, exceto manutencao).
 func (r *Router) SetMaintenance(on bool) {
 	r.maintenance.Store(on)
 	r.log.Info("Modo manutenção alterado", zap.Bool("on", on))
 }
 
-func (r *Router) SetMikaelGroups(groups []string) {
-	r.mikaelGroups = make(map[string]bool, len(groups))
-	for _, g := range groups {
-		r.mikaelGroups[g] = true
-	}
-	r.log.Info("Mikael groups definidos", zap.Int("count", len(groups)))
+// AddMessageHook registra uma função chamada para cada mensagem recebida,
+// antes do roteamento (prefixo ou NLU). Útil para logging ou armazenamento
+// específico sem poluir o router.
+func (r *Router) AddMessageHook(hook func(ctx context.Context, evt *events.Message, msg string)) {
+	r.messageHooks = append(r.messageHooks, hook)
 }
 
+// IsMaintenance retorna true se o bot está em modo manutenção.
 func (r *Router) IsMaintenance() bool {
 	return r.maintenance.Load()
 }
 
 // --- Registro de comandos e aliases ---
 
+// RegisterCommand registra um comando no router com metadados e handler.
 func (r *Router) RegisterCommand(meta CommandMeta, handler HandlerFunc) {
 	r.commands[meta.Name] = command{Meta: meta, Handler: handler}
 	r.log.Info("Comando registrado",
@@ -105,6 +112,7 @@ func (r *Router) RegisterCommand(meta CommandMeta, handler HandlerFunc) {
 	)
 }
 
+// RegisterAlias registra um alias que redireciona para um comando existente.
 func (r *Router) RegisterAlias(alias, target string) {
 	if _, ok := r.commands[alias]; ok {
 		r.log.Warn("Alias conflita com comando existente", zap.String("alias", alias))
@@ -125,10 +133,12 @@ func (r *Router) resolveAlias(name string) string {
 	return name
 }
 
+// Use adiciona um middleware ao pipeline (executado na ordem de registro).
 func (r *Router) Use(m Middleware) {
 	r.middlewares = append(r.middlewares, m)
 }
 
+// Commands retorna os metadados de todos os comandos registrados.
 func (r *Router) Commands() []CommandMeta {
 	metas := make([]CommandMeta, 0, len(r.commands))
 	for _, cmd := range r.commands {
@@ -137,20 +147,24 @@ func (r *Router) Commands() []CommandMeta {
 	return metas
 }
 
+// HasCommand verifica se um comando (ou alias) está registrado.
 func (r *Router) HasCommand(name string) bool {
 	_, ok := r.commands[r.resolveAlias(name)]
 	return ok
 }
 
+// IsPrivate retorna true se o comando é marcado como privado (requer owner/admin).
 func (r *Router) IsPrivate(name string) bool {
 	cmd, ok := r.commands[r.resolveAlias(name)]
 	return ok && cmd.Meta.Private
 }
 
+// Prefix retorna o prefixo de comando configurado (ex: "!").
 func (r *Router) Prefix() string {
 	return r.prefix
 }
 
+// Handler retorna a HandlerFunc registrada para o nome, ou nil se não existir.
 func (r *Router) Handler(name string) HandlerFunc {
 	cmd, ok := r.commands[name]
 	if !ok {
@@ -204,11 +218,8 @@ func (r *Router) HandleMessage(evt *events.Message) {
 		return
 	}
 
-	// Salva mensagens de grupos mikael para contagem de palavras
-	chat := evt.Info.Chat.String()
-	if r.mikaelGroups[chat] {
-		senderNonAD := evt.Info.Sender.ToNonAD().String()
-		_ = r.store.Save(context.Background(), chat, senderNonAD, msg)
+	for _, hook := range r.messageHooks {
+		hook(context.Background(), evt, msg)
 	}
 
 	rateLimitKey := evt.Info.Sender.ToNonAD().String()
@@ -238,7 +249,9 @@ func (r *Router) handlePrefixedMessage(evt *events.Message, msg string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		maintenanceMsg := "😅 *O bot está em manutenção!*\n\nComandos temporariamente desativados. Tente novamente mais tarde."
-		_ = whatsapp.Reply(ctx, r.client, evt, maintenanceMsg)
+		if err := whatsapp.Reply(ctx, r.client, evt, maintenanceMsg); err != nil {
+			r.log.Warn("Falha ao enviar mensagem de manutenção", zap.Error(err))
+		}
 		return
 	}
 

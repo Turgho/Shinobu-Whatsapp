@@ -62,7 +62,7 @@ func (j *DynamicJob) Run(ctx context.Context) error {
 	defer cancel()
 
 	if j.MentionAll {
-		err = whatsapp.SendAllToJID(sendCtx, j.client, jid, j.Message)
+		err = whatsapp.SendAllToJID(sendCtx, j.client, jid, "@all "+j.Message)
 	} else {
 		err = whatsapp.SendTextToJID(sendCtx, j.client, jid, j.Message, nil)
 	}

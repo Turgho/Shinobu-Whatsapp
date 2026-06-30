@@ -61,15 +61,18 @@ func AgendaCommand(
 		return whatsapp.Reply(ctx, client, evt, msgDateLimit)
 	}
 
-	// Detecta flag @all: "todos" na mensagem
+	// Detecta flag @all: "@all" (NLU) ou "todos" (digitação manual) na mensagem
 	rawMsg := strings.Join(args[1:], " ")
 	mentionAll := false
-	if idx := strings.Index(strings.ToLower(rawMsg), "todos"); idx >= 0 {
-		mentionAll = true
-		// Remove a palavra "todos" (case-insensitive) da mensagem
-		before := rawMsg[:idx]
-		after := rawMsg[idx+len("todos"):]
-		rawMsg = strings.TrimSpace(before + " " + after)
+	for _, marker := range []string{"@all", "todos"} {
+		if idx := strings.Index(strings.ToLower(rawMsg), marker); idx >= 0 {
+			mentionAll = true
+			before := rawMsg[:idx]
+			after := rawMsg[idx+len(marker):]
+			rawMsg = strings.TrimSpace(before + " " + after)
+			rawMsg = trimLeadingPreps(rawMsg)
+			break
+		}
 	}
 	if rawMsg == "" {
 		return whatsapp.Reply(ctx, client, evt, msgEmptyReminder)
@@ -214,4 +217,26 @@ func AgendaHandler(
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		return AgendaCommand(ctx, client, evt, args, sched, dynStore, l, loc)
 	}
+}
+
+func trimLeadingPreps(s string) string {
+	preps := []string{"do", "da", "de", "o", "a", "os", "das", "dos", "um", "uma"}
+	for {
+		trimmed := false
+		fields := strings.Fields(s)
+		if len(fields) == 0 {
+			break
+		}
+		for _, p := range preps {
+			if strings.EqualFold(fields[0], p) {
+				s = strings.Join(fields[1:], " ")
+				trimmed = true
+				break
+			}
+		}
+		if !trimmed {
+			break
+		}
+	}
+	return s
 }

@@ -220,7 +220,7 @@ Na primeira execução, escaneie o QR Code exibido no terminal. A sessão WhatsA
 | Uso | Modelo |
 |-----|--------|
 | Conversa e resumo | `meta-llama/llama-4-scout-17b-16e-instruct` |
-| Resposta com contexto web | `llama-3.3-70b-versatile` |
+| Resposta com contexto web | `openai/gpt-oss-120b` |
 | NLU / classificação | Scout com `MaxTokens` reduzido |
 
 ---
@@ -377,11 +377,10 @@ Para comandos com dependências: use o padrão closure `XyzHandler(dep) HandlerF
 ## Melhorias previstas
 
 - **Memória por usuário em grupos:** separar contexto por remetente dentro de um mesmo grupo
-- **`!memoria` completo:** comando admin para inspecionar e limpar resumo/fatos da IA
-- **Previsão do tempo por data:** `!clima São Paulo sexta` ou via linguagem natural
-- **Refactor `weather.go`:** extrair helper `fetchHourly` para eliminar duplicação entre `fetchOpenMeteo` e `GetForecastForDate`
+- **Refactor `weather.go` (~322 linhas):** extrair helper `fetchHourly` para eliminar duplicação entre `fetchOpenMeteo` e `GetForecastForDate`
 - **Padronizar `mapstructure`** em `configs/config.go`
 - **`StartCleanup`** em `history` migrar para `gosafe.Go`
+- **`weekday/job.go Run()`:** remover IIFEs anônimas `func() { ... }()` no loop — usar `defer cancel()` direto
 
 ---
 

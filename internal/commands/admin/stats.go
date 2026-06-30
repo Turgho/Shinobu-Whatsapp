@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/music"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/uptime"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/version"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
@@ -17,6 +18,7 @@ import (
 	"github.com/shirou/gopsutil/v3/host"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
+	"go.uber.org/zap"
 )
 
 type remoteStats struct {
@@ -60,7 +62,7 @@ func fetchNotebookStats(musicCfg *music.Config) (*remoteStats, error) {
 
 // StatsCommand exibe stats do sistema (CPU, RAM, temperatura, uptime, notebook remoto).
 // Dados do notebook são buscados em goroutine concorrente com waitgroup.
-func StatsCommand(musicCfg *music.Config) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+func StatsCommand(musicCfg *music.Config, log *zap.Logger) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		var (
 			notebook *remoteStats
@@ -69,10 +71,10 @@ func StatsCommand(musicCfg *music.Config) func(ctx context.Context, client *what
 		)
 
 		wg.Add(1)
-		go func() {
+		gosafe.Go(log, func() {
 			defer wg.Done()
 			notebook, nbErr = fetchNotebookStats(musicCfg)
-		}()
+		})
 
 		uptimeStr := time.Since(uptime.ProcessStartTime()).Round(time.Second)
 		cpuPercent, _ := cpu.Percent(time.Second, false)

@@ -9,12 +9,14 @@ import (
 	"go.uber.org/zap"
 )
 
+// Job é uma tarefa agendável. Next retorna a próxima execução (zero time para one-shot já executado).
 type Job interface {
 	Name() string
 	Next(now time.Time) time.Time
 	Run(ctx context.Context) error
 }
 
+// Scheduler gerencia execução periódica de jobs com ticker de 15 segundos.
 type Scheduler struct {
 	mu     sync.Mutex
 	jobs   []*jobEntry
@@ -27,6 +29,7 @@ type jobEntry struct {
 	lastRun time.Time
 }
 
+// NewScheduler cria um scheduler vazio. Deve ser iniciado com Start.
 func NewScheduler(logger *zap.Logger) *Scheduler {
 	return &Scheduler{
 		jobs:   make([]*jobEntry, 0),
@@ -35,6 +38,7 @@ func NewScheduler(logger *zap.Logger) *Scheduler {
 	}
 }
 
+// Register adiciona um job ao scheduler. Jobs one-shot são removidos após execução.
 func (s *Scheduler) Register(job Job) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -47,6 +51,7 @@ func (s *Scheduler) Register(job Job) {
 	)
 }
 
+// Unregister remove um job pelo nome.
 func (s *Scheduler) Unregister(name string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -64,6 +69,7 @@ func (s *Scheduler) unregisterLocked(name string) {
 	}
 }
 
+// Start inicia o loop do scheduler em uma goroutine segura (gosafe.Go).
 func (s *Scheduler) Start(ctx context.Context) {
 	gosafe.Go(s.logger, func() {
 		s.run(ctx)

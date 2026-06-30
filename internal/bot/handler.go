@@ -2,19 +2,25 @@ package bot
 
 import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
+	"go.uber.org/zap"
 )
 
+// Handler conecta eventos do whatsmeow ao Router de comandos em gorrotinas seguras.
 type Handler struct {
 	client *whatsmeow.Client
 	router *commands.Router
+	log    *zap.Logger
 }
 
-func NewHandler(client *whatsmeow.Client, router *commands.Router) *Handler {
+// NewHandler cria um handler de eventos WhatsApp com logger para gosafe.Go.
+func NewHandler(client *whatsmeow.Client, router *commands.Router, log *zap.Logger) *Handler {
 	return &Handler{
 		client: client,
 		router: router,
+		log:    log,
 	}
 }
 
@@ -41,6 +47,6 @@ func (h *Handler) EventHandler(evt interface{}) {
 	case *events.Message:
 		// Goroutine para concorrencia e poder usar comando mais de uma vez
 		// log.Printf("RawMessage: %+v\n", v.RawMessage)
-		go h.router.HandleMessage(v)
+		gosafe.Go(h.log, func() { h.router.HandleMessage(v) })
 	}
 }
