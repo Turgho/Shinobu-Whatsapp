@@ -147,6 +147,18 @@ traduz:
 NÃO classificar como comando (retornar vazio):
 "bom dia", "kkk", "boa tarde", conversa casual sem intenção de ação.
 
+NÃO classificar como cotacao:
+"qual o preço de um carro?" → {"command":"","args":[]}
+"quanto custa uma tv?" → {"command":"","args":[]}
+"preço do ps5" → {"command":"","args":[]}
+"qual o valor de um iphone?" → {"command":"","args":[]}
+"quanto tá o preço da gasolina?" → {"command":"","args":[]}
+"preço do feijão" → {"command":"","args":[]}
+"quanto é o aluguel?" → {"command":"","args":[]}
+"cotação de um carro" → {"command":"","args":[]}
+"cotação do ps5" → {"command":"","args":[]}
+"qual a cotação de uma moto?" → {"command":"","args":[]}
+
 REGRAS DE DATA E HORA:
 - Resolva palavras relativas usando %s (%s) como referência:
   "amanhã" → %s
