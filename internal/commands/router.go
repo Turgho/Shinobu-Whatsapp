@@ -218,9 +218,11 @@ func (r *Router) HandleMessage(evt *events.Message) {
 		return
 	}
 
+	hookCtx, hookCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	for _, hook := range r.messageHooks {
-		hook(context.Background(), evt, msg)
+		hook(hookCtx, evt, msg)
 	}
+	hookCancel()
 
 	rateLimitKey := evt.Info.Sender.ToNonAD().String()
 	if !r.checkRateLimit(rateLimitKey) {

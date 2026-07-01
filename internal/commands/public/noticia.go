@@ -26,7 +26,7 @@ func NoticiaCommand(
 		return whatsapp.Reply(ctx, client, evt, msgNoticiaFail)
 	}
 
-	webContext, err := ia.SearchWeb(ctx, aiCfg.TavilyKey, "principais notícias do Brasil hoje")
+	webContext, err := ia.SearchWeb(ctx, aiCfg.HTTPClient, aiCfg.TavilyKey, "principais notícias do Brasil hoje")
 	if err != nil || webContext == "" {
 		return whatsapp.Reply(ctx, client, evt, msgNoticiaFail)
 	}

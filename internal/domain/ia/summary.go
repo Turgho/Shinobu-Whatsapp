@@ -143,33 +143,4 @@ Regras:
 	return callGroq(ctx, cfg.HTTPClient, cfg.GroqURL, cfg.GroqKey, modelScoutFast, msgs, 0, 220)
 }
 
-func formatMessagesForSummary(msgs []history.IAMessage) string {
-	if len(msgs) == 0 {
-		return "(sem mensagens recentes)"
-	}
 
-	var b strings.Builder
-	for _, msg := range msgs {
-		role := "Usuário"
-		switch msg.Role {
-		case "assistant":
-			role = "Assistente"
-		case "system":
-			role = "Sistema"
-		}
-		content := strings.TrimSpace(msg.Content)
-		if content == "" {
-			continue
-		}
-		b.WriteString(role)
-		b.WriteString(": ")
-		b.WriteString(content)
-		b.WriteString("\n")
-	}
-
-	out := strings.TrimSpace(b.String())
-	if out == "" {
-		return "(sem mensagens úteis)"
-	}
-	return out
-}

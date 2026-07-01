@@ -121,21 +121,21 @@ func Load() *Config {
 
 // Configurações carregadas de env vars / viper (sem mapstructure no yaml)
 type GroqConfig struct {
-	URL    string
-	APIKey string
+	URL    string `mapstructure:"url"`
+	APIKey string `mapstructure:"apiKey"`
 }
 
 type TavilyConfig struct {
-	APIKey string
+	APIKey string `mapstructure:"apiKey"`
 }
 
 type MusicConfig struct {
-	ServerURL string
-	APIToken  string
+	ServerURL string `mapstructure:"serverUrl"`
+	APIToken  string `mapstructure:"apiToken"`
 }
 
 type OwnerConfig struct {
-	Number string
+	Number string `mapstructure:"number"`
 }
 
 type MikaelConfig struct {

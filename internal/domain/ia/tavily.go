@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 	"unicode/utf8"
 )
 
@@ -40,7 +39,7 @@ type tavilyResponse struct {
 	} `json:"results"`
 }
 
-func searchWeb(ctx context.Context, apiKey, query string) (string, error) {
+func searchWeb(ctx context.Context, httpClient *http.Client, apiKey, query string) (string, error) {
 	if apiKey == "" {
 		return "", fmt.Errorf("TAVILY_API_KEY não configurada")
 	}
@@ -80,8 +79,7 @@ func searchWeb(ctx context.Context, apiKey, query string) (string, error) {
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(httpReq)
+	resp, err := httpClient.Do(httpReq)
 	if err != nil {
 		return "", fmt.Errorf("tavily: http: %w", err)
 	}

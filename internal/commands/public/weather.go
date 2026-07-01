@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/commands"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/geocoding"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/weather"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
@@ -109,4 +110,11 @@ func buildWeatherMessage(loc geocoding.GeoResult, w *weather.WeatherResult, isFo
 		w.WindSpeed,
 		w.WindDirection,
 	)
+}
+
+// WeatherHandler wraps WeatherCommand with dependencies.
+func WeatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) commands.HandlerFunc {
+	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+		return WeatherCommand(ctx, client, evt, args, geo, wc)
+	}
 }

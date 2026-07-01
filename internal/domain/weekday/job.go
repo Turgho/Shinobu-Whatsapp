@@ -145,57 +145,52 @@ func (j *WeekdayJob) Next(now time.Time) time.Time {
 func (j *WeekdayJob) Run(ctx context.Context) error {
 	for _, groupJID := range j.targetGroups {
 		// 1. Envia áudio como PTT
-		func() {
-			sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			defer cancel()
-			if err := whatsapp.SendAudioFileToJID(sendCtx, j.client, groupJID, j.audioPath); err != nil {
-				j.logger.Error("Erro ao enviar áudio",
-					zap.String("group", groupJID.String()),
-					zap.Error(err),
-				)
-			}
-		}()
+		sendCtx, sendCancel := context.WithTimeout(ctx, 30*time.Second)
+		if err := whatsapp.SendAudioFileToJID(sendCtx, j.client, groupJID, j.audioPath); err != nil {
+			j.logger.Error("Erro ao enviar áudio",
+				zap.String("group", groupJID.String()),
+				zap.Error(err),
+			)
+		}
+		sendCancel()
 
 		// 2. Envia texto com @all nativo
-		func() {
-			sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			defer cancel()
-			msg := fmt.Sprintf("🎉 %s! @all", j.day.String())
-			if err := whatsapp.SendAllToJID(sendCtx, j.client, groupJID, msg); err != nil {
-				j.logger.Error("Erro ao enviar menção @all",
-					zap.String("group", groupJID.String()),
-					zap.Error(err),
-				)
-			}
-		}()
+		sendCtx, sendCancel = context.WithTimeout(ctx, 30*time.Second)
+		msg := fmt.Sprintf("🎉 %s! @all", j.day.String())
+		if err := whatsapp.SendAllToJID(sendCtx, j.client, groupJID, msg); err != nil {
+			j.logger.Error("Erro ao enviar menção @all",
+				zap.String("group", groupJID.String()),
+				zap.Error(err),
+			)
+		}
+		sendCancel()
 
 		// 3. Envia sticker se configurado
 		if j.stickerName != "" {
-			func() {
-				sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-				defer cancel()
-				d, ok := j.stickerStore.Get(j.stickerName)
-				if !ok {
-					j.logger.Warn("Sticker não encontrado",
-						zap.String("sticker", j.stickerName),
-					)
-					return
-				}
-				uploaded := &whatsmeow.UploadResponse{
-					URL:           d.URL,
-					DirectPath:    d.DirectPath,
-					MediaKey:      d.MediaKey,
-					FileEncSHA256: d.FileEncSHA256,
-					FileSHA256:    d.FileSHA256,
-					FileLength:    d.FileLength,
-				}
-				if err := whatsapp.SendStickerToJID(sendCtx, j.client, groupJID, uploaded, d.IsAnimated); err != nil {
-					j.logger.Error("Erro ao enviar sticker",
-						zap.String("group", groupJID.String()),
-						zap.Error(err),
-					)
-				}
-			}()
+			sendCtx, sendCancel := context.WithTimeout(ctx, 30*time.Second)
+			d, ok := j.stickerStore.Get(j.stickerName)
+			if !ok {
+				j.logger.Warn("Sticker não encontrado",
+					zap.String("sticker", j.stickerName),
+				)
+				sendCancel()
+				continue
+			}
+			uploaded := &whatsmeow.UploadResponse{
+				URL:           d.URL,
+				DirectPath:    d.DirectPath,
+				MediaKey:      d.MediaKey,
+				FileEncSHA256: d.FileEncSHA256,
+				FileSHA256:    d.FileSHA256,
+				FileLength:    d.FileLength,
+			}
+			if err := whatsapp.SendStickerToJID(sendCtx, j.client, groupJID, uploaded, d.IsAnimated); err != nil {
+				j.logger.Error("Erro ao enviar sticker",
+					zap.String("group", groupJID.String()),
+					zap.Error(err),
+				)
+			}
+			sendCancel()
 		}
 	}
 	return nil
