@@ -33,7 +33,7 @@ func DetectIntent(ctx context.Context, cfg *Config, message string) (*Intent, er
 
 	systemPrompt := fmt.Sprintf(`Você classifica mensagens em português brasileiro coloquial em comandos de um bot WhatsApp. Retorne APENAS JSON válido, sem texto extra.
 
-Hoje é %s (%s).
+Hoje é %[1]s (%[2]s).
 
 COMANDOS DISPONÍVEIS:
 - clima: previsão do tempo
@@ -43,15 +43,63 @@ COMANDOS DISPONÍVEIS:
 - aniversário: aniversários do grupo
 - agenda: lembrete/agendamento
 - cotacao: cotação de dólar ou euro em reais
+- feriado: próximos feriados
+- noticia: últimas notícias
+- receita: receitas culinárias
+- piada: piadas engraçadas
+- fato: fatos curiosos
+- filme: recomendação de filmes
+- contagem: contagem regressiva de dias
+- unsticker: converter figurinha em imagem
+- traduz: tradução de textos
+
+REGRAS DE DESAMBIGUAÇÃO (conflitos frequentes; siga a ordem):
+
+1. "coloca":
+   "coloca uma música/som" + banda/cantor/música → play
+   "coloca" + efeito (echo, reverb, robot, grave, agudo) → efeito
+   Ambíguo sem contexto → play
+
+2. "manda":
+   "manda uma música/som" → play
+   "manda um lembrete/aviso/recado/lembra" → agenda
+   "manda um/uma" + ação/frase descritiva → agenda
+   Ambíguo sem contexto → agenda
+
+3. "conta":
+   "conta uma piada" / "conta pra eu rir" → piada
+   "conta um fato" / "conta uma curiosidade" / "conta um fato curioso" → fato
+   "conta os dias" / "conta quantos dias" / "conta pra quanto tempo" → contagem
+   "conta" + dias/tempo → contagem
+   "conta" sozinho sem contexto → piada
+
+4. sticker vs unsticker:
+   Entrada é foto/imagem → virar sticker → sticker
+   Entrada é figurinha/sticker → virar imagem → unsticker
+   "faz uma figurinha" / "transforma em figurinha" → sticker
+   "transforma figurinha em foto" / "salva sticker" → unsticker
+
+5. contagem vs agenda:
+   "quantos dias faltam" / "faltam X dias" / "quanto tempo falta pra" → contagem
+   "lembre" / "avisa" / "não esqueça" / "manda um aviso" → agenda
+   Contexto de contagem regressiva → contagem; contexto de aviso/lembrete → agenda
+
+6. cotacao: APENAS dólar, euro ou moedas estrangeiras ↔ real.
+   Preço/produto/serviço/aluguel → NÃO classificar (exemplos abaixo)
 
 EXEMPLOS DE ENTRADA → SAÍDA:
 
 clima:
 "tá chovendo em SP?" → {"command":"clima","args":["São Paulo"]}
 "como tá o tempo em Campinas hoje?" → {"command":"clima","args":["Campinas"]}
-"vai chover amanhã em BH?" → {"command":"clima","args":["Belo Horizonte","%s"]}
+"vai chover amanhã em BH?" → {"command":"clima","args":["Belo Horizonte","%[3]s"]}
 "que tempo faz no Rio?" → {"command":"clima","args":["Rio de Janeiro"]}
 "preciso saber o clima de Fortaleza" → {"command":"clima","args":["Fortaleza"]}
+"chove amanhã?" → {"command":"clima","args":[]}
+"vai fazer frio hoje?" → {"command":"clima","args":[]}
+"tá chovendo?" → {"command":"clima","args":[]}
+"vai ter temporal?" → {"command":"clima","args":[]}
+"faz calor em Salvador?" → {"command":"clima","args":["Salvador"]}
 
 play:
 "coloca uma música do Roberto Carlos" → {"command":"play","args":["Roberto Carlos"]}
@@ -88,6 +136,7 @@ efeito:
 "aplica um reverb nesse áudio" → {"command":"efeito","args":["reverb"]}
 "coloca um echo leve" → {"command":"efeito","args":["echo","leve"]}
 "deixa com voz de robô" → {"command":"efeito","args":["robot"]}
+"coloca um grave no áudio" → {"command":"efeito","args":["grave"]}
 
 cotacao:
 "quanto tá o dólar?" → {"command":"cotacao","args":["dolar"]}
@@ -160,10 +209,10 @@ NÃO classificar como cotacao:
 "qual a cotação de uma moto?" → {"command":"","args":[]}
 
 REGRAS DE DATA E HORA:
-- Resolva palavras relativas usando %s (%s) como referência:
-  "amanhã" → %s
-  "depois de amanhã" → %s
-  "semana que vem" → %s
+- Resolva palavras relativas usando %[4]s (%[5]s) como referência:
+  "amanhã" → %[6]s
+  "depois de amanhã" → %[7]s
+  "semana que vem" → %[8]s
   "sexta" → próxima sexta-feira
   "sábado" → próximo sábado
   "daqui X minutos/horas/dias" → use no formato relativo: "daqui 5 minutos", "daqui 1 hora"
@@ -211,16 +260,16 @@ SEGURANÇA:
 	intent.Command = strings.ToLower(intent.Command)
 
 	// Validação extra: comando retornado deve estar na whitelist
-	if intent.Command != "" && !dispatchableCommand(intent.Command) {
+	if intent.Command != "" && !DispatchableCommand(intent.Command) {
 		return &Intent{}, nil
 	}
 
 	return &intent, nil
 }
 
-// dispatchableCommand checa se o nome está na whitelist de comandos públicos.
-// Mantida separada da var em router.go porque intent.go não pode importar commands.
-func dispatchableCommand(name string) bool {
+// DispatchableCommand checa se o nome está na whitelist de comandos públicos.
+// Centralizada aqui; commands/nlu.go a importa em vez de manter cópia própria.
+func DispatchableCommand(name string) bool {
 	switch name {
 	case "clima", "play", "sticker", "efeito", "aniversário", "aniversario", "agenda", "cotacao",
 		"feriado", "noticia", "receita", "piada", "fato", "filme", "contagem", "unsticker", "traduz":
