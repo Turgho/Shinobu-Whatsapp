@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"net/http"
 	"time"
 
@@ -21,7 +20,6 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/weather"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/configs"
 	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/types/events"
 	"go.uber.org/zap"
 )
 
@@ -46,7 +44,7 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Description: "Mostra o clima atual de uma cidade",
 		Type:        commands.CommandTypeUtility,
 		Args:        []commands.ArgMeta{{Name: "cidade", Required: true}},
-	}, weatherHandler(geoClient, weatherClient))
+	}, public.WeatherHandler(geoClient, weatherClient))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "sticker",
@@ -319,10 +317,4 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *histo
 		Type:        commands.CommandTypeAdmin,
 		Private:     true,
 	}, admin.GroupJIDHandler)
-}
-
-func weatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) commands.HandlerFunc {
-	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
-		return public.WeatherCommand(ctx, client, evt, args, geo, wc)
-	}
 }
