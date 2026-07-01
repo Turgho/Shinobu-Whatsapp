@@ -35,7 +35,7 @@ func PiadaCommand(
 
 	if aiCfg.TavilyKey != "" {
 		query := piadaQueries[rand.Intn(len(piadaQueries))]
-		result, err := ia.SearchWeb(ctx, aiCfg.TavilyKey, query)
+		result, err := ia.SearchWeb(ctx, aiCfg.HTTPClient, aiCfg.TavilyKey, query)
 		if err == nil && result != "" {
 			webContext = result
 		}

@@ -8,7 +8,24 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 )
+
+// callGroq prepara o request IARequest e chama groqChat, retornando só o texto.
+func callGroq(ctx context.Context, httpClient *http.Client, groqURL, groqKey, model string, messages []history.IAMessage, temperature float64, maxTokens int) (string, error) {
+	resp, err := groqChat(ctx, httpClient, groqURL, groqKey, IARequest{
+		Model:       model,
+		Messages:    messages,
+		Stream:      false,
+		Temperature: temperature,
+		MaxTokens:   maxTokens,
+	})
+	if err != nil {
+		return "", err
+	}
+	return resp.Choices[0].Message.Content, nil
+}
 
 func groqChat(ctx context.Context, httpClient *http.Client, groqURL, groqKey string, req IARequest) (IAResponse, error) {
 	var zero IAResponse

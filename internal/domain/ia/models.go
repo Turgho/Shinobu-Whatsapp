@@ -3,6 +3,7 @@ package ia
 import (
 	"net/http"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 	"go.uber.org/zap"
 )
 
@@ -25,6 +26,22 @@ const (
 	modelScoutFast = ModelScoutFast
 	modelWebStrong = ModelWebStrong
 )
+
+// IARequest é o payload enviado para a API da Groq.
+type IARequest struct {
+	Model       string              `json:"model"`
+	Messages    []history.IAMessage `json:"messages"`
+	Stream      bool                `json:"stream"`
+	Temperature float64             `json:"temperature"`
+	MaxTokens   int                 `json:"max_tokens"`
+}
+
+// IAResponse é a resposta padrão da API da Groq.
+type IAResponse struct {
+	Choices []struct {
+		Message history.IAMessage `json:"message"`
+	} `json:"choices"`
+}
 
 // Config agrupa as credenciais e dependências da IA (Groq + Tavily + HTTP).
 type Config struct {

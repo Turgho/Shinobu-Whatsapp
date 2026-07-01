@@ -4,24 +4,9 @@ import (
 	"context"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 )
-
-type IARequest struct {
-	Model       string              `json:"model"`
-	Messages    []history.IAMessage `json:"messages"`
-	Stream      bool                `json:"stream"`
-	Temperature float64             `json:"temperature"`
-	MaxTokens   int                 `json:"max_tokens"`
-}
-
-type IAResponse struct {
-	Choices []struct {
-		Message history.IAMessage `json:"message"`
-	} `json:"choices"`
-}
 
 // AskIA orquestra o pipeline de resposta da IA:
 //  1. Limpa prompt (remove @lid) e detecta prompt injection
@@ -48,7 +33,7 @@ func AskIA(ctx context.Context, cfg *Config, chat, prompt string, isOwner bool, 
 	var webContext string
 	var usedSearch bool
 	if needSearch {
-		if wc, err := searchWeb(ctx, cfg.TavilyKey, prompt); err == nil && strings.TrimSpace(wc) != "" {
+		if wc, err := searchWeb(ctx, cfg.HTTPClient, cfg.TavilyKey, prompt); err == nil && strings.TrimSpace(wc) != "" {
 			usedSearch = true
 			webContext = truncateText(strings.TrimSpace(wc), 1500)
 		}
@@ -86,84 +71,12 @@ func AskIA(ctx context.Context, cfg *Config, chat, prompt string, isOwner bool, 
 	return answer, usedSearch, nil
 }
 
-func baseSystemMessages(mode ResponseMode, isOwner bool) []history.IAMessage {
-	msgs := []history.IAMessage{
-		{Role: "system", Content: buildSystemPrompt(mode)},
-	}
-	if isOwner {
-		msgs = append(msgs, history.IAMessage{
-			Role:    "system",
-			Content: "Você está falando com seu mestre. Seja calorosa e animada.",
-		})
-	}
-	return msgs
-}
-
-func appendPersistentAndRecent(ctx context.Context, messages []history.IAMessage, chat, sender string, store *history.Store, transcriptLimit int) []history.IAMessage {
-	if store == nil || chat == "" {
-		return messages
-	}
-
-	// Memória de usuário: fatos extraídos por padrões (key-value).
-	if store.UserMemory != nil && sender != "" {
-		if facts, err := store.UserMemory.GetFacts(ctx, chat, sender); err == nil && len(facts) > 0 {
-			if formatted := history.FormatFacts(facts); formatted != "" {
-				messages = append(messages, history.IAMessage{
-					Role:    "system",
-					Content: formatted,
-				})
-			}
-		}
-	}
-
-	// Fatos atômicos extraídos por IA (user_facts).
-	if afacts, err := store.GetFacts(ctx, chat, sender); err == nil && len(afacts) > 0 {
-		if formatted := history.FormatAtomicFacts(afacts); formatted != "" {
-			messages = append(messages, history.IAMessage{
-				Role:    "system",
-				Content: formatted,
-			})
-		}
-	}
-
-	if summary, err := store.GetSummary(ctx, chat); err == nil && strings.TrimSpace(summary) != "" {
-		summary = truncateText(strings.TrimSpace(summary), 1200)
-		messages = append(messages, history.IAMessage{
-			Role:    "system",
-			Content: "Resumo persistente da conversa anterior:\n" + summary,
-		})
-	}
-	if tr, err := store.TranscriptRecent(ctx, chat, transcriptLimit, 12*time.Hour); err == nil && strings.TrimSpace(tr) != "" {
-		tr = truncateText(tr, 2200)
-		messages = append(messages, history.IAMessage{
-			Role: "system",
-			Content: "Últimas mensagens neste chat (antigas → recentes; use para continuidade, não copie de graça):\n" +
-				tr,
-		})
-	}
-	return messages
-}
-
-func callGroq(ctx context.Context, httpClient *http.Client, groqURL, groqKey, model string, messages []history.IAMessage, temperature float64, maxTokens int) (string, error) {
-	resp, err := groqChat(ctx, httpClient, groqURL, groqKey, IARequest{
-		Model:       model,
-		Messages:    messages,
-		Stream:      false,
-		Temperature: temperature,
-		MaxTokens:   maxTokens,
-	})
-	if err != nil {
-		return "", err
-	}
-	return resp.Choices[0].Message.Content, nil
-}
-
 // QuickChat é uma versão pública de callGroq para handlers avulsos.
 func QuickChat(ctx context.Context, httpClient *http.Client, groqURL, groqKey, model string, messages []history.IAMessage, temperature float64, maxTokens int) (string, error) {
 	return callGroq(ctx, httpClient, groqURL, groqKey, model, messages, temperature, maxTokens)
 }
 
 // SearchWeb é uma versão pública de searchWeb para handlers avulsos.
-func SearchWeb(ctx context.Context, apiKey, query string) (string, error) {
-	return searchWeb(ctx, apiKey, query)
+func SearchWeb(ctx context.Context, httpClient *http.Client, apiKey, query string) (string, error) {
+	return searchWeb(ctx, httpClient, apiKey, query)
 }

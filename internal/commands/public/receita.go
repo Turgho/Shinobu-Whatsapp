@@ -27,7 +27,7 @@ func ReceitaCommand(
 	query := strings.Join(args, " ")
 	tavilyQuery := query + " receita ingredientes modo de preparo"
 
-	webContext, err := ia.SearchWeb(ctx, aiCfg.TavilyKey, tavilyQuery)
+	webContext, err := ia.SearchWeb(ctx, aiCfg.HTTPClient, aiCfg.TavilyKey, tavilyQuery)
 	if err != nil || webContext == "" {
 		return whatsapp.Reply(ctx, client, evt, msgReceitaFail)
 	}
