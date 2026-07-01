@@ -21,8 +21,8 @@ func StripLIDDeviceSuffix(jid types.JID) types.JID {
 // ResolveContactName tenta resolver o nome de exibição de um contato,
 // tentando a forma exata do JID primeiro e depois a forma base (sem
 // sufixo de dispositivo) para JIDs @lid.
-func ResolveContactName(client *whatsmeow.Client, jid types.JID) string {
-	contact, err := client.Store.Contacts.GetContact(context.Background(), jid)
+func ResolveContactName(ctx context.Context, client *whatsmeow.Client, jid types.JID) string {
+	contact, err := client.Store.Contacts.GetContact(ctx, jid)
 	if err == nil && contact.Found && contact.PushName != "" {
 		return contact.PushName
 	}
@@ -30,7 +30,7 @@ func ResolveContactName(client *whatsmeow.Client, jid types.JID) string {
 	if jid.Server == types.HiddenUserServer {
 		baseJID := StripLIDDeviceSuffix(jid)
 		if baseJID != jid {
-			contact, err = client.Store.Contacts.GetContact(context.Background(), baseJID)
+			contact, err = client.Store.Contacts.GetContact(ctx, baseJID)
 			if err == nil && contact.Found && contact.PushName != "" {
 				return contact.PushName
 			}
@@ -42,8 +42,8 @@ func ResolveContactName(client *whatsmeow.Client, jid types.JID) string {
 
 // ResolvePNFromLID tenta obter o número de telefone (PN) correspondente
 // a um JID @lid via o mapeamento interno do whatsmeow.
-func ResolvePNFromLID(client *whatsmeow.Client, lidJID types.JID) (types.JID, bool) {
-	pnJID, err := client.Store.LIDs.GetPNForLID(context.Background(), lidJID)
+func ResolvePNFromLID(ctx context.Context, client *whatsmeow.Client, lidJID types.JID) (types.JID, bool) {
+	pnJID, err := client.Store.LIDs.GetPNForLID(ctx, lidJID)
 	if err != nil || pnJID.User == "" {
 		return types.JID{}, false
 	}
