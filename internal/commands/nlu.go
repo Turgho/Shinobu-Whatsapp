@@ -27,7 +27,7 @@ func (r *Router) handleNaturalLanguage(evt *events.Message, msg string) {
 	}
 
 	if intent.Command != "" {
-		if !dispatchableCommand(intent.Command) {
+		if !ia.DispatchableCommand(intent.Command) {
 			r.log.Debug("NLU: comando não-despachável", zap.String("command", intent.Command))
 			r.handleShinobuMention(evt, msg)
 			return

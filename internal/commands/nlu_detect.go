@@ -23,31 +23,6 @@ var groupNLDirectAddress = []string{
 	"me fala", "me diz", "me manda", "você sabe", "sabe me dizer",
 }
 
-// dispatchableCommands são os comandos públicos que a NLU pode despachar.
-// Comandos de admin/owner não entram aqui — exigem verificação de dono.
-var dispatchableCommands = map[string]bool{
-	"clima":       true,
-	"play":        true,
-	"sticker":     true,
-	"efeito":      true,
-	"aniversário": true,
-	"agenda":      true,
-	"cotacao":     true,
-	"feriado":     true,
-	"noticia":     true,
-	"receita":     true,
-	"piada":       true,
-	"fato":        true,
-	"filme":       true,
-	"contagem":    true,
-	"unsticker":   true,
-	"traduz":      true,
-}
-
-func dispatchableCommand(name string) bool {
-	return dispatchableCommands[name]
-}
-
 // isNLApplicable decide se uma mensagem merece processamento NLU.
 // DMs sempre disparam NLU. Em grupos, o comportamento depende de nlpGroupTrigger:
 //   - false (default): só dispara se Shinobu foi mencionada explicitamente
