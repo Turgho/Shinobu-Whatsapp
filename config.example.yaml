@@ -33,3 +33,16 @@ scheduledJobs:
     stickerName: "play_tv"
     targetGroups:
       - "grupo_jid@g.us"          # @g.us = grupo, @s.whatsapp.net = pessoal
+
+# --- Variáveis de ambiente (sobrescrevem config.yaml) ---
+# GROQ_URL=https://api.groq.com/openai/v1/chat/completions
+# GROQ_API_KEY=gsk_...
+# TAVILY_API_KEY=tvly-...
+# MUSIC_SERVER_URL=http://...
+# MUSIC_API_TOKEN=token_...
+# OWNER_NUMBER=5511999999999
+# OWNER_JID=jid_do_dono@lid
+# DB_DSN=file:storage/storage.db?_foreign_keys=on
+# LOG_LEVEL=debug
+# COMMAND_PREFIX=!
+# ENVIRONMENT=development
