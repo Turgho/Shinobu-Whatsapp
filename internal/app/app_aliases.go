@@ -13,59 +13,99 @@ func registerAliases(r *commands.Router) {
 		"e": "efeito",
 		"a": "aniversário",
 
-		// Common misspellings
-		"plau":        "play",
-		"plei":        "play",
-		"stiker":      "sticker",
-		"figurinha":   "sticker",
-		"clim":        "clima",
-		"tempo":       "clima",
+		// Play
+		"plau":    "play",
+		"plei":    "play",
+		"musica":  "play",
+		"música":  "play",
+		"musicas": "play",
+		"músicas": "play",
+		"audio":   "play",
+		"áudio":   "play",
+		"som":     "play",
+
+		// Sticker
+		"stiker":     "sticker",
+		"figurinha":  "sticker",
+		"figurinhas": "sticker",
+		"fig":        "sticker",
+		"figu":       "sticker",
+		"stick":      "sticker",
+
+		// Clima
+		"clim":     "clima",
+		"tempo":    "clima",
+		"previsao": "clima",
+		"previsão": "clima",
+
+		// Agenda
+		"agenda":   "agenda",
+		"lembrete": "agenda",
+		"lembrar":  "agenda",
+		"recordar": "agenda",
+
+		// Aniversário
 		"aniver":      "aniversário",
 		"aniversario": "aniversário",
-		"lembrete":    "agenda",
+		"niver":       "aniversário",
+		"anivers":     "aniversário",
 
 		// Cotação
 		"cotação": "cotacao",
+		"cot":     "cotacao",
 		"dolar":   "cotacao",
 		"dólar":   "cotacao",
 		"euro":    "cotacao",
-		"cot":     "cotacao",
+		"moeda":   "cotacao",
 
 		// Feriado
 		"feriados": "feriado",
 
-		// Notícia
+		// Notícias
+		"news":     "noticia",
 		"noticias": "noticia",
 		"notícia":  "noticia",
 		"notícias": "noticia",
-		"news":     "noticia",
+		"jornal":   "noticia",
 
 		// Receita
 		"receitas": "receita",
+		"comida":   "receita",
+		"cozinhar": "receita",
 
 		// Piada
 		"piadas": "piada",
+		"zoeira": "piada",
 
-		// Fato
-		"fatos":       "fato",
-		"curiosidade": "fato",
+		// Curiosidade
+		"fatos":        "fato",
+		"curiosidade":  "fato",
+		"curiosidades": "fato",
 
 		// Filme
 		"filmes": "filme",
 		"movie":  "filme",
+		"cinema": "filme",
+		"serie":  "filme",
+		"série":  "filme",
 
 		// Contagem
 		"dias":      "contagem",
+		"contador":  "contagem",
 		"countdown": "contagem",
 
 		// Unsticker
-		"desticker":        "unsticker",
-		"figurinha2imagem": "unsticker",
 		"us":               "unsticker",
+		"desticker":        "unsticker",
+		"tirarfigurinha":   "unsticker",
+		"figurinha2imagem": "unsticker",
+		"imagem":           "unsticker",
 
-		// Traduz
+		// Tradução
 		"traduzir":  "traduz",
 		"translate": "traduz",
+		"tradução":  "traduz",
+		"traducao":  "traduz",
 	}
 
 	for alias, target := range aliases {
