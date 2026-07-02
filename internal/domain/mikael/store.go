@@ -10,8 +10,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// trackedWord é a palavra monitorada nas mensagens.
+const trackedWord = "pix"
+
 // Store gerencia a contagem de palavras do Mikael: armazena mensagens de
 // grupos-alvo e conta ocorrências de uma palavra por remetente específico.
+// A contagem é persistida na tabela word_counts, que não é afetada pela
+// limpeza periódica da tabela messages.
 type Store struct {
 	historyStore *history.Store
 	db           *sql.DB
@@ -31,17 +36,103 @@ func NewStore(historyStore *history.Store, db *sql.DB, groups []string, lid stri
 	if !strings.Contains(sender, "@") {
 		sender = sender + "@lid"
 	}
-	return &Store{
+
+	s := &Store{
 		historyStore: historyStore,
 		db:           db,
 		log:          log,
 		groups:       g,
 		targetSender: sender,
 	}
+
+	s.initSchema()
+	s.migrateLegacyData()
+
+	return s
+}
+
+// initSchema cria a tabela word_counts se não existir.
+func (s *Store) initSchema() {
+	_, err := s.db.Exec(`
+		CREATE TABLE IF NOT EXISTS word_counts (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			chat       TEXT NOT NULL,
+			sender     TEXT NOT NULL,
+			word       TEXT NOT NULL,
+			count      INTEGER NOT NULL DEFAULT 0,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(chat, sender, word)
+		)
+	`)
+	if err != nil {
+		s.log.Error("Erro ao criar tabela word_counts", zap.Error(err))
+	}
+}
+
+// migrateLegacyData faz uma migração única dos dados existentes na tabela
+// messages para a word_counts, evitando perda do histórico após a introdução
+// da tabela persistente.
+func (s *Store) migrateLegacyData() {
+	ctx := context.Background()
+
+	for chat := range s.groups {
+		var existing int
+		err := s.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM word_counts WHERE chat = ? AND sender = ? AND word = ?`,
+			chat, s.targetSender, trackedWord,
+		).Scan(&existing)
+		if err != nil || existing > 0 {
+			continue
+		}
+
+		rows, err := s.db.QueryContext(ctx,
+			`SELECT text FROM messages WHERE chat = ? AND sender = ?`,
+			chat, s.targetSender,
+		)
+		if err != nil {
+			s.log.Warn("Erro ao consultar mensagens para migração",
+				zap.String("chat", chat),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		var total int
+		for rows.Next() {
+			var text string
+			if err := rows.Scan(&text); err != nil {
+				rows.Close()
+				s.log.Warn("Erro ao escanear mensagem na migração", zap.Error(err))
+				return
+			}
+			total += countOccurrences(text, trackedWord)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			s.log.Warn("Erro ao iterar mensagens na migração",
+				zap.String("chat", chat),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		if total > 0 {
+			_, err = s.db.ExecContext(ctx,
+				`INSERT INTO word_counts (chat, sender, word, count) VALUES (?, ?, ?, ?)`,
+				chat, s.targetSender, trackedWord, total,
+			)
+			if err != nil {
+				s.log.Warn("Erro ao inserir contagem migrada",
+					zap.String("chat", chat),
+					zap.Error(err),
+				)
+			}
+		}
+	}
 }
 
 // SaveMessageHook retorna uma função que salva mensagens de grupos-alvo no
-// histórico, para ser registrada como hook no router.
+// histórico e atualiza a contagem persistente da palavra monitorada.
 func (s *Store) SaveMessageHook() func(ctx context.Context, evt *events.Message, msg string) {
 	return func(ctx context.Context, evt *events.Message, msg string) {
 		chat := evt.Info.Chat.String()
@@ -49,6 +140,8 @@ func (s *Store) SaveMessageHook() func(ctx context.Context, evt *events.Message,
 			return
 		}
 		sender := evt.Info.Sender.ToNonAD().String()
+
+		// Save to history as before (outros usos dependem da tabela messages)
 		if err := s.historyStore.Save(ctx, chat, sender, msg); err != nil {
 			s.log.Error("Erro ao salvar mensagem mikael",
 				zap.String("chat", chat),
@@ -56,34 +149,46 @@ func (s *Store) SaveMessageHook() func(ctx context.Context, evt *events.Message,
 				zap.Error(err),
 			)
 		}
+
+		// Incrementa contagem persistente na word_counts
+		count := countOccurrences(msg, trackedWord)
+		if count > 0 {
+			_, err := s.db.ExecContext(ctx, `
+				INSERT INTO word_counts (chat, sender, word, count, updated_at)
+				VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+				ON CONFLICT(chat, sender, word) DO UPDATE SET
+					count = count + excluded.count,
+					updated_at = CURRENT_TIMESTAMP
+			`, chat, s.targetSender, trackedWord, count)
+			if err != nil {
+				s.log.Error("Erro ao atualizar contagem persistente",
+					zap.String("word", trackedWord),
+					zap.String("chat", chat),
+					zap.Error(err),
+				)
+			}
+		}
 	}
 }
 
-// CountWord conta quantas vezes word aparece como palavra inteira nas
-// mensagens do Mikael no chat. Pontuação adjacente (.,!? etc) é ignorada.
+// CountWord retorna a contagem persistente de word para o remetente alvo no chat.
 func (s *Store) CountWord(ctx context.Context, chat, word string) (int, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT text FROM messages WHERE chat = ? AND sender = ?
-	`, chat, s.targetSender)
+	var count int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT count FROM word_counts WHERE chat = ? AND sender = ? AND word = ?`,
+		chat, s.targetSender, word,
+	).Scan(&count)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
 	if err != nil {
 		return 0, err
 	}
-	defer rows.Close()
-
-	lower := strings.ToLower(word)
-	var total int
-	for rows.Next() {
-		var text string
-		if err := rows.Scan(&text); err != nil {
-			return 0, err
-		}
-		total += countOccurrences(text, lower)
-	}
-	return total, rows.Err()
+	return count, nil
 }
 
-// countOccurrences conta quantas vezes word (lowercase) aparece como palavra
-// inteira em text, ignorando pontuação adjacente.
+// countOccurrences conta quantas vezes word aparece como palavra inteira em
+// text, ignorando pontuação adjacente. Case-insensitive.
 func countOccurrences(text, word string) int {
 	var count int
 	for _, field := range strings.Fields(text) {
