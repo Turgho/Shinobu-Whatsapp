@@ -44,7 +44,7 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Description: "Mostra o clima atual de uma cidade",
 		Type:        commands.CommandTypeUtility,
 		Args:        []commands.ArgMeta{{Name: "cidade", Required: true}},
-	}, public.WeatherHandler(geoClient, weatherClient))
+	}, public.WeatherHandler(geoClient, weatherClient, logger))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "sticker",

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/geocoding"
@@ -13,6 +14,7 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
+	"go.uber.org/zap"
 )
 
 var datePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
@@ -24,6 +26,7 @@ func WeatherCommand(
 	args []string,
 	geo *geocoding.GeoCoding,
 	weatherClient *weather.WeatherClient,
+	logger *zap.Logger,
 ) error {
 	if len(args) == 0 {
 		return whatsapp.Reply(ctx, client, evt, msgNeedCityName)
@@ -41,7 +44,10 @@ func WeatherCommand(
 		}
 	}
 
-	query := strings.Join(args, " ")
+	query := strings.TrimSpace(strings.Join(args, " "))
+	if utf8.RuneCountInString(query) < 2 {
+		return whatsapp.Reply(ctx, client, evt, "De qual cidade você quer saber o clima?")
+	}
 
 	results, err := geo.Lookup(ctx, query, 1)
 	if err != nil || len(results) == 0 {
@@ -60,8 +66,24 @@ func WeatherCommand(
 		return replyOrUnderlying(ctx, client, evt, msgWeatherFailed, err)
 	}
 
-	msg := buildWeatherMessage(loc, weatherData, hasDate)
-	return whatsapp.Reply(ctx, client, evt, msg)
+	// tenta gerar card visual com fallback para texto
+	cardBytes, cardErr := weather.GenerateCard(weatherData, loc.DisplayName, loc.Country)
+	if cardErr != nil {
+		logger.Warn("falha ao gerar card do clima, enviando texto", zap.Error(cardErr))
+		msg := buildWeatherMessage(loc, weatherData, hasDate)
+		return whatsapp.Reply(ctx, client, evt, msg)
+	}
+
+	info := weather.Lookup(weatherData.WeatherCode)
+	caption := fmt.Sprintf("%s %s — *%s, %s*",
+		info.Emoji, info.Description, loc.DisplayName, loc.Country)
+
+	if err := whatsapp.SendImageBytes(ctx, client, evt, cardBytes, caption); err != nil {
+		logger.Warn("falha ao enviar card do clima, enviando texto", zap.Error(err))
+		msg := buildWeatherMessage(loc, weatherData, hasDate)
+		return whatsapp.Reply(ctx, client, evt, msg)
+	}
+	return nil
 }
 
 func replyOrUnderlying(
@@ -113,8 +135,9 @@ func buildWeatherMessage(loc geocoding.GeoResult, w *weather.WeatherResult, isFo
 }
 
 // WeatherHandler wraps WeatherCommand with dependencies.
-func WeatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient) commands.HandlerFunc {
+func WeatherHandler(geo *geocoding.GeoCoding, wc *weather.WeatherClient, logger *zap.Logger) commands.HandlerFunc {
+	l := logger.Named("WEATHER")
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
-		return WeatherCommand(ctx, client, evt, args, geo, wc)
+		return WeatherCommand(ctx, client, evt, args, geo, wc, l)
 	}
 }
