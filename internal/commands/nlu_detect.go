@@ -3,6 +3,7 @@ package commands
 import (
 	"strings"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow/types/events"
 	"go.uber.org/zap"
 )
@@ -37,6 +38,12 @@ func (r *Router) isNLApplicable(evt *events.Message, msg string) bool {
 	// Heurística 1: menção explícita ao nome ou @jid — sempre válida
 	if isMentioned(msg, r.botJID) {
 		r.log.Debug("NLU triggered", zap.String("reason", "mention"), zap.String("chat", chat))
+		return true
+	}
+
+	// Heurística 2: reply direto a uma mensagem do bot
+	if r.isReplyToBot(evt) {
+		r.log.Debug("NLU triggered", zap.String("reason", "reply_to_bot"), zap.String("chat", chat))
 		return true
 	}
 
@@ -86,6 +93,32 @@ func (r *Router) isNLApplicable(evt *events.Message, msg string) bool {
 	}
 
 	return false
+}
+
+// isReplyToBot verifica se a mensagem é uma resposta direta a uma
+// mensagem enviada pelo próprio bot, usando o Participant do ContextInfo.
+// Em grupos, WhatsApp preenche Participant com o JID do remetente original.
+// Em DMs não é necessário — a NLU já dispara sempre.
+func (r *Router) isReplyToBot(evt *events.Message) bool {
+	ctxInfo := whatsapp.ExtractContextInfo(evt.Message)
+	if ctxInfo == nil {
+		return false
+	}
+
+	participant := ctxInfo.GetParticipant()
+	if participant == "" {
+		return false
+	}
+
+	botID := r.botJID
+	if botID == "" && r.client.Store != nil && r.client.Store.ID != nil {
+		botID = r.client.Store.ID.ToNonAD().String()
+	}
+	if botID == "" {
+		return false
+	}
+
+	return strings.Contains(participant, strings.Split(botID, "@")[0])
 }
 
 // isMentioned verifica se a mensagem menciona a Shinobu como palavra isolada
