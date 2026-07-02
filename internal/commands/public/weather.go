@@ -80,7 +80,7 @@ func WeatherCommand(
 		return replyOrUnderlying(ctx, client, evt, msgWeatherFailed, err)
 	}
 
-	cardBytes, cardErr := weather.GenerateForecastCard(forecasts, loc.DisplayName, loc.Country)
+	cardBytes, cardErr := weather.GenerateForecastCard(forecasts, nil, loc.DisplayName, loc.Country)
 	if cardErr != nil {
 		logger.Warn("falha ao gerar card do clima, enviando texto", zap.Error(cardErr))
 		return whatsapp.Reply(ctx, client, evt, buildForecastText(loc, forecasts))
