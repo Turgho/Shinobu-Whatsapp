@@ -77,19 +77,17 @@ func CotacaoCommand(
 			sig = "+"
 		}
 
-		b.WriteString(fmt.Sprintf("%s *%s* R$ %s\n\n",
-			emoji, r.Name, formatoBR(r.Bid)))
-		b.WriteString(fmt.Sprintf("📈 Máx %s • Mín %s • Variação %s%s%%\n",
-			formatoBR(r.High), formatoBR(r.Low), sig, formatoBR(r.PctChange)))
+		fmt.Fprintf(&b, "%s *%s* R$ %s\n\n", emoji, r.Name, formatoBR(r.Bid))
+		fmt.Fprintf(&b, "📈 Máx %s • Mín %s • Variação %s%s%%\n",
+			formatoBR(r.High), formatoBR(r.Low), sig, formatoBR(r.PctChange))
 	}
 
-	// A hora pode variar conforme o retorno da API.
 	if len(rates) > 0 {
 		timeStr := rates[0].UpdatedAt
 		if idx := strings.LastIndex(timeStr, " "); idx != -1 {
 			timeStr = timeStr[idx+1:]
 		}
-		b.WriteString(fmt.Sprintf("\n🕐 Atualizado às %s", timeStr))
+		fmt.Fprintf(&b, "\n🕐 Atualizado às %s", timeStr)
 	}
 
 	return whatsapp.Reply(ctx, client, evt, b.String())

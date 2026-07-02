@@ -94,7 +94,7 @@ func buildMessage(entries []Entry) (mentions []string, msg string) {
 	sb.WriteString("🎂 *Parabéns!* 🎉\n\n")
 
 	for _, e := range entries {
-		sb.WriteString(fmt.Sprintf("🎈 @%s faz aniversário hoje!\n", e.Name))
+		fmt.Fprintf(&sb, "🎈 @%s faz aniversário hoje!\n", e.Name)
 		mentions = append(mentions, e.JID)
 	}
 

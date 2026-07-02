@@ -82,15 +82,10 @@ func ChatInfoHandler(waClient *whatsmeow.Client) commands.HandlerFunc {
 			nome = "N/A"
 		}
 
-		var b strings.Builder
-		b.WriteString("💬 *Informações do chat*\n")
-		b.WriteString(fmt.Sprintf("JID: `%s`\n", jidStr))
-		b.WriteString(fmt.Sprintf("Tipo: Grupo\n"))
-		b.WriteString(fmt.Sprintf("Nome: %s\n", nome))
-		b.WriteString(fmt.Sprintf("Participantes: %d\n", group.ParticipantCount))
-		b.WriteString(fmt.Sprintf("Admins: %d", adminCount))
+		msg := fmt.Sprintf("💬 *Informações do chat*\nJID: `%s`\nTipo: Grupo\nNome: %s\nParticipantes: %d\nAdmins: %d",
+			jidStr, nome, group.ParticipantCount, adminCount)
 
-		return whatsapp.Reply(ctx, client, evt, b.String())
+		return whatsapp.Reply(ctx, client, evt, msg)
 	}
 }
 
