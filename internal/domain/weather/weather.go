@@ -30,6 +30,15 @@ type WeatherResult struct {
 	Time                string
 }
 
+// DailyForecast representa a previsão agregada de um único dia via API daily.
+type DailyForecast struct {
+	Date              string
+	WeatherCode       int
+	TempMax           float64
+	TempMin           float64
+	PrecipitationProb float64
+}
+
 // hourlyResponse mapeia a resposta JSON da Open-Meteo (/forecast).
 // Apesar do nome, contém tanto current (agora) quanto hourly (array por hora).
 type hourlyResponse struct {
@@ -54,6 +63,17 @@ type hourlyResponse struct {
 		WindDirection     []float64 `json:"wind_direction_10m"`
 		PrecipitationProb []float64 `json:"precipitation_probability"`
 	} `json:"hourly"`
+}
+
+// dailyResponse mapeia a resposta daily da Open-Meteo (/forecast?daily=...).
+type dailyResponse struct {
+	Daily struct {
+		Time                      []string  `json:"time"`
+		WeatherCode               []int     `json:"weather_code"`
+		Temperature2MMax          []float64 `json:"temperature_2m_max"`
+		Temperature2MMin          []float64 `json:"temperature_2m_min"`
+		PrecipitationProbMax      []float64 `json:"precipitation_probability_max"`
+	} `json:"daily"`
 }
 
 // NewWeatherClient cria client com timeout de 10s para Open-Meteo + wttr.in.
@@ -129,6 +149,41 @@ func (w *WeatherClient) GetForecastForDate(ctx context.Context, lat, lon float64
 	return result, nil
 }
 
+// GetDailyForecast busca a previsão diária agregada para os próximos n dias
+// (incluindo hoje). n deve estar entre 1 e 16. Usa o parâmetro daily da
+// Open-Meteo, que retorna máximas, mínimas e probabilidade de precipitação
+// por dia, sem necessidade de agregar hourly.
+func (w *WeatherClient) GetDailyForecast(ctx context.Context, lat, lon float64, days int) ([]DailyForecast, error) {
+	if days < 1 || days > 16 {
+		return nil, fmt.Errorf("weather: dias deve estar entre 1 e 16")
+	}
+
+	resp, err := w.fetchDaily(ctx, lat, lon, days)
+	if err != nil {
+		return nil, err
+	}
+
+	forecasts := make([]DailyForecast, 0, len(resp.Daily.Time))
+	for i := range resp.Daily.Time {
+		forecasts = append(forecasts, DailyForecast{
+			Date:              resp.Daily.Time[i],
+			WeatherCode:       resp.Daily.WeatherCode[i],
+			TempMax:           resp.Daily.Temperature2MMax[i],
+			TempMin:           resp.Daily.Temperature2MMin[i],
+			PrecipitationProb: resp.Daily.PrecipitationProbMax[i],
+		})
+	}
+
+	w.Logger.Info("Previsão diária obtida",
+		zap.Float64("lat", lat),
+		zap.Float64("lon", lon),
+		zap.Int("days", days),
+		zap.Int("resultados", len(forecasts)),
+	)
+
+	return forecasts, nil
+}
+
 // fetchHourly consulta a Open-Meteo /forecast com parâmetros current + hourly.
 // Retorna dados do momento atual mais array horário para forecastDays dias.
 func (w *WeatherClient) fetchHourly(ctx context.Context, lat, lon float64, forecastDays int) (*hourlyResponse, error) {
@@ -171,6 +226,50 @@ func (w *WeatherClient) fetchHourly(ctx context.Context, lat, lon float64, forec
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		w.Logger.Error("Erro ao decodificar resposta (Open-Meteo)", zap.Error(err))
 		return nil, fmt.Errorf("weather: erro ao decodificar resposta: %w", err)
+	}
+
+	return &data, nil
+}
+
+// fetchDaily consulta a Open-Meteo /forecast com parâmetro daily.
+// Retorna dados agregados por dia (máxima, mínima, código WMO, precipitação).
+func (w *WeatherClient) fetchDaily(ctx context.Context, lat, lon float64, days int) (*dailyResponse, error) {
+	apiURL := fmt.Sprintf(
+		"%s?latitude=%f&longitude=%f"+
+			"&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"+
+			"&timezone=auto&forecast_days=%d",
+		w.APIURL, lat, lon, days,
+	)
+
+	w.Logger.Info("Buscando previsão diária Open-Meteo",
+		zap.Float64("lat", lat),
+		zap.Float64("lon", lon),
+		zap.Int("days", days),
+	)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("weather: request daily: %w", err)
+	}
+
+	resp, err := w.httpClient.Do(req)
+	if err != nil {
+		w.Logger.Error("Erro ao fazer request HTTP (Open-Meteo daily)", zap.Error(err))
+		return nil, fmt.Errorf("weather: erro na requisição daily: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		w.Logger.Error("Open-Meteo daily retornou status inesperado",
+			zap.Int("status", resp.StatusCode), zap.String("body", string(body)))
+		return nil, fmt.Errorf("weather: daily status %d", resp.StatusCode)
+	}
+
+	var data dailyResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		w.Logger.Error("Erro ao decodificar resposta (Open-Meteo daily)", zap.Error(err))
+		return nil, fmt.Errorf("weather: erro ao decodificar resposta daily: %w", err)
 	}
 
 	return &data, nil
