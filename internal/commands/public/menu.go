@@ -15,7 +15,8 @@ import (
 
 const bannerPath = "assets/images/shinobu_banner.png"
 
-// MenuCommand retorna um handler que envia o banner com o menu como legenda.
+// MenuCommand retorna um handler que envia o menu com ou sem banner.
+// Use "banner" como argumento para enviar com a imagem de banner.
 func MenuCommand(r *commands.Router) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		metas := r.Commands()
@@ -66,7 +67,7 @@ func MenuCommand(r *commands.Router) commands.HandlerFunc {
 		}
 
 		var sb strings.Builder
-		sb.WriteString("🌸━━━━━ *Shinobu* ━━━━━🌸\n\n")
+		sb.WriteString("🌸━━━━━ *Shinobu* ─━━━━🌸\n\n")
 
 		for _, category := range order {
 			cmds := grouped[category]
@@ -100,7 +101,12 @@ func MenuCommand(r *commands.Router) commands.HandlerFunc {
 		sb.WriteString("─────────────────────\n")
 		sb.WriteString("💬 Me chame pelo nome para conversar!")
 
-		return sendBannerWithCaption(ctx, client, evt, sb.String())
+		withBanner := len(args) > 0 && strings.EqualFold(args[0], "banner")
+		if withBanner {
+			return sendBannerWithCaption(ctx, client, evt, sb.String())
+		}
+
+		return whatsapp.Reply(ctx, client, evt, sb.String())
 	}
 }
 
