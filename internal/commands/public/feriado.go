@@ -39,12 +39,11 @@ func FeriadoCommand(
 	var b strings.Builder
 	b.WriteString("🗓 Próximos feriados nacionais\n\n")
 	for _, f := range list {
-		// "2026-01-01" → "01/01"
 		date := f.Date
 		if len(date) >= 10 {
 			date = date[8:10] + "/" + date[5:7]
 		}
-		b.WriteString(fmt.Sprintf("📅 %s — %s\n\n", date, f.Name))
+		fmt.Fprintf(&b, "📅 %s — %s\n\n", date, f.Name)
 	}
 
 	return whatsapp.Reply(ctx, client, evt, strings.TrimSpace(b.String()))

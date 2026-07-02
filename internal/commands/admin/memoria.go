@@ -87,7 +87,7 @@ func MemoriaCommand(
 				byUser[f.User] = append(byUser[f.User], f.Fact)
 			}
 			for user, facts := range byUser {
-				b.WriteString(fmt.Sprintf("@%s: %s\n", user, strings.Join(facts, ", ")))
+				fmt.Fprintf(&b, "@%s: %s\n", user, strings.Join(facts, ", "))
 			}
 		}
 

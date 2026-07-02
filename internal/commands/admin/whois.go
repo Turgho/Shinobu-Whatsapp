@@ -3,7 +3,6 @@ package admin
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
@@ -98,23 +97,20 @@ func WhoisHandler(waClient *whatsmeow.Client) commands.HandlerFunc {
 			tipo = "Grupo"
 		}
 
-		var b strings.Builder
-		b.WriteString("🆔 *Informações do contato*\n")
-		b.WriteString(fmt.Sprintf("Nome: %s\n", name))
-		b.WriteString(fmt.Sprintf("JID: `%s`\n", target.String()))
+		msg := fmt.Sprintf("🆔 *Informações do contato*\nNome: %s\nJID: `%s`\n", name, target.String())
 		if isLID {
-			b.WriteString(fmt.Sprintf("LID base: `%s`\n", lidBase))
+			msg += fmt.Sprintf("LID base: `%s`\n", lidBase)
 		} else if lidBase != "" {
-			b.WriteString(fmt.Sprintf("LID: `%s`\n", lidBase))
+			msg += fmt.Sprintf("LID: `%s`\n", lidBase)
 		}
 		if pnResolved != "" {
-			b.WriteString(fmt.Sprintf("PN resolvido: `%s`\n", pnResolved))
+			msg += fmt.Sprintf("PN resolvido: `%s`\n", pnResolved)
 		}
-		b.WriteString(fmt.Sprintf("Tipo: %s\n", tipo))
+		msg += fmt.Sprintf("Tipo: %s\n", tipo)
 		if evt.Info.IsGroup {
-			b.WriteString(fmt.Sprintf("Grupo JID: `%s`", evt.Info.Chat.String()))
+			msg += fmt.Sprintf("Grupo JID: `%s`", evt.Info.Chat.String())
 		}
 
-		return whatsapp.Reply(ctx, client, evt, b.String())
+		return whatsapp.Reply(ctx, client, evt, msg)
 	}
 }

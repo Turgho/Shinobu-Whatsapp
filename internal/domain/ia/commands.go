@@ -65,8 +65,7 @@ func buildNLUPromptSection() string {
 	var b strings.Builder
 	b.WriteString("COMANDOS:\n")
 	for _, name := range nluCommands {
-		desc := nluCommandDesc[name]
-		b.WriteString(fmt.Sprintf("- %s: %s\n", name, desc))
+		fmt.Fprintf(&b, "- %s: %s\n", name, nluCommandDesc[name])
 	}
 	return b.String()
 }

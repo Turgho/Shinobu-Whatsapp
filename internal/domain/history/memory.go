@@ -79,20 +79,16 @@ func FormatFacts(facts map[string]string) string {
 	if len(facts) == 0 {
 		return ""
 	}
-	var b strings.Builder
-	b.WriteString("Fatos conhecidos sobre o usuário:\n")
-	// ordem alfabética para consistência entre execuções
 	keys := make([]string, 0, len(facts))
 	for k := range facts {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
+
+	var b strings.Builder
+	b.WriteString("Fatos conhecidos sobre o usuário:\n")
 	for _, k := range keys {
-		b.WriteString("- ")
-		b.WriteString(k)
-		b.WriteString(": ")
-		b.WriteString(facts[k])
-		b.WriteString("\n")
+		fmt.Fprintf(&b, "- %s: %s\n", k, facts[k])
 	}
 	return b.String()
 }
@@ -285,7 +281,6 @@ func (s *Store) PruneStaleFacts(ctx context.Context, maxAge time.Duration) error
 }
 
 // FormatAtomicFacts formata fatos atômicos como texto legível para o prompt do sistema.
-// Saída: "O que sei sobre este usuário:\n- prefere rock\n- mora em SP"
 func FormatAtomicFacts(facts []UserFact) string {
 	if len(facts) == 0 {
 		return ""
@@ -293,9 +288,7 @@ func FormatAtomicFacts(facts []UserFact) string {
 	var b strings.Builder
 	b.WriteString("O que sei sobre este usuário:\n")
 	for _, f := range facts {
-		b.WriteString("- ")
-		b.WriteString(f.Fact)
-		b.WriteString("\n")
+		fmt.Fprintf(&b, "- %s\n", f.Fact)
 	}
 	return b.String()
 }

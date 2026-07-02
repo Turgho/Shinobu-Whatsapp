@@ -110,8 +110,6 @@ func formatResults(result tavilyResponse) string {
 
 	sb.WriteString("Fontes:\n")
 	for i, r := range result.Results {
-		// Filtra resultados com score baixo (Tavily retorna de 0 a 1).
-		// 0.3 é um threshold empírico que elimina ruído sem perder fontes boas.
 		if r.Score < 0.3 {
 			continue
 		}
@@ -122,7 +120,7 @@ func formatResults(result tavilyResponse) string {
 			content = string(runes[:maxContentChars]) + "…"
 		}
 
-		sb.WriteString(fmt.Sprintf("[%d] %s\n%s\n(%s)\n\n", i+1, r.Title, content, r.URL))
+		fmt.Fprintf(&sb, "[%d] %s\n%s\n(%s)\n\n", i+1, r.Title, content, r.URL)
 	}
 
 	return strings.TrimSpace(sb.String())

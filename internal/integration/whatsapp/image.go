@@ -53,6 +53,16 @@ func SendImage(
 	})
 }
 
+// SendImageBytes faz upload e envia imagem PNG a partir de bytes, com legenda.
+// Conveniência para quando a imagem já está em memória (ex: cards gerados).
+func SendImageBytes(ctx context.Context, client *whatsmeow.Client, evt *events.Message, data []byte, caption string) error {
+	uploaded, err := client.Upload(ctx, data, whatsmeow.MediaImage)
+	if err != nil {
+		return fmt.Errorf("whatsapp: upload image: %w", err)
+	}
+	return SendImage(ctx, client, evt, &uploaded, data, caption, true)
+}
+
 func generateThumbnail(data []byte) []byte {
 	if len(data) == 0 {
 		return nil

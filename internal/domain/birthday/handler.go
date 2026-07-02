@@ -181,7 +181,7 @@ func handleList(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 	var sb strings.Builder
 	sb.WriteString("🎂 *Aniversários do grupo (ordenados por data):*\n\n")
 	for _, e := range entries {
-		sb.WriteString(fmt.Sprintf("🎈 *%s* — %02d/%02d\n", e.Name, e.Day, e.Month))
+		fmt.Fprintf(&sb, "🎈 *%s* — %02d/%02d\n", e.Name, e.Day, e.Month)
 	}
 
 	return whatsapp.SendText(ctx, client, evt, sb.String(), true)

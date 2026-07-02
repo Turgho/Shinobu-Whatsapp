@@ -145,12 +145,12 @@ func agendaLista(
 		if f.Data.MentionAll {
 			tag = " 📢@all"
 		}
-		b.WriteString(fmt.Sprintf("%d. 📅 %s — %s%s\n",
+		fmt.Fprintf(&b, "%d. 📅 %s — %s%s\n",
 			i+1,
 			f.ParsedAt.Format("02/01 15:04"),
 			f.Data.Message,
 			tag,
-		))
+		)
 	}
 
 	return whatsapp.Reply(ctx, client, evt, b.String())
