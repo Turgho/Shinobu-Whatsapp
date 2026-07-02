@@ -6,6 +6,39 @@ import (
 	"github.com/fogleman/gg"
 )
 
+const (
+	iconSun = iota
+	iconCloud
+	iconRain
+	iconSnow
+	iconStorm
+	iconFog
+)
+
+// iconCategory mapeia weather code WMO para categoria de ícone.
+func iconCategory(code int) int {
+	switch {
+	case code <= 1:
+		return iconSun
+	case code <= 3:
+		return iconCloud
+	case code == 45 || code == 48:
+		return iconFog
+	case code >= 51 && code <= 67:
+		return iconRain
+	case code >= 71 && code <= 77:
+		return iconSnow
+	case code >= 80 && code <= 82:
+		return iconRain
+	case code >= 85 && code <= 86:
+		return iconSnow
+	case code >= 95:
+		return iconStorm
+	default:
+		return iconCloud
+	}
+}
+
 func drawSunIcon(dc *gg.Context, x, y, size float64) {
 	r := size * 0.4
 
@@ -16,7 +49,7 @@ func drawSunIcon(dc *gg.Context, x, y, size float64) {
 
 	// raios
 	dc.SetRGBA(1, 0.9, 0.2, 0.7)
-	dc.SetLineWidth(3)
+	dc.SetLineWidth(size * 0.035)
 	for angle := 0.0; angle < 360; angle += 45 {
 		rad := gg.Radians(angle)
 		inner := r * 1.3
@@ -70,7 +103,7 @@ func drawRainIcon(dc *gg.Context, x, y, size float64) {
 
 	// gotas
 	dc.SetRGBA(0.5, 0.6, 0.9, 0.8)
-	dc.SetLineWidth(2.5)
+	dc.SetLineWidth(size * 0.03)
 	for i := -1; i <= 1; i++ {
 		dx := float64(i) * s * 0.45
 		dc.DrawLine(x+dx-s*0.05, y+s*0.45, x+dx+s*0.05, y+s*0.85)
@@ -94,7 +127,7 @@ func drawSnowIcon(dc *gg.Context, x, y, size float64) {
 
 	// flocos
 	dc.SetRGBA(0.9, 0.92, 1, 0.9)
-	dc.SetLineWidth(2)
+	dc.SetLineWidth(size * 0.025)
 	for i := -1; i <= 1; i++ {
 		dx := float64(i) * s * 0.45
 		cx := x + dx
@@ -124,7 +157,7 @@ func drawStormIcon(dc *gg.Context, x, y, size float64) {
 
 	// raio
 	dc.SetRGBA(1, 0.85, 0.2, 0.9)
-	dc.SetLineWidth(3)
+	dc.SetLineWidth(size * 0.035)
 	lx, ly := x, y+s*0.35
 	dc.MoveTo(lx-s*0.1, ly)
 	dc.LineTo(lx+s*0.1, ly+s*0.2)
@@ -137,7 +170,7 @@ func drawFogIcon(dc *gg.Context, x, y, size float64) {
 	s := size * 0.5
 
 	dc.SetRGBA(0.7, 0.72, 0.78, 0.7)
-	dc.SetLineWidth(4)
+	dc.SetLineWidth(size * 0.045)
 	for i := -1; i <= 1; i++ {
 		dy := float64(i) * s * 0.3
 		dc.DrawLine(x-s*0.8, y+dy, x+s*0.8, y+dy)
