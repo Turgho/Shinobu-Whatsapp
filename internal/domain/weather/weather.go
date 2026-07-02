@@ -36,6 +36,7 @@ type DailyForecast struct {
 	WeatherCode       int
 	TempMax           float64
 	TempMin           float64
+	ApparentTempMax   float64
 	PrecipitationProb float64
 }
 
@@ -72,6 +73,7 @@ type dailyResponse struct {
 		WeatherCode               []int     `json:"weather_code"`
 		Temperature2MMax          []float64 `json:"temperature_2m_max"`
 		Temperature2MMin          []float64 `json:"temperature_2m_min"`
+		ApparentTemperatureMax    []float64 `json:"apparent_temperature_max"`
 		PrecipitationProbMax      []float64 `json:"precipitation_probability_max"`
 	} `json:"daily"`
 }
@@ -165,11 +167,16 @@ func (w *WeatherClient) GetDailyForecast(ctx context.Context, lat, lon float64, 
 
 	forecasts := make([]DailyForecast, 0, len(resp.Daily.Time))
 	for i := range resp.Daily.Time {
+		apparentMax := 0.0
+		if i < len(resp.Daily.ApparentTemperatureMax) {
+			apparentMax = resp.Daily.ApparentTemperatureMax[i]
+		}
 		forecasts = append(forecasts, DailyForecast{
 			Date:              resp.Daily.Time[i],
 			WeatherCode:       resp.Daily.WeatherCode[i],
 			TempMax:           resp.Daily.Temperature2MMax[i],
 			TempMin:           resp.Daily.Temperature2MMin[i],
+			ApparentTempMax:   apparentMax,
 			PrecipitationProb: resp.Daily.PrecipitationProbMax[i],
 		})
 	}
@@ -236,7 +243,7 @@ func (w *WeatherClient) fetchHourly(ctx context.Context, lat, lon float64, forec
 func (w *WeatherClient) fetchDaily(ctx context.Context, lat, lon float64, days int) (*dailyResponse, error) {
 	apiURL := fmt.Sprintf(
 		"%s?latitude=%f&longitude=%f"+
-			"&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"+
+			"&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,precipitation_probability_max"+
 			"&timezone=auto&forecast_days=%d",
 		w.APIURL, lat, lon, days,
 	)
