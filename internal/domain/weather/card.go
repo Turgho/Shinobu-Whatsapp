@@ -7,7 +7,10 @@ import (
 	"sync"
 
 	"github.com/fogleman/gg"
+	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/font"
+	"golang.org/x/image/font/gofont/gobold"
+	"golang.org/x/image/font/gofont/goregular"
 )
 
 const (
@@ -32,26 +35,27 @@ var (
 	faceBold22 font.Face
 )
 
+// ensureFonts carrega as fontes embutidas no binário (golang.org/x/image/font/gofont).
+// Não depende de arquivos externos em assets/fonts — elimina risco de fonte
+// corrompida, 404 de download ou binário quebrado pelo Git.
 func ensureFonts() {
 	fontInit.Do(func() {
-		base := "assets/fonts/Inter"
-		faceReg22, fontErr = gg.LoadFontFace(base+"-Regular.ttf", 22)
-		if fontErr != nil {
+		regular, err := truetype.Parse(goregular.TTF)
+		if err != nil {
+			fontErr = fmt.Errorf("weather card: parse fonte regular: %w", err)
 			return
 		}
-		faceReg20, fontErr = gg.LoadFontFace(base+"-Regular.ttf", 20)
-		if fontErr != nil {
+		bold, err := truetype.Parse(gobold.TTF)
+		if err != nil {
+			fontErr = fmt.Errorf("weather card: parse fonte bold: %w", err)
 			return
 		}
-		faceBold26, fontErr = gg.LoadFontFace(base+"-Bold.ttf", 26)
-		if fontErr != nil {
-			return
-		}
-		faceBold72, fontErr = gg.LoadFontFace(base+"-Bold.ttf", 72)
-		if fontErr != nil {
-			return
-		}
-		faceBold22, fontErr = gg.LoadFontFace(base+"-Bold.ttf", 22)
+
+		faceReg22 = truetype.NewFace(regular, &truetype.Options{Size: 22})
+		faceReg20 = truetype.NewFace(regular, &truetype.Options{Size: 20})
+		faceBold26 = truetype.NewFace(bold, &truetype.Options{Size: 26})
+		faceBold72 = truetype.NewFace(bold, &truetype.Options{Size: 72})
+		faceBold22 = truetype.NewFace(bold, &truetype.Options{Size: 22})
 	})
 }
 

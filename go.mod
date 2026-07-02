@@ -3,6 +3,8 @@ module github.com/Turgho/Shinobu-Whatsapp
 go 1.25.7
 
 require (
+	github.com/fogleman/gg v1.3.0
+	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/joho/godotenv v1.5.1
 	github.com/mattn/go-sqlite3 v1.14.34
 	github.com/mdp/qrterminal/v3 v3.2.1
@@ -11,7 +13,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.mau.fi/whatsmeow v0.0.0-20260305215846-fc65416c22c4
 	go.uber.org/zap v1.27.1
-	golang.org/x/image v0.40.0
+	golang.org/x/image v0.43.0
 	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.50.0
 )
@@ -23,11 +25,9 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/elliotchance/orderedmap/v3 v3.1.0 // indirect
-	github.com/fogleman/gg v1.3.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
-	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
@@ -59,7 +59,7 @@ require (
 	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/term v0.40.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/text v0.38.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.72.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
