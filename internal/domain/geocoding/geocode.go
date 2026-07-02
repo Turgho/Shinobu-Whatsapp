@@ -41,7 +41,11 @@ func NewGeoCoding(nominatimURL, openMeteoURL string, logger *zap.Logger) *GeoCod
 
 // Lookup busca coordenadas para uma query de lugar.
 // Tenta Nominatim primeiro (mais preciso no Brasil); fallback para Open-Meteo.
+// Retorna erro se query for vazia ou só whitespace — evita geocoding de lixo.
 func (g *GeoCoding) Lookup(ctx context.Context, query string, limit int) ([]GeoResult, error) {
+	if strings.TrimSpace(query) == "" {
+		return nil, fmt.Errorf("geocoding: query vazia")
+	}
 	if results, err := g.lookupNominatim(ctx, query, limit); err == nil && len(results) > 0 {
 		return results, nil
 	}
