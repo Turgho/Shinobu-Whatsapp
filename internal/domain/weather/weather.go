@@ -78,6 +78,23 @@ type dailyResponse struct {
 	} `json:"daily"`
 }
 
+// combinedResponse mapeia uma resposta com current + daily no mesmo request.
+type combinedResponse struct {
+	Current struct {
+		Temperature         float64 `json:"temperature_2m"`
+		ApparentTemperature float64 `json:"apparent_temperature"`
+		WeatherCode         int     `json:"weather_code"`
+	} `json:"current"`
+	Daily struct {
+		Time                      []string  `json:"time"`
+		WeatherCode               []int     `json:"weather_code"`
+		Temperature2MMax          []float64 `json:"temperature_2m_max"`
+		Temperature2MMin          []float64 `json:"temperature_2m_min"`
+		ApparentTemperatureMax    []float64 `json:"apparent_temperature_max"`
+		PrecipitationProbMax      []float64 `json:"precipitation_probability_max"`
+	} `json:"daily"`
+}
+
 // NewWeatherClient cria client com timeout de 10s para Open-Meteo + wttr.in.
 func NewWeatherClient(apiURL string, logger *zap.Logger) *WeatherClient {
 	return &WeatherClient{
@@ -189,6 +206,64 @@ func (w *WeatherClient) GetDailyForecast(ctx context.Context, lat, lon float64, 
 	)
 
 	return forecasts, nil
+}
+
+// GetCurrentAndDailyForecast busca temperatura atual + previsão diária em
+// uma única requisição à Open-Meteo. Retorna o weather atual (hero) e a
+// lista de DailyForecast (lista de dias).
+func (w *WeatherClient) GetCurrentAndDailyForecast(ctx context.Context, lat, lon float64, days int) (*WeatherResult, []DailyForecast, error) {
+	apiURL := fmt.Sprintf(
+		"%s?latitude=%f&longitude=%f"+
+			"&current=temperature_2m,apparent_temperature,weather_code"+
+			"&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,precipitation_probability_max"+
+			"&timezone=auto&forecast_days=%d",
+		w.APIURL, lat, lon, days,
+	)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("weather: request combinado: %w", err)
+	}
+
+	resp, err := w.httpClient.Do(req)
+	if err != nil {
+		return nil, nil, fmt.Errorf("weather: erro na requisição combinada: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, nil, fmt.Errorf("weather: status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var data combinedResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, nil, fmt.Errorf("weather: erro ao decodificar resposta combinada: %w", err)
+	}
+
+	current := &WeatherResult{
+		Temperature:         data.Current.Temperature,
+		ApparentTemperature: data.Current.ApparentTemperature,
+		WeatherCode:         data.Current.WeatherCode,
+	}
+
+	forecasts := make([]DailyForecast, 0, len(data.Daily.Time))
+	for i := range data.Daily.Time {
+		apparentMax := 0.0
+		if i < len(data.Daily.ApparentTemperatureMax) {
+			apparentMax = data.Daily.ApparentTemperatureMax[i]
+		}
+		forecasts = append(forecasts, DailyForecast{
+			Date:              data.Daily.Time[i],
+			WeatherCode:       data.Daily.WeatherCode[i],
+			TempMax:           data.Daily.Temperature2MMax[i],
+			TempMin:           data.Daily.Temperature2MMin[i],
+			ApparentTempMax:   apparentMax,
+			PrecipitationProb: data.Daily.PrecipitationProbMax[i],
+		})
+	}
+
+	return current, forecasts, nil
 }
 
 // fetchHourly consulta a Open-Meteo /forecast com parâmetros current + hourly.
