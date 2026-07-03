@@ -74,13 +74,13 @@ func WeatherCommand(
 		return whatsapp.Reply(ctx, client, evt, msg)
 	}
 
-	// 5-day forecast card (default)
-	forecasts, err := weatherClient.GetDailyForecast(ctx, loc.Latitude, loc.Longitude, forecastDays)
+	// 5-day forecast card (default) — request único com current + daily
+	currentWeather, forecasts, err := weatherClient.GetCurrentAndDailyForecast(ctx, loc.Latitude, loc.Longitude, forecastDays)
 	if err != nil {
 		return replyOrUnderlying(ctx, client, evt, msgWeatherFailed, err)
 	}
 
-	cardBytes, cardErr := weather.GenerateForecastCard(forecasts, nil, loc.DisplayName, loc.Country)
+	cardBytes, cardErr := weather.GenerateForecastCard(forecasts, currentWeather, loc.DisplayName, loc.Country)
 	if cardErr != nil {
 		logger.Warn("falha ao gerar card do clima, enviando texto", zap.Error(cardErr))
 		return whatsapp.Reply(ctx, client, evt, buildForecastText(loc, forecasts))
