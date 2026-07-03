@@ -75,17 +75,20 @@ func GenerateForecastCard(forecasts []DailyForecast, current *WeatherResult, loc
 	// hero background — gradiente baseado no clima de hoje
 	drawHeroBackground(dc, forecasts[0].WeatherCode)
 
-	// divisor entre hero e lista
+	// fundo sólido da lista
 	divY := float64(heroH)
+	dc.SetRGBA(0.16, 0.18, 0.27, 1)
+	dc.DrawRectangle(0, divY, cardW, float64(cardH-heroH))
+	dc.Fill()
+
+	// decoração de fundo sobre hero + lista, antes do conteúdo textual
+	drawCardDecoration(dc, forecasts[0].WeatherCode, cardW, heroH, cardH)
+
+	// divisor entre hero e lista
 	dc.SetRGBA(1, 1, 1, 0.2)
 	dc.SetLineWidth(2)
 	dc.DrawLine(float64(cardPadding), divY, float64(cardW-cardPadding), divY)
 	dc.Stroke()
-
-	// fundo sólido da lista
-	dc.SetRGBA(0.16, 0.18, 0.27, 1)
-	dc.DrawRectangle(0, divY, cardW, float64(cardH-heroH))
-	dc.Fill()
 
 	drawHeroSection(dc, forecasts[0], current, location, country)
 
