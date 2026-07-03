@@ -16,17 +16,10 @@ import (
 
 const (
 	cardW         = 800
-	heroH         = 240
+	heroH         = 290
 	rowH          = 90
 	cardPadding   = 20
 	iconSizeRow   = 36.0
-	iconSizeHero  = 100.0
-
-	// hero Y offsets — 60px vertical gap between temp and desc to avoid overlap
-	heroLocY = 35.0
-	heroTempY = 120.0
-	heroDescY = 180.0
-	heroSubY  = 210.0
 
 	// row X layout — measured: "Amanhã"=86px at 22pt bold
 	rowLabelX   = 30.0  // label anchor (left)
@@ -44,7 +37,7 @@ const (
 var (
 	fontInit   sync.Once
 	fontErr    error
-	faceReg22  font.Face
+	faceReg26  font.Face
 	faceReg20  font.Face
 	faceReg18  font.Face
 	faceReg14  font.Face
@@ -66,7 +59,7 @@ func ensureFonts() {
 			return
 		}
 
-		faceReg22 = truetype.NewFace(regular, &truetype.Options{Size: 22})
+		faceReg26 = truetype.NewFace(regular, &truetype.Options{Size: 26})
 		faceReg20 = truetype.NewFace(regular, &truetype.Options{Size: 20})
 		faceReg18 = truetype.NewFace(regular, &truetype.Options{Size: 18})
 		faceReg14 = truetype.NewFace(regular, &truetype.Options{Size: 14})
@@ -90,17 +83,14 @@ func GenerateForecastCard(forecasts []DailyForecast, current *WeatherResult, loc
 	cardH := heroH + numList*rowH + cardPadding*2
 	dc := gg.NewContext(cardW, cardH)
 
-	// hero background — gradiente baseado no clima de hoje
+	// hero background — fundo sólido (sem gradiente)
 	drawHeroBackground(dc, forecasts[0].WeatherCode)
 
 	// fundo sólido da lista
 	divY := float64(heroH)
-	dc.SetRGBA(0.16, 0.18, 0.27, 1)
+	dc.SetRGBA(0.14, 0.16, 0.24, 1)
 	dc.DrawRectangle(0, divY, cardW, float64(cardH-heroH))
 	dc.Fill()
-
-	// decoração de fundo sobre hero + lista, antes do conteúdo textual
-	drawCardDecoration(dc, forecasts[0].WeatherCode, cardW, heroH, cardH)
 
 	// divisor entre hero e lista
 	dc.SetRGBA(1, 1, 1, 0.2)
@@ -124,47 +114,25 @@ func GenerateForecastCard(forecasts []DailyForecast, current *WeatherResult, loc
 // ────────────────────────────── Hero ───────────────────────────────────
 
 func drawHeroBackground(dc *gg.Context, code int) {
-	g := gg.NewLinearGradient(0, 0, cardW, float64(heroH))
-
-	switch iconCategory(code) {
-	case iconSun:
-		g.AddColorStop(0, rgba(100, 180, 255, 255))
-		g.AddColorStop(1, rgba(255, 200, 100, 255))
-	case iconCloud:
-		g.AddColorStop(0, rgba(180, 190, 200, 255))
-		g.AddColorStop(1, rgba(140, 150, 160, 255))
-	case iconRain, iconFog:
-		g.AddColorStop(0, rgba(70, 90, 120, 255))
-		g.AddColorStop(1, rgba(100, 110, 130, 255))
-	case iconSnow:
-		g.AddColorStop(0, rgba(180, 210, 240, 255))
-		g.AddColorStop(1, rgba(220, 230, 245, 255))
-	case iconStorm:
-		g.AddColorStop(0, rgba(40, 30, 60, 255))
-		g.AddColorStop(1, rgba(60, 50, 70, 255))
-	default:
-		g.AddColorStop(0, rgba(180, 190, 200, 255))
-		g.AddColorStop(1, rgba(140, 150, 160, 255))
-	}
-
-	dc.SetFillStyle(g)
+	// tom fixo azul-noite — sem gradiente, sem variação por condição
+	dc.SetRGBA(0.094, 0.125, 0.227, 1) // #18203A
 	dc.DrawRectangle(0, 0, cardW, float64(heroH))
 	dc.Fill()
 }
 
 func drawHeroSection(dc *gg.Context, today DailyForecast, current *WeatherResult, location, country string) {
+	// pin + localização
+	drawPinIcon(dc, 30, 35, 14)
 	label := location
 	if country != "" {
 		label = location + ", " + country
 	}
-
 	dc.SetFontFace(faceBold26)
 	dc.SetRGB(1, 1, 1)
-	dc.DrawStringAnchored(label, 40, heroLocY, 0, 0.5)
+	dc.DrawStringAnchored(label, 55, 35, 0, 0.5)
 
 	// temperatura grande — current.Temperature se disponível, senão daily max
-	var temp float64
-	var apparent float64
+	var temp, apparent float64
 	if current != nil {
 		temp = current.Temperature
 		apparent = current.ApparentTemperature
@@ -172,46 +140,29 @@ func drawHeroSection(dc *gg.Context, today DailyForecast, current *WeatherResult
 		temp = today.TempMax
 		apparent = today.ApparentTempMax
 	}
-
 	dc.SetFontFace(faceBold72)
 	dc.SetRGB(1, 1, 1)
-	dc.DrawStringAnchored(fmt.Sprintf("%.0f°", temp), 40, heroTempY, 0, 0.5)
+	dc.DrawStringAnchored(fmt.Sprintf("%.0f°", temp), 40, 120, 0, 0.5)
 
-	// descrição — usa weather code do current se disponível
+	// condição
 	weatherCode := today.WeatherCode
 	info := Lookup(weatherCode)
-	dc.SetFontFace(faceReg22)
+	dc.SetFontFace(faceReg26)
 	dc.SetRGB(1, 1, 1)
-	dc.DrawStringAnchored(info.Description, 40, heroDescY, 0, 0.5)
+	dc.DrawStringAnchored(info.Description, 40, 185, 0, 0.5)
 
-	// linha: sensação · máx / mín
-	sub := fmt.Sprintf("Sensação %.0f° · Máx %.0f° / Mín %.0f°",
-		apparent, today.TempMax, today.TempMin)
+	// linha de máx/mín com setas
+	y1 := 225.0
+	drawUpArrow(dc, 40, y1, 10)
+	dc.SetFontFace(faceReg20)
+	dc.DrawStringAnchored(fmt.Sprintf("%.0f°", today.TempMax), 60, y1, 0, 0.5)
+	drawDownArrow(dc, 135, y1, 10)
+	dc.DrawStringAnchored(fmt.Sprintf("%.0f°", today.TempMin), 155, y1, 0, 0.5)
+
+	// sensação térmica — linha separada abaixo das setas
 	dc.SetFontFace(faceReg18)
-	dc.SetRGBA(1, 1, 1, 0.75)
-	dc.DrawStringAnchored(sub, 40, heroSubY, 0, 0.5)
-
-	drawBigIcon(dc, weatherCode)
-}
-
-func drawBigIcon(dc *gg.Context, code int) {
-	x, yPos := 620.0, heroTempY
-	s := iconSizeHero
-
-	switch iconCategory(code) {
-	case iconSun:
-		drawSunIcon(dc, x, yPos, s)
-	case iconCloud:
-		drawCloudIcon(dc, x, yPos, s)
-	case iconRain:
-		drawRainIcon(dc, x, yPos, s)
-	case iconSnow:
-		drawSnowIcon(dc, x, yPos, s)
-	case iconStorm:
-		drawStormIcon(dc, x, yPos, s)
-	case iconFog:
-		drawFogIcon(dc, x, yPos, s)
-	}
+	dc.SetRGBA(1, 1, 1, 0.8)
+	dc.DrawStringAnchored(fmt.Sprintf("Sensação térmica de %.0f°", apparent), 40, 255, 0, 0.5)
 }
 
 // ────────────────────────────── Daily list ─────────────────────────────
@@ -326,6 +277,42 @@ func drawDayPrecip(dc *gg.Context, f DailyForecast, y int) {
 	dc.SetFontFace(faceReg14)
 	dc.SetRGBA(1, 1, 1, 0.8)
 	dc.DrawStringAnchored(fmt.Sprintf("%.0f%%", f.PrecipitationProb), rowPrecipTX, midY, 0, 0.5)
+}
+
+// ────────────────────────────── Icon helpers ───────────────────────────
+
+func drawPinIcon(dc *gg.Context, x, y, size float64) {
+	dc.SetRGBA(1, 1, 1, 0.9)
+	r := size * 0.4
+	// círculo do marcador
+	dc.DrawCircle(x, y-size*0.1, r)
+	dc.Fill()
+	// ponta triangular apontando para baixo
+	dc.MoveTo(x-r*1.2, y+size*0.1)
+	dc.LineTo(x+r*1.2, y+size*0.1)
+	dc.LineTo(x, y+size*0.5)
+	dc.ClosePath()
+	dc.Fill()
+}
+
+func drawUpArrow(dc *gg.Context, x, y, size float64) {
+	dc.SetRGBA(1, 1, 1, 0.8)
+	s := size * 0.5
+	dc.MoveTo(x, y-s)
+	dc.LineTo(x-s, y+s)
+	dc.LineTo(x+s, y+s)
+	dc.ClosePath()
+	dc.Fill()
+}
+
+func drawDownArrow(dc *gg.Context, x, y, size float64) {
+	dc.SetRGBA(1, 1, 1, 0.8)
+	s := size * 0.5
+	dc.MoveTo(x, y+s)
+	dc.LineTo(x-s, y-s)
+	dc.LineTo(x+s, y-s)
+	dc.ClosePath()
+	dc.Fill()
 }
 
 // ────────────────────────────── Helpers ────────────────────────────────
