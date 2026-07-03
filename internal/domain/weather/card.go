@@ -16,11 +16,29 @@ import (
 
 const (
 	cardW         = 800
-	heroH         = 220
+	heroH         = 240
 	rowH          = 90
 	cardPadding   = 20
-	iconSizeRow   = 50.0
+	iconSizeRow   = 36.0
 	iconSizeHero  = 100.0
+
+	// hero Y offsets — 60px vertical gap between temp and desc to avoid overlap
+	heroLocY = 35.0
+	heroTempY = 120.0
+	heroDescY = 180.0
+	heroSubY  = 210.0
+
+	// row X layout — measured: "Amanhã"=86px at 22pt bold
+	rowLabelX   = 30.0  // label anchor (left)
+	rowLabelW   = 120.0 // max label width (86 + 34 safety)
+	rowIconX    = 200.0 // icon center, after label end + gap
+	rowDescX    = 230.0 // description anchor (left)
+	rowDescMaxW = 260.0 // max description width
+	rowTempX    = 660.0 // temp right-aligned to this x
+	rowSlashX   = 655.0 // "/" right-aligned
+	rowMinX     = 665.0 // min temp anchor (left)
+	rowPrecipCX = 710.0 // precip circle center
+	rowPrecipTX = 720.0 // precip text anchor (left)
 )
 
 var (
@@ -142,7 +160,7 @@ func drawHeroSection(dc *gg.Context, today DailyForecast, current *WeatherResult
 
 	dc.SetFontFace(faceBold26)
 	dc.SetRGB(1, 1, 1)
-	dc.DrawStringAnchored(label, 40, 35, 0, 0.5)
+	dc.DrawStringAnchored(label, 40, heroLocY, 0, 0.5)
 
 	// temperatura grande — current.Temperature se disponível, senão daily max
 	var temp float64
@@ -157,27 +175,27 @@ func drawHeroSection(dc *gg.Context, today DailyForecast, current *WeatherResult
 
 	dc.SetFontFace(faceBold72)
 	dc.SetRGB(1, 1, 1)
-	dc.DrawStringAnchored(fmt.Sprintf("%.0f°", temp), 40, 115, 0, 0.5)
+	dc.DrawStringAnchored(fmt.Sprintf("%.0f°", temp), 40, heroTempY, 0, 0.5)
 
 	// descrição — usa weather code do current se disponível
 	weatherCode := today.WeatherCode
 	info := Lookup(weatherCode)
 	dc.SetFontFace(faceReg22)
 	dc.SetRGB(1, 1, 1)
-	dc.DrawStringAnchored(info.Description, 40, 155, 0, 0.5)
+	dc.DrawStringAnchored(info.Description, 40, heroDescY, 0, 0.5)
 
 	// linha: sensação · máx / mín
 	sub := fmt.Sprintf("Sensação %.0f° · Máx %.0f° / Mín %.0f°",
 		apparent, today.TempMax, today.TempMin)
 	dc.SetFontFace(faceReg18)
 	dc.SetRGBA(1, 1, 1, 0.75)
-	dc.DrawStringAnchored(sub, 40, 190, 0, 0.5)
+	dc.DrawStringAnchored(sub, 40, heroSubY, 0, 0.5)
 
 	drawBigIcon(dc, weatherCode)
 }
 
 func drawBigIcon(dc *gg.Context, code int) {
-	x, yPos := 620.0, 115.0
+	x, yPos := 620.0, heroTempY
 	s := iconSizeHero
 
 	switch iconCategory(code) {
@@ -242,11 +260,11 @@ func drawDayLabel(dc *gg.Context, index int, f DailyForecast, y int) {
 	midY := float64(y) + float64(rowH)/2
 	dc.SetFontFace(faceBold22)
 	dc.SetRGB(1, 1, 1)
-	dc.DrawStringAnchored(label, 30, midY, 0, 0.5)
+	dc.DrawStringAnchored(label, rowLabelX, midY, 0, 0.5)
 }
 
 func drawDayIcon(dc *gg.Context, f DailyForecast, y int) {
-	x, yPos := 105.0, float64(y)+float64(rowH)/2
+	x, yPos := rowIconX, float64(y)+float64(rowH)/2
 	s := iconSizeRow
 
 	switch iconCategory(f.WeatherCode) {
@@ -271,7 +289,7 @@ func drawDayDescription(dc *gg.Context, f DailyForecast, y int) {
 
 	dc.SetFontFace(faceReg20)
 	dc.SetRGB(1, 1, 1)
-	dc.DrawStringAnchored(info.Description, 165, midY, 0, 0.5)
+	dc.DrawStringAnchored(info.Description, rowDescX, midY, 0, 0.5)
 }
 
 func drawDayTemp(dc *gg.Context, f DailyForecast, y int) {
@@ -281,18 +299,17 @@ func drawDayTemp(dc *gg.Context, f DailyForecast, y int) {
 
 	maxW, _ := dc.MeasureString(textMax)
 
-	xMax := 600.0
 	dc.SetFontFace(faceBold22)
 	dc.SetRGB(1, 1, 1)
-	dc.DrawStringAnchored(textMax, xMax-maxW, midY, 0, 0.5)
+	dc.DrawStringAnchored(textMax, rowTempX-maxW, midY, 0, 0.5)
 
 	dc.SetFontFace(faceReg18)
 	dc.SetRGBA(1, 1, 1, 0.5)
-	dc.DrawStringAnchored("/", xMax-5, midY, 1, 0.5)
+	dc.DrawStringAnchored("/", rowSlashX, midY, 1, 0.5)
 
 	dc.SetFontFace(faceReg20)
 	dc.SetRGBA(1, 1, 1, 0.65)
-	dc.DrawStringAnchored(textMin, xMax+5, midY, 0, 0.5)
+	dc.DrawStringAnchored(textMin, rowMinX, midY, 0, 0.5)
 }
 
 func drawDayPrecip(dc *gg.Context, f DailyForecast, y int) {
@@ -303,12 +320,12 @@ func drawDayPrecip(dc *gg.Context, f DailyForecast, y int) {
 	midY := float64(y) + float64(rowH)/2
 
 	dc.SetRGBA(0.3, 0.6, 0.9, 0.8)
-	dc.DrawCircle(720, midY-6, 5)
+	dc.DrawCircle(rowPrecipCX, midY-6, 5)
 	dc.Fill()
 
 	dc.SetFontFace(faceReg14)
 	dc.SetRGBA(1, 1, 1, 0.8)
-	dc.DrawStringAnchored(fmt.Sprintf("%.0f%%", f.PrecipitationProb), 730, midY, 0, 0.5)
+	dc.DrawStringAnchored(fmt.Sprintf("%.0f%%", f.PrecipitationProb), rowPrecipTX, midY, 0, 0.5)
 }
 
 // ────────────────────────────── Helpers ────────────────────────────────
