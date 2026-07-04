@@ -63,6 +63,7 @@ REGRAS (ordem de precedência):
 5. "faltam X dias"/"quantos dias" → contagem; "lembre"/"avisa" → agenda
 6. cotacao: APENAS moeda (dólar/euro) ↔ real. Preço de produto/serviço → ignorar
 7. Se "Contexto da conversa" for fornecido, use-o para preencher argumentos (ex: cidade, data) que a mensagem atual não especifica
+8. REGRA CRÍTICA: se a mensagem for apenas saudação, nome do bot, ou não contiver pedido claro e específico, retorne SEMPRE {"command":"","args":[]} — nunca invente ou assuma um comando por falta de contexto. Exemplos que devem retornar vazio: "shinobu", "shinobu?", "oi shinobu", "shinobu tudo bem"
 
 DATAS:
 - manhã=08:00, tarde=14:00, noite=19:00
