@@ -4,13 +4,31 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 )
+
+const (
+	maxRetries       = 2
+	baseBackoff      = 2 * time.Second
+	maxBackoff       = 10 * time.Second
+)
+
+// RateLimitError indica que a API Groq retornou HTTP 429 (rate limited).
+type RateLimitError struct {
+	Model  string
+	Reason string
+}
+
+func (e *RateLimitError) Error() string {
+	return fmt.Sprintf("Groq ainda tá de castigo (rate limit) — modelo %s: %s", e.Model, e.Reason)
+}
 
 // callGroq prepara o request IARequest e chama groqChat, retornando só o texto.
 func callGroq(ctx context.Context, httpClient *http.Client, groqURL, groqKey, model string, messages []history.IAMessage, temperature float64, maxTokens int) (string, error) {
@@ -27,7 +45,39 @@ func callGroq(ctx context.Context, httpClient *http.Client, groqURL, groqKey, mo
 	return resp.Choices[0].Message.Content, nil
 }
 
+// groqChat é a camada pública que envolve groqChatRaw com retry em caso de 429.
 func groqChat(ctx context.Context, httpClient *http.Client, groqURL, groqKey string, req IARequest) (IAResponse, error) {
+	var lastErr error
+	for attempt := range maxRetries + 1 {
+		resp, err := groqChatRaw(ctx, httpClient, groqURL, groqKey, req)
+		if err == nil {
+			return resp, nil
+		}
+
+		var rateErr *RateLimitError
+		if !errors.As(err, &rateErr) {
+			return resp, err
+		}
+
+		lastErr = err
+
+		if attempt < maxRetries {
+			backoff := time.Duration(math.Min(
+				float64(baseBackoff)*math.Pow(2, float64(attempt)),
+				float64(maxBackoff),
+			))
+			select {
+			case <-ctx.Done():
+				return resp, ctx.Err()
+			case <-time.After(backoff):
+			}
+		}
+	}
+	return IAResponse{}, fmt.Errorf("groq: rate limit excedido após %d tentativas: %w", maxRetries+1, lastErr)
+}
+
+// groqChatRaw faz a chamada HTTP real à API Groq, sem retry.
+func groqChatRaw(ctx context.Context, httpClient *http.Client, groqURL, groqKey string, req IARequest) (IAResponse, error) {
 	var zero IAResponse
 	if groqURL == "" {
 		return zero, fmt.Errorf("GROQ_URL não definido")
@@ -60,6 +110,9 @@ func groqChat(ctx context.Context, httpClient *http.Client, groqURL, groqKey str
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode == http.StatusTooManyRequests {
+			return zero, &RateLimitError{Model: req.Model, Reason: string(b)}
+		}
 		return zero, fmt.Errorf("groq: status %d: %s", resp.StatusCode, string(b))
 	}
 

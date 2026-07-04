@@ -54,6 +54,7 @@ aniversário: "quando é o aniversário da vovó?"→["lista"]
 feriado: "quando é o próximo feriado?"→[]
 unsticker: "transforma figurinha em foto"→[]
 Sem comando: "bom dia", conversa casual, "quanto custa um carro?"→[]
+Múltiplos: "toca música e me fala o clima"→play, "qual o clima e toca música"→clima
 
 REGRAS (ordem de precedência):
 1. coloca + música/banda/som → play; coloca + efeito (echo,reverb,robot,grave,agudo) → efeito; ambíguo → play
@@ -64,6 +65,7 @@ REGRAS (ordem de precedência):
 6. cotacao: APENAS moeda (dólar/euro) ↔ real. Preço de produto/serviço → ignorar
 7. Se "Contexto da conversa" for fornecido, use-o para preencher argumentos (ex: cidade, data) que a mensagem atual não especifica
 8. REGRA CRÍTICA: se a mensagem for apenas saudação, nome do bot, ou não contiver pedido claro e específico, retorne SEMPRE {"command":"","args":[]} — nunca invente ou assuma um comando por falta de contexto. Exemplos que devem retornar vazio: "shinobu", "shinobu?", "oi shinobu", "shinobu tudo bem"
+9. REGRA DE MÚLTIPLOS PEDIDOS: se a mensagem contiver mais de um pedido/comando reconhecível, retorne APENAS o primeiro comando mencionado na ordem em que aparece no texto. Não tente combinar ou escolher o "mais importante" — sempre o primeiro na ordem de leitura.
 
 DATAS:
 - manhã=08:00, tarde=14:00, noite=19:00
