@@ -40,10 +40,12 @@ var (
 	faceReg26  font.Face
 	faceReg20  font.Face
 	faceReg18  font.Face
+	faceReg16  font.Face
 	faceReg14  font.Face
 	faceBold72 font.Face
 	faceBold26 font.Face
 	faceBold22 font.Face
+	faceBold20 font.Face
 )
 
 func ensureFonts() {
@@ -62,10 +64,12 @@ func ensureFonts() {
 		faceReg26 = truetype.NewFace(regular, &truetype.Options{Size: 26})
 		faceReg20 = truetype.NewFace(regular, &truetype.Options{Size: 20})
 		faceReg18 = truetype.NewFace(regular, &truetype.Options{Size: 18})
+		faceReg16 = truetype.NewFace(regular, &truetype.Options{Size: 16})
 		faceReg14 = truetype.NewFace(regular, &truetype.Options{Size: 14})
 		faceBold72 = truetype.NewFace(bold, &truetype.Options{Size: 72})
 		faceBold26 = truetype.NewFace(bold, &truetype.Options{Size: 26})
 		faceBold22 = truetype.NewFace(bold, &truetype.Options{Size: 22})
+		faceBold20 = truetype.NewFace(bold, &truetype.Options{Size: 20})
 	})
 }
 
@@ -127,7 +131,17 @@ func drawHeroSection(dc *gg.Context, today DailyForecast, current *WeatherResult
 	if country != "" {
 		label = location + ", " + country
 	}
+
+	// Espaço disponível: x=55 até 800-20 (right margin) = 725px
+	maxLabelW := 725.0
 	dc.SetFontFace(faceBold26)
+	if !fitsWidth(dc, label, maxLabelW) {
+		dc.SetFontFace(faceBold22)
+		if !fitsWidth(dc, label, maxLabelW) {
+			dc.SetFontFace(faceReg20)
+			label = truncateToWidth(dc, label, maxLabelW)
+		}
+	}
 	dc.SetRGB(1, 1, 1)
 	dc.DrawStringAnchored(label, 55, 35, 0, 0.5)
 
@@ -210,6 +224,9 @@ func drawDayLabel(dc *gg.Context, index int, f DailyForecast, y int) {
 
 	midY := float64(y) + float64(rowH)/2
 	dc.SetFontFace(faceBold22)
+	if !fitsWidth(dc, label, rowLabelW) {
+		label = truncateToWidth(dc, label, rowLabelW)
+	}
 	dc.SetRGB(1, 1, 1)
 	dc.DrawStringAnchored(label, rowLabelX, midY, 0, 0.5)
 }
@@ -238,9 +255,13 @@ func drawDayDescription(dc *gg.Context, f DailyForecast, y int) {
 	info := Lookup(f.WeatherCode)
 	midY := float64(y) + float64(rowH)/2
 
+	desc := info.Description
 	dc.SetFontFace(faceReg20)
+	if !fitsWidth(dc, desc, rowDescMaxW) {
+		desc = truncateToWidth(dc, desc, rowDescMaxW)
+	}
 	dc.SetRGB(1, 1, 1)
-	dc.DrawStringAnchored(info.Description, rowDescX, midY, 0, 0.5)
+	dc.DrawStringAnchored(desc, rowDescX, midY, 0, 0.5)
 }
 
 func drawDayTemp(dc *gg.Context, f DailyForecast, y int) {
