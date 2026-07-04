@@ -18,10 +18,29 @@ import (
 // 3. Se aprovado → despacha para o handler
 // 4. Se falhar ou sem comando → fallback para IA geral
 func (r *Router) handleNaturalLanguage(evt *events.Message, msg string) {
+	// Bare mention guard: mensagens como só "Shinobu" ou "shinobu?" sem
+	// pedido real nunca devem chegar ao DetectIntent — vão direto pra
+	// conversa, evitando que o modelo invente comandos por falta de sinal.
+	if isBareMention(msg, r.botJID) {
+		r.log.Debug("NLU: bare mention, skip DetectIntent",
+			append(eventFields(evt), zap.String("msg", msg))...,
+		)
+		r.handleShinobuMention(evt, msg, "")
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 
 	quotedText := whatsapp.ExtractQuotedText(evt)
+
+	// hasActionableContent guard: só injeta contexto de reply no DetectIntent
+	// se a mensagem atual tiver conteúdo suficiente (≥2 palavras). Impede que
+	// o contexto de uma mensagem anterior do bot (ex: piada, card de clima)
+	// contamine a classificação de saudações ou respostas vagas.
+	if quotedText != "" && !hasActionableContent(msg) {
+		quotedText = ""
+	}
 
 	intent, err := ia.DetectIntent(ctx, r.aiConfig, msg, quotedText)
 	if err != nil {
