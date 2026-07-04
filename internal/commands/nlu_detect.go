@@ -2,6 +2,7 @@ package commands
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow/types/events"
@@ -149,4 +150,32 @@ func wordMatch(s, word string) bool {
 
 func isLetter(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+}
+
+// isBareMention verifica se a mensagem, após remover o nome do bot, não
+// contém conteúdo suficiente para representar um pedido real. Mensagens que
+// são apenas "Shinobu", "shinobu?" ou menção solta sem verbo devem pular
+// a classificação de intento para evitar que o modelo invente comandos.
+func isBareMention(msg, botJID string) bool {
+	cleaned := strings.ToLower(msg)
+	cleaned = strings.ReplaceAll(cleaned, "shinobu", "")
+	if botJID != "" {
+		cleaned = strings.ReplaceAll(cleaned, botJID, "")
+		// também remove só o número (sem @s.whatsapp.net)
+		if idx := strings.Index(botJID, "@"); idx != -1 {
+			cleaned = strings.ReplaceAll(cleaned, botJID[:idx], "")
+		}
+	}
+	cleaned = strings.TrimSpace(cleaned)
+	cleaned = strings.Trim(cleaned, ",.!?;: ")
+	return utf8.RuneCountInString(cleaned) < 3
+}
+
+// hasActionableContent verifica se a mensagem tem conteúdo suficiente (≥2 palavras)
+// para justificar usar o contexto de reply como auxílio na classificação de intento.
+// Evita que saudações/respostas vagas como "tudo bem?" recebam contexto que
+// contaminaria a decisão do modelo.
+func hasActionableContent(msg string) bool {
+	words := strings.Fields(strings.ToLower(msg))
+	return len(words) >= 2
 }
