@@ -8,9 +8,11 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
+	"go.uber.org/zap"
 )
 
-func PlayCommand(musicCfg *music.Config) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+func PlayCommand(musicCfg *music.Config, logger *zap.Logger) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+	l := logger.Named("PLAY")
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		if len(args) == 0 {
 			return whatsapp.SendText(ctx, client, evt, msgNoQuery, true)
@@ -21,6 +23,7 @@ func PlayCommand(musicCfg *music.Config) func(ctx context.Context, client *whats
 		query := strings.Join(args, " ")
 		audio, ext, err := music.DownloadAudio(ctx, musicCfg, query)
 		if err != nil {
+			l.Debug("download failed", zap.Error(err), zap.String("query", query))
 			return whatsapp.SendText(ctx, client, evt, msgDownloadFail, true)
 		}
 
