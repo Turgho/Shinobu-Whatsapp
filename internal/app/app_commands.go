@@ -62,7 +62,7 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Description: "Busca por uma música via nome ou URL",
 		Type:        commands.CommandTypeDownload,
 		Args:        []commands.ArgMeta{{Name: "nome da música ou URL", Required: true}},
-	}, public.PlayCommand(musicCfg))
+	}, public.PlayCommand(musicCfg, logger))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "mambo",
