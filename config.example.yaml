@@ -4,6 +4,8 @@ bot:
   environment: "development"
   timezone: "America/Sao_Paulo"
   nlpGroupTrigger: false  # se true, NLU dispara em grupo sem mencionar Shinobu (default: false)
+  normalStickerChance: 0.2  # chance de enviar sticker aleatório nas respostas normais (0-1)
+  normalStickerBlacklist: [] # nomes de stickers excluídos do sorteio
 
 database:
   driver: sqlite3

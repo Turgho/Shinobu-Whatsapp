@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"math/rand/v2"
 	"net/http"
 	"strings"
 	"sync"
@@ -69,7 +70,8 @@ func ShinobuCommand(store *history.Store, cfg *configs.Config, stickerStore *sti
 
 		// Cache de duplicatas: mesmo prompt no mesmo chat em <30s.
 		if cached := getCachedAnswer(chat, prompt); cached != "" {
-			return sendShinobuReply(ctx, client, evt, cached, false, mentions, stickerStore)
+			return sendShinobuReply(ctx, client, evt, cached, false, mentions,
+				stickerStore, cfg.Bot.NormalStickerChance, cfg.Bot.NormalStickerBlacklist)
 		}
 
 		iaCfg := &ia.Config{
@@ -87,7 +89,8 @@ func ShinobuCommand(store *history.Store, cfg *configs.Config, stickerStore *sti
 		_ = store.Save(ctx, chat, history.AssistantSenderName, answer)
 		setCachedAnswer(chat, prompt, answer)
 
-		return sendShinobuReply(ctx, client, evt, answer, usedSearch, mentions, stickerStore)
+		return sendShinobuReply(ctx, client, evt, answer, usedSearch, mentions,
+			stickerStore, cfg.Bot.NormalStickerChance, cfg.Bot.NormalStickerBlacklist)
 	}
 }
 
@@ -115,8 +118,10 @@ func setCachedAnswer(chat, prompt, answer string) {
 	}
 }
 
-// sendShinobuReply envia a resposta e, se houve busca web, anexa sticker smart_ruby.
-func sendShinobuReply(ctx context.Context, client *whatsmeow.Client, evt *events.Message, answer string, usedSearch bool, mentions []string, stickerStore *sticker.Store) error {
+// sendShinobuReply envia a resposta de texto e, se aplicável, anexa figurinha.
+// Se usedSearch for true, envia smart_ruby. Caso contrário, sorteará um sticker
+// aleatório com base na chance configurada em stickerChance.
+func sendShinobuReply(ctx context.Context, client *whatsmeow.Client, evt *events.Message, answer string, usedSearch bool, mentions []string, stickerStore *sticker.Store, stickerChance float64, stickerBlacklist []string) error {
 	if len(mentions) > 0 {
 		if err := whatsapp.ReplyWithMentions(ctx, client, evt, answer, mentions); err != nil {
 			return err
@@ -128,6 +133,11 @@ func sendShinobuReply(ctx context.Context, client *whatsmeow.Client, evt *events
 	}
 	if usedSearch {
 		_ = sticker.Send(ctx, client, evt, "smart_ruby", false, stickerStore)
+	} else if chosen, ok := pickRandomSticker(stickerStore.List(), stickerBlacklist); ok {
+		//nolint:gosec // rand para seleção casual de sticker
+		if rand.Float64() <= stickerChance {
+			_ = sticker.Send(ctx, client, evt, chosen, false, stickerStore)
+		}
 	}
 	return nil
 }

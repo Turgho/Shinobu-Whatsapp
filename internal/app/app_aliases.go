@@ -28,7 +28,6 @@ func registerAliases(r *commands.Router) {
 		"stiker":     "sticker",
 		"figurinha":  "sticker",
 		"figurinhas": "sticker",
-		"fig":        "sticker",
 		"figu":       "sticker",
 		"stick":      "sticker",
 

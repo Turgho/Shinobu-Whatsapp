@@ -35,11 +35,13 @@ type WeekdayJobConfig struct {
 }
 
 type BotConfig struct {
-	Name            string `mapstructure:"name"`
-	Prefix          string `mapstructure:"prefix"`
-	Environment     string `mapstructure:"environment"`
-	Timezone        string `mapstructure:"timezone"`
-	NLPGroupTrigger bool   `mapstructure:"nlpGroupTrigger"`
+	Name                 string   `mapstructure:"name"`
+	Prefix               string   `mapstructure:"prefix"`
+	Environment          string   `mapstructure:"environment"`
+	Timezone             string   `mapstructure:"timezone"`
+	NLPGroupTrigger      bool     `mapstructure:"nlpGroupTrigger"`
+	NormalStickerChance  float64  `mapstructure:"normalStickerChance"`
+	NormalStickerBlacklist []string `mapstructure:"normalStickerBlacklist"`
 }
 
 type DatabaseConfig struct {
@@ -100,6 +102,11 @@ func Load() *Config {
 	// Default para timezone
 	if cfg.Bot.Timezone == "" {
 		cfg.Bot.Timezone = "America/Sao_Paulo"
+	}
+
+	// Default para chance de sticker aleatório
+	if cfg.Bot.NormalStickerChance == 0 {
+		cfg.Bot.NormalStickerChance = 0.2
 	}
 
 	// Preenche campos que vieram de env vars mas não tem chave mapstructure no struct
