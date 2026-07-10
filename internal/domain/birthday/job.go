@@ -22,16 +22,12 @@ type BirthdayJob struct {
 }
 
 // NewBirthdayJob cria um novo job de aniversário.
-func NewBirthdayJob(client *whatsmeow.Client, logger *zap.Logger) (*BirthdayJob, error) {
-	loc, err := time.LoadLocation("America/Sao_Paulo")
-	if err != nil {
-		return nil, fmt.Errorf("carregar timezone: %w", err)
-	}
+func NewBirthdayJob(client *whatsmeow.Client, logger *zap.Logger, loc *time.Location) *BirthdayJob {
 	return &BirthdayJob{
 		client:   client,
 		logger:   logger.Named("BIRTHDAY"),
 		location: loc,
-	}, nil
+	}
 }
 
 // Name retorna o nome do job.
@@ -94,7 +90,8 @@ func buildMessage(entries []Entry) (mentions []string, msg string) {
 	sb.WriteString("🎂 *Parabéns!* 🎉\n\n")
 
 	for _, e := range entries {
-		fmt.Fprintf(&sb, "🎈 @%s faz aniversário hoje!\n", e.Name)
+		phone := phoneFromJID(e.JID)
+		fmt.Fprintf(&sb, "🎈 @%s faz aniversário hoje!\n", phone)
 		mentions = append(mentions, e.JID)
 	}
 
@@ -102,4 +99,12 @@ func buildMessage(entries []Entry) (mentions []string, msg string) {
 	mentions = append(mentions, "all@broadcast")
 
 	return mentions, sb.String()
+}
+
+// phoneFromJID extrai o número de telefone de um JID (ex: "5511999999999@s.whatsapp.net" → "5511999999999").
+func phoneFromJID(jid string) string {
+	if idx := strings.Index(jid, "@"); idx > 0 {
+		return jid[:idx]
+	}
+	return jid
 }

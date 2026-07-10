@@ -46,8 +46,19 @@ func (ds *DynamicStore) Save(job *DynamicJob) error {
 		if list == nil {
 			list = make([]DynamicJobData, 0)
 		}
-		list = append(list, data)
-		return list, nil
+
+		// Remove jobs expirados antes de adicionar o novo.
+		now := time.Now()
+		active := list[:0]
+		for _, d := range list {
+			t, err := time.Parse(time.RFC3339, d.RunAt)
+			if err == nil && !t.Before(now) {
+				active = append(active, d)
+			}
+		}
+
+		active = append(active, data)
+		return active, nil
 	})
 }
 
