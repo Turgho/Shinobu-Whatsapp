@@ -23,6 +23,7 @@ type Config struct {
 	AudioPath    string
 	StickerName  string
 	TargetGroups []string
+	Location     *time.Location
 }
 
 // WeekdayJob envia áudio + menção + sticker para grupos em um dia específico.
@@ -72,10 +73,9 @@ func NewFromConfig(client *whatsmeow.Client, logger *zap.Logger, cfg Config, sti
 		name = cfg.Day
 	}
 
-	loc, err := time.LoadLocation("America/Sao_Paulo")
-	if err != nil {
-		logger.Error("Erro ao carregar timezone", zap.Error(err))
-		return nil
+	loc := cfg.Location
+	if loc == nil {
+		loc = time.Local
 	}
 
 	groupStrs := make([]string, len(groups))

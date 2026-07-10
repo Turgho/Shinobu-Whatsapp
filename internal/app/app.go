@@ -117,12 +117,14 @@ func Run() error {
 		)
 	}
 
-	birthdayJob, err := birthday.NewBirthdayJob(client.WAClient, logger.Named("BIRTHDAY"))
-	if err != nil {
-		logger.Error("Erro ao criar job de aniversário", zap.Error(err))
-	} else {
-		sched.Register(birthdayJob)
+	loc, errLoc := time.LoadLocation(cfg.Bot.Timezone)
+	if errLoc != nil {
+		logger.Warn("timezone inválida, usando Local", zap.String("timezone", cfg.Bot.Timezone), zap.Error(errLoc))
+		loc = time.Local
 	}
+
+	birthdayJob := birthday.NewBirthdayJob(client.WAClient, logger.Named("BIRTHDAY"), loc)
+	sched.Register(birthdayJob)
 
 	for _, j := range cfg.ScheduledJobs {
 		if job := weekday.NewFromConfig(client.WAClient, logger.Named(j.Name), weekday.Config{
@@ -134,6 +136,7 @@ func Run() error {
 			AudioPath:    j.AudioPath,
 			StickerName:  j.StickerName,
 			TargetGroups: j.TargetGroups,
+			Location:     loc,
 		}, stickerStore); job != nil {
 			sched.Register(job)
 		}

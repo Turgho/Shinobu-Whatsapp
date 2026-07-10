@@ -39,11 +39,13 @@ func AgendaCommand(
 		)
 	}
 
+	chatJID := evt.Info.Chat.String()
+
 	switch strings.ToLower(args[0]) {
 	case "lista", "list":
-		return agendaLista(ctx, client, evt, dynStore, loc)
+		return agendaLista(ctx, client, evt, dynStore, chatJID, loc)
 	case "remover", "remove":
-		return agendaRemover(ctx, client, evt, args, dynStore, dynSched, logger, loc)
+		return agendaRemover(ctx, client, evt, args, dynStore, dynSched, logger, chatJID, loc)
 	}
 
 	runAt, err := parseAgendaTime(args[0], loc)
@@ -78,7 +80,6 @@ func AgendaCommand(
 		return whatsapp.Reply(ctx, client, evt, msgEmptyReminder)
 	}
 
-	chatJID := evt.Info.Chat.String()
 	id := fmt.Sprintf("dyn_%d", time.Now().UnixNano())
 
 	job := scheduler.NewDynamicJob(id, runAt, chatJID, rawMsg, mentionAll, client, logger)
@@ -107,12 +108,13 @@ func AgendaCommand(
 	return whatsapp.Reply(ctx, client, evt, reply)
 }
 
-// agendaLista exibe todos os lembretes futuros ordenados por data.
+// agendaLista exibe os lembretes futuros do chat atual, ordenados por data.
 func agendaLista(
 	ctx context.Context,
 	client *whatsmeow.Client,
 	evt *events.Message,
 	dynStore *scheduler.DynamicStore,
+	chatJID string,
 	loc *time.Location,
 ) error {
 	all := dynStore.LoadAll()
@@ -123,6 +125,9 @@ func agendaLista(
 	now := time.Now().In(loc)
 	var future []scheduler.DataWithTime
 	for _, d := range all {
+		if d.ChatJID != chatJID {
+			continue
+		}
 		t, err := time.Parse(time.RFC3339, d.RunAt)
 		if err != nil || t.Before(now) {
 			continue
@@ -165,6 +170,7 @@ func agendaRemover(
 	dynStore *scheduler.DynamicStore,
 	dynSched *scheduler.Scheduler,
 	logger *zap.Logger,
+	chatJID string,
 	loc *time.Location,
 ) error {
 	if len(args) < 2 {
@@ -180,6 +186,9 @@ func agendaRemover(
 	now := time.Now().In(loc)
 	var future []scheduler.DataWithTime
 	for _, d := range all {
+		if d.ChatJID != chatJID {
+			continue
+		}
 		t, err := time.Parse(time.RFC3339, d.RunAt)
 		if err != nil || t.Before(now) {
 			continue
