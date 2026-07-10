@@ -26,7 +26,7 @@ var nluCommandDesc = map[string]string{
 	"aniversário": "aniversários do grupo. Args: [lista]",
 	"agenda":      "lembrete/agendamento. Args: [data+hora, mensagem]",
 	"cotacao":     "cotação de moeda (dólar/euro). Args: [moeda]",
-	"feriado":     "próximos feriados. Args: [N]",
+	"feriado":     "próximos feriados. Args: [UF?] (sigla do estado, ex: SP, RJ)",
 	"noticia":     "últimas notícias. Args: []",
 	"receita":     "receita culinária. Args: [prato]",
 	"piada":       "piada engraçada. Args: []",

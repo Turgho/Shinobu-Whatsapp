@@ -21,7 +21,7 @@ apiUrls:
   openMeteoGeo: "https://geocoding-api.open-meteo.com/v1/search"
   weather: "https://api.open-meteo.com/v1/forecast"
   cotacao: "https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL"
-  feriado: "https://brasilapi.com.br/api/feriados/v1"
+  feriado: "https://feriadosapi.com"
 
 scheduledJobs:
   - name: "sextou"
@@ -41,6 +41,7 @@ scheduledJobs:
 # MUSIC_SERVER_URL=http://...
 # MUSIC_API_TOKEN=token_...
 # OWNER_NUMBER=5511999999999
+# FERIADOS_API_KEY=sk_live_...
 # OWNER_JID=jid_do_dono@lid
 # DB_DSN=file:storage/storage.db?_foreign_keys=on
 # LOG_LEVEL=debug

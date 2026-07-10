@@ -16,10 +16,11 @@ type Config struct {
 	ScheduledJobs []WeekdayJobConfig `mapstructure:"scheduledJobs"`
 	Mikael        MikaelConfig       `mapstructure:"mikael"`
 
-	Groq   GroqConfig
-	Tavily TavilyConfig
-	Music  MusicConfig
-	Owner  OwnerConfig
+	Groq     GroqConfig
+	Tavily   TavilyConfig
+	Music    MusicConfig
+	Owner    OwnerConfig
+	Feriados FeriadosConfig
 }
 
 type WeekdayJobConfig struct {
@@ -85,6 +86,7 @@ func Load() *Config {
 	viper.BindEnv("apicalls.music.serverUrl", "MUSIC_SERVER_URL")
 	viper.BindEnv("apicalls.music.apiToken", "API_AUTH_TOKEN")
 	viper.BindEnv("apicalls.owner.number", "OWNER_NUMBER")
+	viper.BindEnv("apicalls.feriados.apiKey", "FERIADOS_API_KEY")
 
 	if err := viper.ReadInConfig(); err != nil {
 		log.Println("config.yaml não encontrado, usando env/default")
@@ -115,6 +117,9 @@ func Load() *Config {
 	cfg.Owner = OwnerConfig{
 		Number: viper.GetString("apicalls.owner.number"),
 	}
+	cfg.Feriados = FeriadosConfig{
+		APIKey: viper.GetString("apicalls.feriados.apiKey"),
+	}
 
 	return cfg
 }
@@ -136,6 +141,10 @@ type MusicConfig struct {
 
 type OwnerConfig struct {
 	Number string `mapstructure:"number"`
+}
+
+type FeriadosConfig struct {
+	APIKey string `mapstructure:"apiKey"`
 }
 
 type MikaelConfig struct {

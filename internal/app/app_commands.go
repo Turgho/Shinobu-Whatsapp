@@ -107,7 +107,7 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 
 	cotacaoClient := cotacao.NewCotacaoClient(cfg.ApiURLs.Cotacao, logger.Named("COTACAO"))
 
-	feriadoClient := feriado.NewFeriadoClient(cfg.ApiURLs.Feriado, logger.Named("FERIADO"))
+	feriadoClient := feriado.NewFeriadosClient(cfg.ApiURLs.Feriado, cfg.Feriados.APIKey, logger.Named("FERIADO"))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "cotacao",
@@ -118,7 +118,7 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "feriado",
-		Description: "Próximos feriados nacionais",
+		Description: "Próximos feriados nacionais ou estaduais (!feriado SP)",
 		Type:        commands.CommandTypeUtility,
 		Private:     false,
 	}, public.FeriadoHandler(feriadoClient))

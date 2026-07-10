@@ -51,7 +51,7 @@ filme: "recomenda comédia"→["comédia"], "recomenda um filme"→[]
 noticia: "quais as notícias?"→[]
 receita: "me dá uma receita de bolo"→["bolo"]
 aniversário: "quando é o aniversário da vovó?"→["lista"]
-feriado: "quando é o próximo feriado?"→[]
+feriado: "quando é o próximo feriado?"→[], "feriados de SP"→["SP"], "próximos feriados do Rio"→["RJ"]
 unsticker: "transforma figurinha em foto"→[]
 Sem comando: "bom dia", conversa casual, "quanto custa um carro?"→[]
 Múltiplos: "toca música e me fala o clima"→play, "qual o clima e toca música"→clima
