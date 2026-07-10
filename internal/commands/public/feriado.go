@@ -3,7 +3,6 @@ package public
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands"
@@ -13,21 +12,32 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
+// UFs válidas do Brasil.
+var validUFs = map[string]bool{
+	"AC": true, "AL": true, "AP": true, "AM": true, "BA": true,
+	"CE": true, "DF": true, "ES": true, "GO": true, "MA": true,
+	"MT": true, "MS": true, "MG": true, "PA": true, "PB": true,
+	"PR": true, "PE": true, "PI": true, "RJ": true, "RN": true,
+	"RS": true, "RO": true, "RR": true, "SC": true, "SP": true,
+	"SE": true, "TO": true,
+}
+
 func FeriadoCommand(
 	ctx context.Context,
 	client *whatsmeow.Client,
 	evt *events.Message,
 	args []string,
-	feriadoClient *feriado.FeriadoClient,
+	feriadoClient *feriado.FeriadosClient,
 ) error {
-	n := 5
+	uf := ""
 	if len(args) > 0 {
-		if v, err := strconv.Atoi(args[0]); err == nil && v >= 1 && v <= 10 {
-			n = v
+		candidate := strings.ToUpper(strings.TrimSpace(args[0]))
+		if len(candidate) == 2 && validUFs[candidate] {
+			uf = candidate
 		}
 	}
 
-	list, err := feriadoClient.Upcoming(ctx, n)
+	list, err := feriadoClient.Upcoming(ctx, 5, uf)
 	if err != nil {
 		return whatsapp.Reply(ctx, client, evt, msgFeriadoFail)
 	}
@@ -37,19 +47,20 @@ func FeriadoCommand(
 	}
 
 	var b strings.Builder
-	b.WriteString("🗓 Próximos feriados nacionais\n\n")
+	if uf != "" {
+		fmt.Fprintf(&b, "🗓 Próximos feriados — %s\n\n", uf)
+	} else {
+		b.WriteString("🗓 Próximos feriados nacionais\n\n")
+	}
+
 	for _, f := range list {
-		date := f.Date
-		if len(date) >= 10 {
-			date = date[8:10] + "/" + date[5:7]
-		}
-		fmt.Fprintf(&b, "📅 %s — %s\n\n", date, f.Name)
+		fmt.Fprintf(&b, "📅 %s — %s\n\n", f.Data, f.Nome)
 	}
 
 	return whatsapp.Reply(ctx, client, evt, strings.TrimSpace(b.String()))
 }
 
-func FeriadoHandler(feriadoClient *feriado.FeriadoClient) commands.HandlerFunc {
+func FeriadoHandler(feriadoClient *feriado.FeriadosClient) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		return FeriadoCommand(ctx, client, evt, args, feriadoClient)
 	}
