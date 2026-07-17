@@ -9,15 +9,15 @@ import (
 
 // Identificadores de modelo Groq usados no pacote.
 //
-// Orçamento de rate limit Groq (plano free, junho 2026):
+// Orçamento de rate limit Groq (plano free, julho 2026):
 //
-//	modelFastClass  → 14.4K RPD, 6K TPM  — classificação e extração JSON
-//	modelScoutFast  →  1K RPD, 30K TPM  — conversa, resumo, personalidade
-//	modelWebStrong (gpt-oss-120b) → 1K RPD, 8K TPM, 200K TPD  — respostas com contexto Tavily
+//	modelFastClass  → 14.4K RPD — classificação/NLU
+//	modelScoutFast  →  1K RPD  — conversa, resumo
+//	modelWebStrong  →  1K RPD  — respostas com busca web
 const (
-	ModelFastClass = "llama-3.1-8b-instant"                      // classificação e extração estruturada
-	ModelScoutFast = "meta-llama/llama-4-scout-17b-16e-instruct" // conversa, resumo
-	ModelWebStrong = "openai/gpt-oss-120b"                       // respostas com contexto Tavily
+	ModelFastClass = "llama-3.1-8b-instant"  // 14.4K RPD — classificação/NLU
+	ModelScoutFast = "qwen/qwen3.6-27b"     // 1K RPD — conversa, resumo
+	ModelWebStrong = "openai/gpt-oss-120b"   // 1K RPD — respostas com busca web
 )
 
 // Aliases internos para compatibilidade com código existente.
