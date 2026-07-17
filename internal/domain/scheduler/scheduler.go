@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -103,6 +104,65 @@ func (s *Scheduler) run(ctx context.Context) {
 			s.checkAndRun(now)
 		}
 	}
+}
+
+// JobInfo é um snapshot de um job registrado para exibição admin.
+type JobInfo struct {
+	Name    string
+	NextRun time.Time
+}
+
+// ListJobs retorna um snapshot de todos os jobs registrados.
+func (s *Scheduler) ListJobs() []JobInfo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	infos := make([]JobInfo, 0, len(s.jobs))
+	for _, entry := range s.jobs {
+		infos = append(infos, JobInfo{
+			Name:    entry.job.Name(),
+			NextRun: entry.nextRun,
+		})
+	}
+	return infos
+}
+
+// ForceRun executa um job pelo nome imediatamente e recalcula seu nextRun.
+// Retorna erro se o job não for encontrado.
+func (s *Scheduler) ForceRun(ctx context.Context, name string) error {
+	s.mu.Lock()
+
+	var entry *jobEntry
+	for _, e := range s.jobs {
+		if e.job.Name() == name {
+			entry = e
+			break
+		}
+	}
+	if entry == nil {
+		s.mu.Unlock()
+		return fmt.Errorf("job %q não encontrado", name)
+	}
+
+	s.logger.Info("Force-executando job",
+		zap.String("job", entry.job.Name()),
+		zap.Time("nextRun", entry.nextRun),
+	)
+
+	s.mu.Unlock()
+	jobCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	err := entry.job.Run(jobCtx)
+
+	s.mu.Lock()
+	entry.nextRun = entry.job.Next(time.Now().Add(time.Second))
+	if entry.nextRun.IsZero() {
+		s.unregisterLocked(name)
+	}
+	s.mu.Unlock()
+
+	return err
 }
 
 // RunCheck força uma verificação imediata dos jobs (chamado após registrar um job novo).
