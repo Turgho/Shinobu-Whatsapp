@@ -219,9 +219,9 @@ Na primeira execução, escaneie o QR Code exibido no terminal. A sessão WhatsA
 
 | Uso | Modelo |
 |-----|--------|
-| Conversa e resumo | `meta-llama/llama-4-scout-17b-16e-instruct` |
+| Conversa e resumo | `qwen/qwen3.6-27b` |
 | Resposta com contexto web | `openai/gpt-oss-120b` |
-| NLU / classificação | Scout com `MaxTokens` reduzido |
+| NLU / classificação | `llama-3.1-8b-instant` com `MaxTokens` reduzido |
 
 ---
 
