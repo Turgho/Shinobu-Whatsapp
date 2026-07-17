@@ -36,12 +36,13 @@ type WeekdayJobConfig struct {
 }
 
 type BotConfig struct {
-	Name                 string   `mapstructure:"name"`
-	Prefix               string   `mapstructure:"prefix"`
-	Environment          string   `mapstructure:"environment"`
-	Timezone             string   `mapstructure:"timezone"`
-	NLPGroupTrigger      bool     `mapstructure:"nlpGroupTrigger"`
-	NormalStickerChance  float64  `mapstructure:"normalStickerChance"`
+	Name                   string   `mapstructure:"name"`
+	Prefix                 string   `mapstructure:"prefix"`
+	Environment            string   `mapstructure:"environment"`
+	Timezone               string   `mapstructure:"timezone"`
+	NLPGroupTrigger        bool     `mapstructure:"nlpGroupTrigger"`
+	IntentEnabled          bool     `mapstructure:"intentEnabled"`
+	NormalStickerChance    float64  `mapstructure:"normalStickerChance"`
 	NormalStickerBlacklist []string `mapstructure:"normalStickerBlacklist"`
 }
 
