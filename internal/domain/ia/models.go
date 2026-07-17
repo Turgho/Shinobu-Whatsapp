@@ -15,9 +15,9 @@ import (
 //	modelScoutFast  →  1K RPD  — conversa, resumo
 //	modelWebStrong  →  1K RPD  — respostas com busca web
 const (
-	ModelFastClass = "llama-3.1-8b-instant"  // 14.4K RPD — classificação/NLU
+	ModelFastClass = "llama-3.1-8b-instant" // 14.4K RPD — classificação/NLU
 	ModelScoutFast = "qwen/qwen3.6-27b"     // 1K RPD — conversa, resumo
-	ModelWebStrong = "openai/gpt-oss-120b"   // 1K RPD — respostas com busca web
+	ModelWebStrong = "openai/gpt-oss-120b"  // 1K RPD — respostas com busca web
 )
 
 // Aliases internos para compatibilidade com código existente.
@@ -29,11 +29,12 @@ const (
 
 // IARequest é o payload enviado para a API da Groq.
 type IARequest struct {
-	Model       string              `json:"model"`
-	Messages    []history.IAMessage `json:"messages"`
-	Stream      bool                `json:"stream"`
-	Temperature float64             `json:"temperature"`
-	MaxTokens   int                 `json:"max_tokens"`
+	Model           string              `json:"model"`
+	Messages        []history.IAMessage `json:"messages"`
+	Stream          bool                `json:"stream"`
+	Temperature     float64             `json:"temperature"`
+	MaxTokens       int                 `json:"max_tokens"`
+	ReasoningFormat string              `json:"reasoning_format,omitempty"`
 }
 
 // IAResponse é a resposta padrão da API da Groq.

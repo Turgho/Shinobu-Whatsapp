@@ -9,15 +9,16 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 )
 
 const (
-	maxRetries       = 2
-	baseBackoff      = 2 * time.Second
-	maxBackoff       = 10 * time.Second
+	maxRetries  = 2
+	baseBackoff = 2 * time.Second
+	maxBackoff  = 10 * time.Second
 )
 
 // RateLimitError indica que a API Groq retornou HTTP 429 (rate limited).
@@ -30,19 +31,30 @@ func (e *RateLimitError) Error() string {
 	return fmt.Sprintf("Groq ainda tá de castigo (rate limit) — modelo %s: %s", e.Model, e.Reason)
 }
 
+// isReasoningModel retorna true para modelos que geram bloco <think>
+// antes da resposta (Qwen3, GPT-OSS, etc.).
+func isReasoningModel(model string) bool {
+	return strings.Contains(model, "qwen") || strings.Contains(model, "gpt-oss")
+}
+
 // callGroq prepara o request IARequest e chama groqChat, retornando só o texto.
 func callGroq(ctx context.Context, httpClient *http.Client, groqURL, groqKey, model string, messages []history.IAMessage, temperature float64, maxTokens int) (string, error) {
-	resp, err := groqChat(ctx, httpClient, groqURL, groqKey, IARequest{
+	req := IARequest{
 		Model:       model,
 		Messages:    messages,
 		Stream:      false,
 		Temperature: temperature,
 		MaxTokens:   maxTokens,
-	})
+	}
+	if isReasoningModel(model) {
+		req.ReasoningFormat = "hidden"
+	}
+
+	resp, err := groqChat(ctx, httpClient, groqURL, groqKey, req)
 	if err != nil {
 		return "", err
 	}
-	return resp.Choices[0].Message.Content, nil
+	return stripThinkTags(resp.Choices[0].Message.Content), nil
 }
 
 // groqChat é a camada pública que envolve groqChatRaw com retry em caso de 429.
