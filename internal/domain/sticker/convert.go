@@ -90,7 +90,7 @@ func runFFmpeg(ctx context.Context, input, output string, animated bool) error {
 		return fmt.Errorf("sticker/convert: ffmpeg falhou: %w\n%s", err, stderr.String())
 	}
 
-	injectStickerMeta(output, "𝑺𝒉𝒊𝒏𝒐𝒃𝒖", "𝕯𝖗𝖆𝖒𝖆𝖙𝖍𝖚𝖗𝖌𝖔")
+	injectStickerMeta(output, "𝕯𝖗𝖆𝖒𝖆𝖙𝖍𝖚𝖗𝖌𝖔 14991791379", "𝑺𝒉𝒊𝒏𝒐𝒃𝒖 🦇")
 
 	return nil
 }
