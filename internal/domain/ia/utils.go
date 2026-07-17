@@ -8,6 +8,11 @@ import (
 
 var lidMention = regexp.MustCompile(`@\d+@lid`)
 
+// thinkTagRe remove blocos <think>...</think> que modelos de raciocínio
+// (Qwen3, GPT-OSS) podem incluir no content mesmo com reasoning_format
+// configurado — camada extra de segurança.
+var thinkTagRe = regexp.MustCompile(`(?s)<think>.*?</think>`)
+
 var promptInjectionPatterns = []string{
 	"ignore all previous",
 	"ignore all instructions",
@@ -66,4 +71,9 @@ func truncateText(s string, maxRunes int) string {
 
 	r := []rune(s)
 	return string(r[:maxRunes])
+}
+
+// stripThinkTags remove blocos <think>...</think> residuais de modelos de raciocínio.
+func stripThinkTags(s string) string {
+	return strings.TrimSpace(thinkTagRe.ReplaceAllString(s, ""))
 }
