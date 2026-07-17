@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -26,7 +27,7 @@ type Scheduler struct {
 
 type jobEntry struct {
 	job     Job
-	lastRun time.Time
+	nextRun time.Time
 }
 
 // NewScheduler cria um scheduler vazio. Deve ser iniciado com Start.
@@ -43,8 +44,8 @@ func (s *Scheduler) Register(job Job) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.jobs = append(s.jobs, &jobEntry{job: job})
 	next := job.Next(time.Now())
+	s.jobs = append(s.jobs, &jobEntry{job: job, nextRun: next})
 	s.logger.Info("Job registrado",
 		zap.String("job", job.Name()),
 		zap.String("next_run", next.Format("2006-01-02 15:04 MST")),
@@ -105,12 +106,73 @@ func (s *Scheduler) run(ctx context.Context) {
 	}
 }
 
+// JobInfo é um snapshot de um job registrado para exibição admin.
+type JobInfo struct {
+	Name    string
+	NextRun time.Time
+}
+
+// ListJobs retorna um snapshot de todos os jobs registrados.
+func (s *Scheduler) ListJobs() []JobInfo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	infos := make([]JobInfo, 0, len(s.jobs))
+	for _, entry := range s.jobs {
+		infos = append(infos, JobInfo{
+			Name:    entry.job.Name(),
+			NextRun: entry.nextRun,
+		})
+	}
+	return infos
+}
+
+// ForceRun executa um job pelo nome imediatamente e recalcula seu nextRun.
+// Retorna erro se o job não for encontrado.
+func (s *Scheduler) ForceRun(ctx context.Context, name string) error {
+	s.mu.Lock()
+
+	var entry *jobEntry
+	for _, e := range s.jobs {
+		if e.job.Name() == name {
+			entry = e
+			break
+		}
+	}
+	if entry == nil {
+		s.mu.Unlock()
+		return fmt.Errorf("job %q não encontrado", name)
+	}
+
+	s.logger.Info("Force-executando job",
+		zap.String("job", entry.job.Name()),
+		zap.Time("nextRun", entry.nextRun),
+	)
+
+	s.mu.Unlock()
+	jobCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	err := entry.job.Run(jobCtx)
+
+	s.mu.Lock()
+	entry.nextRun = entry.job.Next(time.Now().Add(time.Second))
+	if entry.nextRun.IsZero() {
+		s.unregisterLocked(name)
+	}
+	s.mu.Unlock()
+
+	return err
+}
+
 // RunCheck força uma verificação imediata dos jobs (chamado após registrar um job novo).
 func (s *Scheduler) RunCheck() {
 	s.checkAndRun(time.Now())
 }
 
 // checkAndRun itera sobre os jobs registrados, executa os que estão no horário.
+// Usa nextRun armazenado em vez de chamar Next() a cada tick — evita que o job
+// seja pulado se o ticker disparar哪怕 1s depois do horário agendado.
 // O mutex é liberado durante a execução do job (linhas Unlock/Lock) para não
 // bloquear registro de novos jobs ou o ticker enquanto um job roda.
 func (s *Scheduler) checkAndRun(now time.Time) {
@@ -118,15 +180,10 @@ func (s *Scheduler) checkAndRun(now time.Time) {
 
 	var toRemove []string
 	for _, entry := range s.jobs {
-		next := entry.job.Next(now)
-		if now.After(next) || now.Equal(next) {
-			if !entry.lastRun.IsZero() && entry.lastRun.After(next) {
-				continue
-			}
-
+		if now.After(entry.nextRun) || now.Equal(entry.nextRun) {
 			s.logger.Info("Executando job",
 				zap.String("job", entry.job.Name()),
-				zap.Time("run_at", next),
+				zap.Time("run_at", entry.nextRun),
 			)
 
 			s.mu.Unlock()
@@ -156,9 +213,9 @@ func (s *Scheduler) checkAndRun(now time.Time) {
 			cancel()
 			s.mu.Lock()
 
-			entry.lastRun = now
+			entry.nextRun = entry.job.Next(now.Add(time.Second))
 
-			if entry.job.Next(now).IsZero() {
+			if entry.nextRun.IsZero() {
 				toRemove = append(toRemove, entry.job.Name())
 				s.logger.Info("Job removido após execução",
 					zap.String("job", entry.job.Name()),

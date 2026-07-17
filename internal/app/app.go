@@ -92,7 +92,7 @@ func Run() error {
 	sched := scheduler.NewScheduler(logger.Named("SCHEDULER"))
 
 	registerPublicCommands(r, cfg, logger, store, sched, dynStore, stickerStore, mikaelStore)
-	registerAdminCommands(r, cfg, store, logger, ignoreStore, stickerStore, client.WAClient)
+	registerAdminCommands(r, cfg, store, logger, ignoreStore, stickerStore, client.WAClient, sched)
 	registerAliases(r)
 
 	// Carrega jobs dinâmicos persistidos, ignorando expirados
