@@ -192,6 +192,7 @@ func buildRouter(cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Lo
 	r.Use(commands.CommandNotFoundMiddleware(r))
 	r.Use(commands.PrivateCommandsMiddleware(r, cfg.UsersJID.Owner, cfg.UsersJID.Admins))
 	r.SetNLPGroupTrigger(cfg.Bot.NLPGroupTrigger)
+	r.SetIntentEnabled(cfg.Bot.IntentEnabled)
 
 	return r
 }
