@@ -45,6 +45,7 @@ type Router struct {
 	maintenance     atomic.Bool
 	aiConfig        *ia.Config
 	nlpGroupTrigger bool
+	intentEnabled   bool
 }
 
 // NewRouter cria um router com prefixo de comando, client WhatsApp e dependências.
@@ -81,6 +82,13 @@ func (r *Router) SetAIConfig(cfg *ia.Config) {
 func (r *Router) SetNLPGroupTrigger(on bool) {
 	r.nlpGroupTrigger = on
 	r.log.Info("NLP group trigger alterado", zap.Bool("enabled", on))
+}
+
+// SetIntentEnabled ativa/desativa o NLU/DetectIntent por completo.
+// Quando false, mensagens com menção vão direto para conversa IA.
+func (r *Router) SetIntentEnabled(enabled bool) {
+	r.intentEnabled = enabled
+	r.log.Info("Intent/NLU config alterada", zap.Bool("enabled", enabled))
 }
 
 // SetMaintenance ativa/desativa modo manutenção (comandos bloqueados, exceto manutencao).
