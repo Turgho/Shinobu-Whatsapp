@@ -115,6 +115,7 @@ func DetectIntent(ctx context.Context, cfg *Config, message, quotedContext strin
 	}
 
 	content := strings.TrimSpace(resp.Choices[0].Message.Content)
+	content = stripThinkTags(content)
 	content = strings.TrimPrefix(content, "```json")
 	content = strings.TrimPrefix(content, "```")
 	content = strings.TrimSuffix(content, "```")
