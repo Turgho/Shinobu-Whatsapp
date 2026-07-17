@@ -29,6 +29,7 @@ type WeekdayJobConfig struct {
 	Enabled      bool     `mapstructure:"enabled"`
 	Hour         int      `mapstructure:"hour"`
 	Minute       int      `mapstructure:"minute"`
+	Message      string   `mapstructure:"message"`
 	AudioPath    string   `mapstructure:"audioPath"`
 	StickerName  string   `mapstructure:"stickerName"`
 	TargetGroups []string `mapstructure:"targetGroups"`

@@ -20,6 +20,7 @@ type Config struct {
 	Enabled      bool
 	Hour         int
 	Minute       int
+	Message      string
 	AudioPath    string
 	StickerName  string
 	TargetGroups []string
@@ -32,6 +33,7 @@ type WeekdayJob struct {
 	logger       *zap.Logger
 	location     *time.Location
 	targetGroups []types.JID
+	message      string
 	audioPath    string
 	stickerName  string
 	name         string
@@ -98,6 +100,7 @@ func NewFromConfig(client *whatsmeow.Client, logger *zap.Logger, cfg Config, sti
 		logger:       logger.Named(strings.ToUpper(name)),
 		location:     loc,
 		targetGroups: groups,
+		message:      cfg.Message,
 		audioPath:    cfg.AudioPath,
 		stickerName:  cfg.StickerName,
 		name:         name,
@@ -156,7 +159,12 @@ func (j *WeekdayJob) Run(ctx context.Context) error {
 
 		// 2. Envia texto com @all nativo
 		sendCtx, sendCancel = context.WithTimeout(ctx, 30*time.Second)
-		msg := fmt.Sprintf("🎉 %s! @all", j.day.String())
+		msg := j.message
+		if msg == "" {
+			msg = fmt.Sprintf("🎉 %s! @all", j.day.String())
+		} else {
+			msg = fmt.Sprintf("%s @all", msg)
+		}
 		if err := whatsapp.SendAllToJID(sendCtx, j.client, groupJID, msg); err != nil {
 			j.logger.Error("Erro ao enviar menção @all",
 				zap.String("group", groupJID.String()),

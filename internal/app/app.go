@@ -133,6 +133,7 @@ func Run() error {
 			Enabled:      j.Enabled,
 			Hour:         j.Hour,
 			Minute:       j.Minute,
+			Message:      j.Message,
 			AudioPath:    j.AudioPath,
 			StickerName:  j.StickerName,
 			TargetGroups: j.TargetGroups,
