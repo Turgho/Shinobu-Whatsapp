@@ -16,7 +16,7 @@ import (
 //	modelWebStrong  →  1K RPD  — respostas com busca web
 const (
 	ModelFastClass = "llama-3.1-8b-instant" // 14.4K RPD — classificação/NLU
-	ModelScoutFast = "qwen/qwen3.6-27b"     // 1K RPD — conversa, resumo
+	ModelScoutFast = "openai/gpt-oss-120b"  // 1K RPD — conversa, resumo (antes: qwen/qwen3.6-27b — bug thinking mode)
 	ModelWebStrong = "openai/gpt-oss-120b"  // 1K RPD — respostas com busca web
 )
 
@@ -34,7 +34,7 @@ type IARequest struct {
 	Stream          bool                `json:"stream"`
 	Temperature     float64             `json:"temperature"`
 	MaxTokens       int                 `json:"max_tokens"`
-	ReasoningFormat string              `json:"reasoning_format,omitempty"`
+	ReasoningEffort string              `json:"reasoning_effort,omitempty"`
 }
 
 // IAResponse é a resposta padrão da API da Groq.
