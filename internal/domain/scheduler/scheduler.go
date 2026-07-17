@@ -26,7 +26,7 @@ type Scheduler struct {
 
 type jobEntry struct {
 	job     Job
-	lastRun time.Time
+	nextRun time.Time
 }
 
 // NewScheduler cria um scheduler vazio. Deve ser iniciado com Start.
@@ -43,8 +43,8 @@ func (s *Scheduler) Register(job Job) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.jobs = append(s.jobs, &jobEntry{job: job})
 	next := job.Next(time.Now())
+	s.jobs = append(s.jobs, &jobEntry{job: job, nextRun: next})
 	s.logger.Info("Job registrado",
 		zap.String("job", job.Name()),
 		zap.String("next_run", next.Format("2006-01-02 15:04 MST")),
@@ -111,6 +111,8 @@ func (s *Scheduler) RunCheck() {
 }
 
 // checkAndRun itera sobre os jobs registrados, executa os que estão no horário.
+// Usa nextRun armazenado em vez de chamar Next() a cada tick — evita que o job
+// seja pulado se o ticker disparar哪怕 1s depois do horário agendado.
 // O mutex é liberado durante a execução do job (linhas Unlock/Lock) para não
 // bloquear registro de novos jobs ou o ticker enquanto um job roda.
 func (s *Scheduler) checkAndRun(now time.Time) {
@@ -118,15 +120,10 @@ func (s *Scheduler) checkAndRun(now time.Time) {
 
 	var toRemove []string
 	for _, entry := range s.jobs {
-		next := entry.job.Next(now)
-		if now.After(next) || now.Equal(next) {
-			if !entry.lastRun.IsZero() && entry.lastRun.After(next) {
-				continue
-			}
-
+		if now.After(entry.nextRun) || now.Equal(entry.nextRun) {
 			s.logger.Info("Executando job",
 				zap.String("job", entry.job.Name()),
-				zap.Time("run_at", next),
+				zap.Time("run_at", entry.nextRun),
 			)
 
 			s.mu.Unlock()
@@ -156,9 +153,9 @@ func (s *Scheduler) checkAndRun(now time.Time) {
 			cancel()
 			s.mu.Lock()
 
-			entry.lastRun = now
+			entry.nextRun = entry.job.Next(now.Add(time.Second))
 
-			if entry.job.Next(now).IsZero() {
+			if entry.nextRun.IsZero() {
 				toRemove = append(toRemove, entry.job.Name())
 				s.logger.Info("Job removido após execução",
 					zap.String("job", entry.job.Name()),
