@@ -234,12 +234,16 @@ func (r *Router) HandleMessage(evt *events.Message) {
 	}
 
 	// Itens filho de album (sem texto): bufferiza e aguarda dispatch.
+	// Se tem texto (comando na legenda), deixa o handlePrefixedCommand detectar o album.
 	if HasMediaAlbumAssociation(evt) {
-		parentID := ParentMessageID(evt)
-		if parentID != "" {
-			r.albumCoordinator.Bufferize(parentID, evt, "", nil, 0)
+		if whatsapp.VisibleTextFromEvent(evt) == "" {
+			parentID := ParentMessageID(evt)
+			if parentID != "" {
+				r.albumCoordinator.Bufferize(parentID, evt, "", nil, 0)
+			}
+			return
 		}
-		return
+		// Tem texto: continua no pipeline — handlePrefixedCommand vai detectar o album.
 	}
 
 	msg := whatsapp.VisibleTextFromEvent(evt)
@@ -317,18 +321,28 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 		return
 	}
 
-	// Album: se a mensagem tem AlbumMessage e o comando tem BatchHandler,
+	// Album: se o comando tem BatchHandler e a mensagem é de album,
 	// redireciona para o AlbumCoordinator em vez de executar direto.
-	if cmd.BatchHandler != nil && IsAlbumMessage(evt) {
+	if cmd.BatchHandler != nil && (IsAlbumMessage(evt) || HasMediaAlbumAssociation(evt)) {
+		parentID := evt.Info.ID
 		expected := AlbumExpectedCount(evt)
+
+		// Se é item filho (sem AlbumMessage), herda expected do entry existente.
+		if expected == 0 && HasMediaAlbumAssociation(evt) {
+			if refID := ParentMessageID(evt); refID != "" {
+				parentID = refID
+			}
+		}
+
 		r.log.Info("Album detectado, buffering",
 			append(eventFields(evt),
 				zap.String("command", cmdName),
+				zap.String("parentID", parentID),
 				zap.Int("expected", expected),
 			)...,
 		)
-		if r.albumCoordinator.Bufferize(evt.Info.ID, evt, cmdName, args, expected) {
-			r.albumCoordinator.Dispatch(evt.Info.ID, func(cn string, a []string, items []*events.Message) {
+		if r.albumCoordinator.Bufferize(parentID, evt, cmdName, args, expected) {
+			r.albumCoordinator.Dispatch(parentID, func(cn string, a []string, items []*events.Message) {
 				r.dispatchBatch(cn, a, items)
 			})
 		}
