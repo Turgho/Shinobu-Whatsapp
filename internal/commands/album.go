@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	albumBufferTimeout = 10 * time.Second
-	albumMaxItems      = 30
+	albumBufferTimeout    = 10 * time.Second
+	albumBufferTimeoutUnk = 3 * time.Second // quando expected é desconhecido
+	albumMaxItems         = 30
 )
 
 // pendingAlbum rastreia os itens de um album sendo coletados.
@@ -132,7 +133,11 @@ func (ac *AlbumCoordinator) Bufferize(parentID string, evt *events.Message, cmdN
 		}
 		ac.pending[parentID] = pa
 
-		pa.timer = time.AfterFunc(albumBufferTimeout, func() {
+		timeout := albumBufferTimeout
+		if expected == 0 {
+			timeout = albumBufferTimeoutUnk
+		}
+		pa.timer = time.AfterFunc(timeout, func() {
 			ac.dispatchTimeout(parentID)
 		})
 
