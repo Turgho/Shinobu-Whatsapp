@@ -46,7 +46,7 @@ func downloadViaTunnel(ctx context.Context, serverURL, apiToken, query string) (
 	req.Header.Set("Content-Type", "text/plain")
 	req.Header.Set("Authorization", "Bearer "+apiToken)
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: 90 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, "", fmt.Errorf("music/tunnel: erro ao chamar servidor: %w", err)
