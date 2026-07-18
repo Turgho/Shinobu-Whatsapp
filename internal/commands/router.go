@@ -20,7 +20,7 @@ import (
 
 const (
 	handlerTimeoutMention = 30 * time.Second
-	handlerTimeoutCommand = 120 * time.Second
+	handlerTimeoutCommand = 180 * time.Second
 )
 
 // Router coordena registro de comandos, middlewares, rate limit e dispatch.
