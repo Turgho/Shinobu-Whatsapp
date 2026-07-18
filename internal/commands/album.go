@@ -141,6 +141,17 @@ func (ac *AlbumCoordinator) Bufferize(parentID string, evt *events.Message, cmdN
 			zap.String("cmd", cmdName),
 			zap.Int("expected", expected),
 		)
+	} else if pa.cmdName == "" && cmdName != "" {
+		// Itens filho chegaram antes do pai — herda cmdName e expected.
+		pa.cmdName = cmdName
+		pa.args = args
+		pa.expected = expected
+
+		ac.log.Debug("album: cmd herdado do pai",
+			zap.String("parentID", parentID),
+			zap.String("cmd", cmdName),
+			zap.Int("expected", expected),
+		)
 	}
 
 	pa.items = append(pa.items, evt)
@@ -151,7 +162,10 @@ func (ac *AlbumCoordinator) Bufferize(parentID string, evt *events.Message, cmdN
 		zap.Int("expected", pa.expected),
 	)
 
-	return len(pa.items) >= pa.expected
+	if pa.expected > 0 {
+		return len(pa.items) >= pa.expected
+	}
+	return false
 }
 
 // dispatchTimeout é chamado pelo timer quando o album não completou a tempo.
@@ -160,6 +174,16 @@ func (ac *AlbumCoordinator) dispatchTimeout(parentID string) {
 
 	pa, exists := ac.pending[parentID]
 	if !exists || pa.dispatched {
+		ac.mu.Unlock()
+		return
+	}
+
+	if pa.cmdName == "" {
+		ac.log.Warn("album: timeout sem comando definido — descartando",
+			zap.String("parentID", parentID),
+			zap.Int("received", len(pa.items)),
+		)
+		delete(ac.pending, parentID)
 		ac.mu.Unlock()
 		return
 	}
