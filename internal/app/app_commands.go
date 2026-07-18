@@ -46,11 +46,11 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Args:        []commands.ArgMeta{{Name: "cidade", Required: true}},
 	}, public.WeatherHandler(geoClient, weatherClient, logger))
 
-	r.RegisterCommand(commands.CommandMeta{
+	r.RegisterBatchCommand(commands.CommandMeta{
 		Name:        "sticker",
-		Description: "Gera uma figurinha com base em uma imagem ou vídeo",
+		Description: "Gera uma figurinha com base em uma imagem ou vídeo (suporta albums)",
 		Type:        commands.CommandTypeUtility,
-	}, public.StickerCommand)
+	}, public.StickerCommand, public.StickerAlbumCommand)
 
 	musicCfg := &music.Config{
 		ServerURL: cfg.Music.ServerURL,
