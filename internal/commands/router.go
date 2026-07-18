@@ -45,12 +45,15 @@ type Router struct {
 	maintenance     atomic.Bool
 	aiConfig        *ia.Config
 	nlpGroupTrigger bool
+	intentEnabled   bool
+
+	albumCoordinator *AlbumCoordinator
 }
 
 // NewRouter cria um router com prefixo de comando, client WhatsApp e dependências.
 // Rate limit padrão: 10 mensagens por minuto por sender.
 func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *history.Store, ignoreStore *ignore.Store) *Router {
-	return &Router{
+	r := &Router{
 		commands:       make(map[string]command),
 		aliases:        make(map[string]string),
 		prefix:         prefix,
@@ -62,6 +65,13 @@ func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *
 		rateLimitMax:   10,
 		rateLimitEvery: time.Minute,
 	}
+
+	r.albumCoordinator = NewAlbumCoordinator(log)
+	r.albumCoordinator.SetBatchHandler(func(cmdName string, args []string, items []*events.Message) {
+		r.dispatchBatch(cmdName, args, items)
+	})
+
+	return r
 }
 
 // --- Setters de configuração ---
@@ -81,6 +91,13 @@ func (r *Router) SetAIConfig(cfg *ia.Config) {
 func (r *Router) SetNLPGroupTrigger(on bool) {
 	r.nlpGroupTrigger = on
 	r.log.Info("NLP group trigger alterado", zap.Bool("enabled", on))
+}
+
+// SetIntentEnabled ativa/desativa o NLU/DetectIntent por completo.
+// Quando false, mensagens com menção vão direto para conversa IA.
+func (r *Router) SetIntentEnabled(enabled bool) {
+	r.intentEnabled = enabled
+	r.log.Info("Intent/NLU config alterada", zap.Bool("enabled", enabled))
 }
 
 // SetMaintenance ativa/desativa modo manutenção (comandos bloqueados, exceto manutencao).
@@ -107,6 +124,16 @@ func (r *Router) IsMaintenance() bool {
 func (r *Router) RegisterCommand(meta CommandMeta, handler HandlerFunc) {
 	r.commands[meta.Name] = command{Meta: meta, Handler: handler}
 	r.log.Info("Comando registrado",
+		zap.String("command", meta.Name),
+		zap.Bool("private", meta.Private),
+	)
+}
+
+// RegisterBatchCommand registra um comando com handler batch para albums.
+// O BatchHandler é chamado quando o comando é usado em um album (múltiplas imagens/vídeos).
+func (r *Router) RegisterBatchCommand(meta CommandMeta, handler HandlerFunc, batchHandler BatchHandlerFunc) {
+	r.commands[meta.Name] = command{Meta: meta, Handler: handler, BatchHandler: batchHandler}
+	r.log.Info("Comando batch registrado",
 		zap.String("command", meta.Name),
 		zap.Bool("private", meta.Private),
 	)
@@ -206,6 +233,15 @@ func (r *Router) HandleMessage(evt *events.Message) {
 		return
 	}
 
+	// Itens filho de album (sem texto): bufferiza e aguarda dispatch.
+	if HasMediaAlbumAssociation(evt) {
+		parentID := ParentMessageID(evt)
+		if parentID != "" {
+			r.albumCoordinator.Bufferize(parentID, evt, "", nil, 0)
+		}
+		return
+	}
+
 	msg := whatsapp.VisibleTextFromEvent(evt)
 	if msg == "" {
 		return
@@ -281,6 +317,24 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 		return
 	}
 
+	// Album: se a mensagem tem AlbumMessage e o comando tem BatchHandler,
+	// redireciona para o AlbumCoordinator em vez de executar direto.
+	if cmd.BatchHandler != nil && IsAlbumMessage(evt) {
+		expected := AlbumExpectedCount(evt)
+		r.log.Info("Album detectado, buffering",
+			append(eventFields(evt),
+				zap.String("command", cmdName),
+				zap.Int("expected", expected),
+			)...,
+		)
+		if r.albumCoordinator.Bufferize(evt.Info.ID, evt, cmdName, args, expected) {
+			r.albumCoordinator.Dispatch(evt.Info.ID, func(cn string, a []string, items []*events.Message) {
+				r.dispatchBatch(cn, a, items)
+			})
+		}
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), handlerTimeoutCommand)
 	defer cancel()
 
@@ -301,6 +355,40 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 			zap.Duration("duration", time.Since(start)),
 			zap.String("date", time.Now().Format("2006-01-02 15:04:05")),
 		)...,
+	)
+}
+
+// dispatchBatch despacha um batch de itens de album para o BatchHandler do comando.
+func (r *Router) dispatchBatch(cmdName string, args []string, items []*events.Message) {
+	cmd, ok := r.commands[cmdName]
+	if !ok || cmd.BatchHandler == nil {
+		r.log.Warn("album: comando batch não encontrado",
+			zap.String("command", cmdName),
+		)
+		return
+	}
+
+	r.log.Info("Album batch despachado",
+		zap.String("command", cmdName),
+		zap.Int("items", len(items)),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), handlerTimeoutCommand)
+	defer cancel()
+
+	start := time.Now()
+	if err := cmd.BatchHandler(ctx, r.client, items, args); err != nil {
+		r.log.Error("Erro no batch command",
+			zap.String("command", cmdName),
+			zap.Error(err),
+		)
+		return
+	}
+
+	r.log.Info("Batch command executado",
+		zap.String("command", cmdName),
+		zap.Int("items", len(items)),
+		zap.Duration("duration", time.Since(start)),
 	)
 }
 

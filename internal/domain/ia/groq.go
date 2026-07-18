@@ -47,7 +47,7 @@ func callGroq(ctx context.Context, httpClient *http.Client, groqURL, groqKey, mo
 		MaxTokens:   maxTokens,
 	}
 	if isReasoningModel(model) {
-		req.ReasoningFormat = "hidden"
+		req.ReasoningEffort = "low" // minimiza tokens gastos "pensando", maximiza tokens de resposta
 	}
 
 	resp, err := groqChat(ctx, httpClient, groqURL, groqKey, req)

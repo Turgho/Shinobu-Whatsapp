@@ -18,6 +18,13 @@ import (
 // 3. Se aprovado → despacha para o handler
 // 4. Se falhar ou sem comando → fallback para IA geral
 func (r *Router) handleNaturalLanguage(evt *events.Message, msg string) {
+	// Intent desativado via config — pula direto para conversa geral,
+	// sem chamar DetectIntent. Comportamento idêntico ao pré-Intent.
+	if !r.intentEnabled {
+		r.handleShinobuMention(evt, msg, "")
+		return
+	}
+
 	// Bare mention guard: mensagens como só "Shinobu" ou "shinobu?" sem
 	// pedido real nunca devem chegar ao DetectIntent — vão direto pra
 	// conversa, evitando que o modelo invente comandos por falta de sinal.

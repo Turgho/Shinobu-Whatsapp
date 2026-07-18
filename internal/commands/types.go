@@ -16,6 +16,11 @@ var ErrNotACommand = errors.New("handler: not the right command for this input")
 // O contexto vem do Router (timeouts); args exclui o nome do comando.
 type HandlerFunc func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error
 
+// BatchHandlerFunc é a assinatura de um handler que processa múltiplos eventos
+// de album (imagens/vídeos agrupados). Usado pelo AlbumCoordinator quando o
+// comando suporta processamento em lote (ex: !sticker com album).
+type BatchHandlerFunc func(ctx context.Context, client *whatsmeow.Client, items []*events.Message, args []string) error
+
 // Middleware decide se o fluxo segue para o handler.
 // O parâmetro cmd é o nome lógico do comando ("shinobu" no atalho por menção, ou o token após o prefixo).
 // Retorna true para continuar, false para bloquear sem executar o handler.
@@ -54,6 +59,7 @@ type CommandMeta struct {
 
 // command acopla metadados públicos ao HandlerFunc registrado no Router.
 type command struct {
-	Meta    CommandMeta
-	Handler HandlerFunc
+	Meta         CommandMeta
+	Handler      HandlerFunc
+	BatchHandler BatchHandlerFunc // opcional: handler para albums (múltiplos itens)
 }
