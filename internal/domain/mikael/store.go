@@ -150,16 +150,16 @@ func (s *Store) SaveMessageHook() func(ctx context.Context, evt *events.Message,
 			)
 		}
 
-		// Incrementa contagem persistente na word_counts
+		// Incrementa contagem persistente na word_counts apenas se o remetente for o alvo
 		count := countOccurrences(msg, trackedWord)
-		if count > 0 {
+		if count > 0 && sender == s.targetSender {
 			_, err := s.db.ExecContext(ctx, `
 				INSERT INTO word_counts (chat, sender, word, count, updated_at)
 				VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
 				ON CONFLICT(chat, sender, word) DO UPDATE SET
 					count = count + excluded.count,
 					updated_at = CURRENT_TIMESTAMP
-			`, chat, s.targetSender, trackedWord, count)
+			`, chat, sender, trackedWord, count)
 			if err != nil {
 				s.log.Error("Erro ao atualizar contagem persistente",
 					zap.String("word", trackedWord),
