@@ -32,7 +32,7 @@ func UnstickerCommand(
 	defer os.Remove(inPath)
 
 	if dl.Animated {
-		outPath, err := ffmpeg.ConvertWebPToGIF(ctx, inPath)
+		outPath, err := ffmpeg.ConvertWebPToMP4(ctx, inPath)
 		if err != nil {
 			return whatsapp.Reply(ctx, client, evt, msgUnstickerFail)
 		}
@@ -47,7 +47,6 @@ func UnstickerCommand(
 		if err != nil {
 			return whatsapp.Reply(ctx, client, evt, msgUnstickerFail)
 		}
-
 		return whatsapp.SendVideo(ctx, client, evt, &uploaded, msgUnstickerCaption, true, 5, true)
 	}
 
