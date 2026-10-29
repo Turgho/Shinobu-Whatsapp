@@ -15,6 +15,7 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ignore"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/mikael"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/music"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/noteapi"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/scheduler"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/sticker"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/weather"
@@ -222,6 +223,9 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *histo
 		APIToken:  cfg.Music.APIToken,
 	}
 
+	// Cliente dos endpoints administrativos do notebook (mesma base e token).
+	noteClient := noteapi.NewClient(cfg.Music.ServerURL, cfg.Music.APIToken, logger)
+
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "stats",
 		Description: "Exibe estatísticas de runtime do bot",
@@ -242,6 +246,48 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *histo
 		Type:        commands.CommandTypeOwner,
 		Private:     true,
 	}, admin.RestartCommand)
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "note",
+		Description: "Status da máquina do notebook (RAM, disco, Wi-Fi, cache)",
+		Type:        commands.CommandTypeOwner,
+		Private:     true,
+	}, admin.NoteStatusCommand(noteClient, logger))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "reiniciar_api",
+		Description: "Reinicia o servidor de música no notebook",
+		Type:        commands.CommandTypeOwner,
+		Private:     true,
+	}, admin.RestartAPICommand(noteClient, logger))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "reiniciar_tunel",
+		Description: "Reinicia o túnel Cloudflare do notebook",
+		Type:        commands.CommandTypeOwner,
+		Private:     true,
+	}, admin.RestartTunnelCommand(noteClient, logger))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "resetar_wifi",
+		Description: "Força reset do driver Wi-Fi no notebook",
+		Type:        commands.CommandTypeOwner,
+		Private:     true,
+	}, admin.ResetWifiCommand(noteClient, logger))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "reiniciar_note",
+		Description: "Reinicia a máquina do notebook",
+		Type:        commands.CommandTypeOwner,
+		Private:     true,
+	}, admin.RebootNotebookCommand(noteClient, logger))
+
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "limpar_cache",
+		Description: "Limpa o cache de músicas no notebook",
+		Type:        commands.CommandTypeOwner,
+		Private:     true,
+	}, admin.ClearCacheCommand(noteClient, logger))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "fig",
