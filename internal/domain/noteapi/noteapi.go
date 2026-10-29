@@ -37,6 +37,7 @@ func NewClient(serverURL, apiToken string, logger *zap.Logger) *Client {
 type StatusRef struct {
 	Uptime       string  `json:"uptime"`
 	CPUUsage     float64 `json:"cpu_usage"`
+	CPUCores     int     `json:"cpu_cores"`
 	CPUTemp      string  `json:"cpu_temp"`
 	RAMUsedMB    float64 `json:"ram_used_mb"`
 	RAMTotalMB   float64 `json:"ram_total_mb"`

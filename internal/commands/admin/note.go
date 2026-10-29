@@ -29,13 +29,13 @@ func NoteStatusCommand(c *noteapi.Client, logger *zap.Logger) func(ctx context.C
 		msg := fmt.Sprintf(
 			"🖥️ *Notebook*\n"+
 				"• Uptime: %s\n"+
-				"• CPU: %.1f%% — %s\n"+
+				"• CPU: %.1f%% (x%d) — %s\n"+
 				"• RAM: %.1f/%.1f GB\n"+
 				"• Disco: %.1f/%.1f GB (livre)\n"+
 				"• Wi-Fi: %s (%s)\n"+
 				"• Cache: %d músicas, %.2f MB",
 			st.Uptime,
-			st.CPUUsage, st.CPUTemp,
+			st.CPUUsage, st.CPUCores, st.CPUTemp,
 			st.RAMUsedMB/1024, st.RAMTotalMB/1024,
 			st.DiskFreeGB, st.DiskTotalGB,
 			st.WifiState, st.WifiSignal,
