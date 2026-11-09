@@ -37,12 +37,36 @@ scheduledJobs:
     targetGroups:
       - "grupo_jid@g.us"          # @g.us = grupo, @s.whatsapp.net = pessoal
 
+# --- Música (!play): processamento local do yt-dlp ---
+# O bot executa ./bin/yt-dlp como processo filho (sem servidor remoto).
+# requer bin/yt-dlp, bin/deno (runtime JS p/ desafios EJS do YouTube)
+# e bin/ffmpeg — rode `make setup` ou `scripts/setup.sh`.
+music:
+  localEnabled: true        # false = voltar ao fallback do notebook (LEGADO)
+  maxFileMB: 25             # limite do arquivo p/ abortar cedo (yt-dlp --max-filesize)
+  maxDownloads: 1           # downloads simultâneos (SquareCloud 512MB: manter 1)
+  timeoutSec: 240           # timeout por tarefa
+  cacheDir: "storage/music-cache" # cache TTL 7 dias ("" desativa)
+  # ytdlpPath: "./bin/yt-dlp"    # sobrescritas opcionais
+  # ffmpegPath: "./bin/ffmpeg"
+  # denoPath: "./bin/deno"       # vazio = usa deno do PATH
+  # tmpDir: "/tmp"
+  # Fallback LEGADO (notebook via Cloudflare Tunnel) — só os dois de cima
+  # serverUrl ou env MUSIC_SERVER_URL
+  # apiToken  ou env API_AUTH_TOKEN
+
 # --- Variáveis de ambiente (sobrescrevem config.yaml) ---
 # GROQ_URL=https://api.groq.com/openai/v1/chat/completions
 # GROQ_API_KEY=gsk_...
 # TAVILY_API_KEY=tvly-...
 # MUSIC_SERVER_URL=http://...
 # MUSIC_API_TOKEN=token_...
+# MUSIC_LOCAL_ENABLED=true         # processamento local yt-dlp (padrão: true)
+# MUSIC_MAX_FILE_MB=25             # limite de tamanho do arquivo
+# MUSIC_MAX_CONCURRENT=1           # downloads simultâneos
+# MUSIC_TIMEOUT_SEC=240            # timeout por download
+# YTDLP_PATH=./bin/yt-dlp          # caminho do yt-dlp
+# DENO_PATH=./bin/deno             # runtime JS p/ EJS
 # OWNER_NUMBER=5511999999999
 # FERIADOS_API_KEY=sk_live_...
 # OWNER_JID=jid_do_dono@lid

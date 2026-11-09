@@ -2,25 +2,22 @@ package app
 
 import (
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands"
-	"github.com/Turgho/Shinobu-Whatsapp/internal/commands/admin"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands/public"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/cotacao"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/feriado"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/geocoding"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ia"
-	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ignore"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/mikael"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/music"
-	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/noteapi"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/scheduler"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/sticker"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/weather"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/configs"
-	"go.mau.fi/whatsmeow"
 	"go.uber.org/zap"
 )
 
@@ -53,17 +50,38 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Type:        commands.CommandTypeUtility,
 	}, public.StickerCommand, public.StickerAlbumCommand)
 
-	musicCfg := &music.Config{
-		ServerURL: cfg.Music.ServerURL,
-		APIToken:  cfg.Music.APIToken,
+	// Service de mídia: executor local (yt-dlp) + cache + fallback túnel.
+	execCfg := &music.YtdlpExecConfig{
+		LocalEnabled: cfg.Music.LocalEnabled,
+		YtdlpPath:    cfg.Music.YtdlpPath,
+		FfmpegPath:   cfg.Music.FfmpegPath,
+		DenoPath:     cfg.Music.DenoPath,
+		TmpDir:       cfg.Music.TmpDir,
+		CacheDir:     cfg.Music.CacheDir,
+		MaxFileMB:    cfg.Music.MaxFileMB,
+		MaxDownloads: cfg.Music.MaxDownloads,
+		TimeoutSec:   cfg.Music.TimeoutSec,
 	}
+	var musicService *music.Service
+	var musicExec *music.Executor
+	if cfg.Music.LocalEnabled {
+		if _, err := os.Stat(execCfg.YtdlpPath); err == nil {
+			musicExec = music.NewExecutor(execCfg, logger.Named("YTDLP"))
+		} else {
+			logger.Warn("música: yt-dlp local ausente, usando fallback remoto",
+				zap.String("path", execCfg.YtdlpPath), zap.Error(err))
+		}
+	}
+	musicService = music.NewService(musicExec,
+		music.NewCache(execCfg.CacheDir, logger.Named("MUSIC_CACHE")),
+		cfg.Music.ServerURL, cfg.Music.APIToken)
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "play",
 		Description: "Busca por uma música via nome ou URL",
 		Type:        commands.CommandTypeDownload,
 		Args:        []commands.ArgMeta{{Name: "nome da música ou URL", Required: true}},
-	}, public.PlayCommand(musicCfg, logger))
+	}, public.PlayCommand(musicService, logger))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "mambo",
@@ -215,159 +233,4 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Description: "Conta quantas vezes o Mikael escreveu 'pix' no grupo",
 		Type:        commands.CommandTypeFun,
 	}, public.MikaelHandler(mikaelStore, logger))
-}
-
-func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *history.Store, logger *zap.Logger, ignoreStore *ignore.Store, stickerStore *sticker.Store, waClient *whatsmeow.Client, sched *scheduler.Scheduler) {
-	musicCfg := &music.Config{
-		ServerURL: cfg.Music.ServerURL,
-		APIToken:  cfg.Music.APIToken,
-	}
-
-	// Cliente dos endpoints administrativos do notebook (mesma base e token).
-	noteClient := noteapi.NewClient(cfg.Music.ServerURL, cfg.Music.APIToken, logger)
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "stats",
-		Description: "Exibe estatísticas de runtime do bot",
-		Type:        commands.CommandTypeOwner,
-		Private:     true,
-	}, admin.StatsCommand(musicCfg, logger))
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "shutdown",
-		Description: "Desliga o bot",
-		Type:        commands.CommandTypeOwner,
-		Private:     true,
-	}, admin.ShutdownCommand)
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "restart",
-		Description: "Reinicia o bot",
-		Type:        commands.CommandTypeOwner,
-		Private:     true,
-	}, admin.RestartCommand)
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "note",
-		Description: "Status da máquina do notebook (RAM, disco, Wi-Fi, cache)",
-		Type:        commands.CommandTypeOwner,
-		Private:     true,
-	}, admin.NoteStatusCommand(noteClient, logger))
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "reiniciar_api",
-		Description: "Reinicia o servidor de música no notebook",
-		Type:        commands.CommandTypeOwner,
-		Private:     true,
-	}, admin.RestartAPICommand(noteClient, logger))
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "reiniciar_tunel",
-		Description: "Reinicia o túnel Cloudflare do notebook",
-		Type:        commands.CommandTypeOwner,
-		Private:     true,
-	}, admin.RestartTunnelCommand(noteClient, logger))
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "resetar_wifi",
-		Description: "Força reset do driver Wi-Fi no notebook",
-		Type:        commands.CommandTypeOwner,
-		Private:     true,
-	}, admin.ResetWifiCommand(noteClient, logger))
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "reiniciar_note",
-		Description: "Reinicia a máquina do notebook",
-		Type:        commands.CommandTypeOwner,
-		Private:     true,
-	}, admin.RebootNotebookCommand(noteClient, logger))
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "limpar_cache",
-		Description: "Limpa o cache de músicas no notebook",
-		Type:        commands.CommandTypeOwner,
-		Private:     true,
-	}, admin.ClearCacheCommand(noteClient, logger))
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "fig",
-		Description: "Gerencia stickers salvos. Uso em DM: !fig salvar <nome>, !fig remover <nome>, !fig lista. Uso normal: !fig <nome>",
-		Type:        commands.CommandTypeAdmin,
-		Args: []commands.ArgMeta{
-			{Name: "nome", Required: false},
-		},
-		Private: true,
-	}, admin.SaveStickerCommand(cfg.UsersJID.Owner, stickerStore))
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "ignorar",
-		Description: "Ignorar mensagens de un número",
-		Type:        commands.CommandTypeAdmin,
-		Private:     true,
-	}, admin.IgnoreCommand(ignoreStore))
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "testjob",
-		Description: "Testa o job semanal (audio+@all+sticker) no chat atual",
-		Type:        commands.CommandTypeOwner,
-		Private:     true,
-	}, admin.TestJobCommand(stickerStore))
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "manutencao",
-		Description: "Ativa/desativa modo manutenção (comandos bloqueados)",
-		Type:        commands.CommandTypeOwner,
-		Private:     true,
-	}, admin.ManutencaoCommand(r))
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "memoria",
-		Description: "Gerencia a memória da IA no chat. Subcomandos: ver, limpar [@user], resumo",
-		Type:        commands.CommandTypeAdmin,
-		Private:     true,
-	}, admin.MemoriaHandler(store, logger))
-
-	// --- Comandos de debug ---
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "whois",
-		Description: "Informações de JID/LID de um contato",
-		Type:        commands.CommandTypeAdmin,
-		Private:     true,
-	}, admin.WhoisHandler(waClient))
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "rawmsg",
-		Description: "Dump da mensagem crua do whatsmeow (debug)",
-		Type:        commands.CommandTypeAdmin,
-		Private:     true,
-	}, admin.RawMsgHandler)
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "chatinfo",
-		Description: "Informações do chat atual",
-		Type:        commands.CommandTypeAdmin,
-		Private:     true,
-	}, admin.ChatInfoHandler(waClient))
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "rawevent",
-		Description: "Dump do evento completo do whatsmeow (debug)",
-		Type:        commands.CommandTypeAdmin,
-		Private:     true,
-	}, admin.RawEventHandler)
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "groupjid",
-		Description: "JID do grupo atual",
-		Type:        commands.CommandTypeAdmin,
-		Private:     true,
-	}, admin.GroupJIDHandler)
-
-	r.RegisterCommand(commands.CommandMeta{
-		Name:        "jobs",
-		Description: "Gerencia jobs do scheduler. Subcomandos: (lista), forcar <nome>",
-		Type:        commands.CommandTypeOwner,
-		Private:     true,
-	}, admin.JobsHandler(sched, logger))
 }

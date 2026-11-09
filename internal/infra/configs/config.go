@@ -2,6 +2,7 @@ package configs
 
 import (
 	"log"
+	"os"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
@@ -78,6 +79,14 @@ func Load() *Config {
 	viper.AutomaticEnv()
 	viper.SetEnvPrefix("")
 
+	// Defaults do subsistema de mídia (sobrescrevíveis por env/config).
+	viper.SetDefault("apicalls.music.localEnabled", true)
+	viper.SetDefault("apicalls.music.tmpDir", os.TempDir())
+	viper.SetDefault("apicalls.music.cacheDir", "storage/music-cache")
+	viper.SetDefault("apicalls.music.maxFileMB", 25)
+	viper.SetDefault("apicalls.music.maxDownloads", 1)
+	viper.SetDefault("apicalls.music.timeoutSec", 240)
+
 	// Mapeamento de env vars → chaves viper
 	viper.BindEnv("bot.prefix", "COMMAND_PREFIX")
 	viper.BindEnv("bot.environment", "ENVIRONMENT")
@@ -89,6 +98,12 @@ func Load() *Config {
 	viper.BindEnv("apicalls.tavily.apiKey", "TAVILY_API_KEY")
 	viper.BindEnv("apicalls.music.serverUrl", "MUSIC_SERVER_URL")
 	viper.BindEnv("apicalls.music.apiToken", "API_AUTH_TOKEN")
+	viper.BindEnv("apicalls.music.localEnabled", "MUSIC_LOCAL_ENABLED")
+	viper.BindEnv("apicalls.music.ytdlpPath", "YTDLP_PATH")
+	viper.BindEnv("apicalls.music.denoPath", "DENO_PATH")
+	viper.BindEnv("apicalls.music.maxFileMB", "MUSIC_MAX_FILE_MB")
+	viper.BindEnv("apicalls.music.maxDownloads", "MUSIC_MAX_CONCURRENT")
+	viper.BindEnv("apicalls.music.timeoutSec", "MUSIC_TIMEOUT_SEC")
 	viper.BindEnv("apicalls.owner.number", "OWNER_NUMBER")
 	viper.BindEnv("apicalls.feriados.apiKey", "FERIADOS_API_KEY")
 
@@ -120,8 +135,17 @@ func Load() *Config {
 		APIKey: viper.GetString("apicalls.tavily.apiKey"),
 	}
 	cfg.Music = MusicConfig{
-		ServerURL: viper.GetString("apicalls.music.serverUrl"),
-		APIToken:  viper.GetString("apicalls.music.apiToken"),
+		ServerURL:    viper.GetString("apicalls.music.serverUrl"),
+		APIToken:     viper.GetString("apicalls.music.apiToken"),
+		LocalEnabled: viper.GetBool("apicalls.music.localEnabled"),
+		YtdlpPath:    viper.GetString("apicalls.music.ytdlpPath"),
+		FfmpegPath:   viper.GetString("apicalls.music.ffmpegPath"),
+		DenoPath:     viper.GetString("apicalls.music.denoPath"),
+		TmpDir:       viper.GetString("apicalls.music.tmpDir"),
+		CacheDir:     viper.GetString("apicalls.music.cacheDir"),
+		MaxFileMB:    viper.GetInt("apicalls.music.maxFileMB"),
+		MaxDownloads: viper.GetInt("apicalls.music.maxDownloads"),
+		TimeoutSec:   viper.GetInt("apicalls.music.timeoutSec"),
 	}
 	cfg.Owner = OwnerConfig{
 		Number: viper.GetString("apicalls.owner.number"),
@@ -146,6 +170,17 @@ type TavilyConfig struct {
 type MusicConfig struct {
 	ServerURL string `mapstructure:"serverUrl"`
 	APIToken  string `mapstructure:"apiToken"`
+
+	// Processamento local do yt-dlp (SquareCloud, processo filho).
+	LocalEnabled bool   `mapstructure:"localEnabled"`
+	YtdlpPath    string `mapstructure:"ytdlpPath"`
+	FfmpegPath   string `mapstructure:"ffmpegPath"`
+	DenoPath     string `mapstructure:"denoPath"`
+	TmpDir       string `mapstructure:"tmpDir"`
+	CacheDir     string `mapstructure:"cacheDir"`
+	MaxFileMB    int    `mapstructure:"maxFileMB"`
+	MaxDownloads int    `mapstructure:"maxDownloads"`
+	TimeoutSec   int    `mapstructure:"timeoutSec"`
 }
 
 type OwnerConfig struct {

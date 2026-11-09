@@ -2,9 +2,7 @@ package geocoding
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -81,15 +79,6 @@ func (g *GeoCoding) lookupNominatim(ctx context.Context, query string, limit int
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		g.Logger.Error("Nominatim retornou status inesperado",
-			zap.Int("status", resp.StatusCode),
-			zap.String("body", string(body)),
-		)
-		return nil, fmt.Errorf("geocoding: status %d", resp.StatusCode)
-	}
-
 	var raw []struct {
 		Lat         string `json:"lat"`
 		Lon         string `json:"lon"`
@@ -103,9 +92,8 @@ func (g *GeoCoding) lookupNominatim(ctx context.Context, query string, limit int
 		} `json:"address"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		g.Logger.Error("Erro ao decodificar JSON (Nominatim)", zap.Error(err))
-		return nil, fmt.Errorf("geocoding: erro ao decodificar resposta: %w", err)
+	if err := g.resolveGeoJSON(resp, &raw, "nominatim"); err != nil {
+		return nil, err
 	}
 
 	if len(raw) == 0 {
@@ -118,8 +106,8 @@ func (g *GeoCoding) lookupNominatim(ctx context.Context, query string, limit int
 		lat, _ := strconv.ParseFloat(r.Lat, 64)
 		lon, _ := strconv.ParseFloat(r.Lon, 64)
 
-		country := r.Address.Country
-
+		// city/town/village nasce por prioridade — AGENTS (geocoding): nunca
+		// montar DisplayName do display_name cru do Nominatim.
 		city := r.Address.City
 		if city == "" {
 			city = r.Address.Town
@@ -128,23 +116,13 @@ func (g *GeoCoding) lookupNominatim(ctx context.Context, query string, limit int
 			city = r.Address.Village
 		}
 
-		parts := []string{}
-		if city != "" {
-			parts = append(parts, city)
-		}
-		if r.Address.State != "" {
-			parts = append(parts, r.Address.State)
-		}
-		displayName := strings.Join(parts, ", ")
-		if displayName == "" {
-			displayName = query
-		}
+		displayName := combineDisplayName(city, r.Address.State, query)
 
 		results = append(results, GeoResult{
 			Latitude:    lat,
 			Longitude:   lon,
 			DisplayName: displayName,
-			Country:     country,
+			Country:     r.Address.Country,
 		})
 	}
 
@@ -177,15 +155,6 @@ func (g *GeoCoding) lookupOpenMeteo(ctx context.Context, query string, limit int
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		g.Logger.Error("Open-Meteo retornou status inesperado",
-			zap.Int("status", resp.StatusCode),
-			zap.String("body", string(body)),
-		)
-		return nil, fmt.Errorf("geocoding: status %d", resp.StatusCode)
-	}
-
 	var raw struct {
 		Results []struct {
 			Latitude  float64 `json:"latitude"`
@@ -197,9 +166,8 @@ func (g *GeoCoding) lookupOpenMeteo(ctx context.Context, query string, limit int
 		} `json:"results"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		g.Logger.Error("Erro ao decodificar JSON (Open-Meteo)", zap.Error(err))
-		return nil, fmt.Errorf("geocoding: erro ao decodificar resposta: %w", err)
+	if err := g.resolveGeoJSON(resp, &raw, "open-meteo"); err != nil {
+		return nil, err
 	}
 
 	if len(raw.Results) == 0 {
@@ -212,7 +180,7 @@ func (g *GeoCoding) lookupOpenMeteo(ctx context.Context, query string, limit int
 		results = append(results, GeoResult{
 			Latitude:    r.Latitude,
 			Longitude:   r.Longitude,
-			DisplayName: fmt.Sprintf("%s, %s", r.Name, r.Admin1),
+			DisplayName: combineDisplayName(r.Name, r.Admin1, r.Name),
 			Country:     r.Country,
 			Timezone:    r.Timezone,
 		})

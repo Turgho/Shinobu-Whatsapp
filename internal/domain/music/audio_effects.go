@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/ffmpeg"
 )
@@ -135,22 +136,18 @@ func Apply(ctx context.Context, data []byte, ext string, effectName string, inte
 	}
 	filter := effect.Filters[idx]
 
-	tmpIn, err := os.CreateTemp("", "audio-in-*"+ext)
+	// Temporário de entrada reutiliza o helper central do pacote (cover.go).
+	ext = strings.TrimPrefix(ext, ".")
+	tmpInPath, err := writeTempFile("audio-in", ext, data)
 	if err != nil {
 		return nil, fmt.Errorf("audioeffects: erro ao criar arquivo de entrada: %w", err)
 	}
-	defer os.Remove(tmpIn.Name())
-
-	if _, err = tmpIn.Write(data); err != nil {
-		tmpIn.Close()
-		return nil, fmt.Errorf("audioeffects: erro ao gravar áudio de entrada: %w", err)
-	}
-	tmpIn.Close()
+	defer os.Remove(tmpInPath)
 
 	tmpOut := filepath.Join(os.TempDir(), fmt.Sprintf("audio-out-%d.mp3", os.Getpid()))
 	defer os.Remove(tmpOut)
 
-	if err := runFFmpeg(ctx, tmpIn.Name(), tmpOut, filter); err != nil {
+	if err := runFFmpeg(ctx, tmpInPath, tmpOut, filter); err != nil {
 		return nil, err
 	}
 

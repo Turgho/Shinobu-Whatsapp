@@ -8,6 +8,20 @@ curl -L -o bin/yt-dlp \
     https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux
 chmod +x bin/yt-dlp
 
+# Deno — runtime JS obrigatório para os desafios EJS do YouTube (yt-dlp-ejs).
+# O binário oficial yt-dlp_linux já embute os scripts; só o runtime é exigido.
+# Mínimo suportado pelo yt-dlp: deno >= 2.3.0.
+echo "Instalando deno..."
+if ! command -v unzip >/dev/null 2>&1; then
+    echo "ERRO: 'unzip' ausente (instale: sudo pacman -S unzip)" >&2
+    exit 1
+fi
+curl -fsSL -o /tmp/deno.zip \
+    https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip
+unzip -p /tmp/deno.zip > bin/deno
+chmod +x bin/deno
+rm -f /tmp/deno.zip
+
 # ffmpeg estático (johnvansickle sempre serve o latest)
 echo "Instalando ffmpeg..."
 wget -q https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz

@@ -27,9 +27,10 @@ func NewHandler(client *whatsmeow.Client, router *commands.Router, log *zap.Logg
 // WhatsApp Status (Stories) — notas de implementação:
 //
 // Mensagens de status chegam via events.Message com:
-//   evt.Info.Chat     = status@broadcast (Server: "broadcast")
-//   evt.Info.Sender   = JID do contato que postou
-//   evt.Info.IsGroup  = false
+//
+//	evt.Info.Chat     = status@broadcast (Server: "broadcast")
+//	evt.Info.Sender   = JID do contato que postou
+//	evt.Info.IsGroup  = false
 //
 // Respostas a status via Reply() usam evt.Info.Chat como destino,
 // o que envia a mensagem de volta ao status broadcast — comportamento

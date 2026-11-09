@@ -142,5 +142,3 @@ Regras:
 
 	return callGroq(ctx, cfg.HTTPClient, cfg.GroqURL, cfg.GroqKey, modelScoutFast, msgs, 0, 220)
 }
-
-

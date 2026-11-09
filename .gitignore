@@ -36,6 +36,7 @@ Modelfile
 storage/message_history.db
 storage/message_history.db-shm
 storage/message_history.db-wal
+storage/music-cache/
 
 # ─── Configuração ────────────────────────────────────────────────────────────
 # Nunca commitar credenciais ou configurações locais

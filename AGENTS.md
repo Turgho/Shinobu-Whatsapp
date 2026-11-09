@@ -511,8 +511,36 @@ func (j *XyzJob) Run(ctx context.Context) error { ... }
 - Arquivos alterados: `types.go`, `router.go`, `app_commands.go`, `AGENTS.md`
 - `go build ./...` e `go vet ./...` passam sem erros
 
+### Feito nesta sessão (2026-11-09, refactor + tests + make release)
+- **SQLite unificado:** `internal/infra/database/database.go` troca mattn/go-sqlite3 por
+  modernc.org/sqlite (puro, sem cgo); nome `sqlite3` no config é normalizado para `sqlite`.
+  `CGO_ENABLED=0` agora é seguro no build inteiro.
+- **Binary slim:** build com `-trimpath -ldflags "-s -w"` + `CGO_ENABLED=0` —
+  37.4MB → 24.9MB (~33% menor). UPX rejeitado (RAM 512MB do contêiner).
+- **Dedupe:** `noteapi.StatusRef` estendido (Goroutines/Version); `admin/stats.go` usa
+  `noteapi.Client` em vez de HTTP próprio; `music.Config` removido (migra pra noteapi).
+- **Split:** `internal/app/app_commands.go` (395L → 236L) + novo `app_commands_admin.go` (169L)
+  — registro de admin commands separado do público.
+- **Geocoding:** helpers extraídos em `geocode_helpers.go` (`resolveGeoJSON`,
+  `combineDisplayName` — fix de vírgula pendente no Open-Meteo DisplayName).
+- **Music temp files:** `writeTempFile(pattern, ext, data)` em `cover.go` centraliza
+  os `os.CreateTemp` (cover, efeitos de áudio).
+- **history.StartCleanup:** erros de delete agora logados (antes silenciosos).
+- **Tests novos:** `ia/utils_test.go`, `geocoding/geocode_helpers_test.go`,
+  `weather/weather_helpers_test.go`, `commands/album_test.go` (coordinator + helpers),
+  `commands/ratelimit_test.go`, `ia/commands_test.go` (DispatchableCommand),
+  `commands/public/agenda_parse_test.go` — **bug fix real:** ISO-8601
+  (`2026-12-25T09:30`) não parseava no `parseAgendaTime` porque `normalizePtMonths`
+  lowercasa a string inteira; ISO é tentado antes da normalização.
+- **Integration tests** (tag `integration`, gate `INTEG=1`): geocoding (Nominatim+Open-Meteo),
+  weather (Open-Meteo), cotacao (AwesomeAPI) — todos passaram contra as APIs reais.
+  Feriado fica de fora (precisa FERIADOS_API_KEY).
+- **Makefile reescrito:** `make release` único (test → build otimizado → add/commit/tag
+  semver com bump de patch automático → push). Overrides: `VER=`, `MSG=`, `DRY=1`.
+- **README:** seção "Build e release (make release)" adicionada.
+- `go build ./...`, `go vet ./...`, `gofmt -l` limpos; 9 pacotes de teste ok.
+
 ### Ainda pendente
 - `configs/config.go`: usar `mapstructure` tags nos BindEnv paths para alinhar com struct layout
-- `history/message_history.go StartCleanup`: migrar para `gosafe.Go`
 - `ia/search.go`: auditar se `shouldSearchWeb` e `keywords.go` coexistem no hot path
 - Memória em grupos: separar resumo por usuário dentro do mesmo chat de grupo

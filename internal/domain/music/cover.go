@@ -113,35 +113,29 @@ func extractCoverArt(audioPath string) []byte {
 	return data
 }
 
-// writeTempAudio salva dados em arquivo temporário.
-func writeTempAudio(data []byte, ext string) (string, error) {
-	f, err := os.CreateTemp("", "audio-*."+ext)
+// writeTempFile cria um arquivo temporário `/tmp/<pattern>-<rand>.<ext>`
+// com os dados. Único ponto de criação de temp de áudio/capa do pacote.
+func writeTempFile(pattern, ext string, data []byte) (string, error) {
+	f, err := os.CreateTemp("", pattern+"-*."+ext)
 	if err != nil {
 		return "", err
 	}
-	path := f.Name()
 	if _, err := f.Write(data); err != nil {
 		f.Close()
-		os.Remove(path)
+		os.Remove(f.Name())
 		return "", err
 	}
 	f.Close()
-	return path, nil
+	return f.Name(), nil
+}
+
+// writeTempAudio salva dados de áudio em arquivo temporário.
+func writeTempAudio(data []byte, ext string) (string, error) {
+	return writeTempFile("audio", ext, data)
 }
 
 func writeCoverTemp(data []byte) (string, error) {
-	f, err := os.CreateTemp("", "cover-*.jpg")
-	if err != nil {
-		return "", err
-	}
-	path := f.Name()
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		os.Remove(path)
-		return "", err
-	}
-	f.Close()
-	return path, nil
+	return writeTempFile("cover", "jpg", data)
 }
 
 // extractArtist tenta separar "artista - música" de uma query.

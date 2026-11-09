@@ -2,14 +2,12 @@ package admin
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"runtime"
 	"sync"
 	"time"
 
-	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/music"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/noteapi"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/uptime"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/version"
@@ -21,51 +19,13 @@ import (
 	"go.uber.org/zap"
 )
 
-type remoteStats struct {
-	Uptime     string  `json:"uptime"`
-	CPUUsage   float64 `json:"cpu_usage"`
-	CPUTemp    string  `json:"cpu_temp"`
-	RAMUsed    float64 `json:"ram_used_mb"`
-	RAMTotal   float64 `json:"ram_total_mb"`
-	RAMPercent float64 `json:"ram_percent"`
-	DiskUsed   float64 `json:"disk_used_gb"`
-	DiskTotal  float64 `json:"disk_total_gb"`
-	DiskFree   float64 `json:"disk_free_gb"`
-	Goroutines int     `json:"goroutines"`
-	CPUCores   int     `json:"cpu_cores"`
-	Version    string  `json:"version"`
-}
-
-func fetchNotebookStats(musicCfg *music.Config) (*remoteStats, error) {
-	client := &http.Client{Timeout: 3 * time.Second}
-
-	req, err := http.NewRequest("GET", musicCfg.ServerURL+"/stats", nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+musicCfg.APIToken)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var stats remoteStats
-	if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
-		return nil, err
-	}
-
-	return &stats, nil
-}
-
 // StatsCommand exibe stats do sistema (CPU, RAM, temperatura, uptime, notebook remoto).
-// Dados do notebook são buscados em goroutine concorrente com waitgroup.
-func StatsCommand(musicCfg *music.Config, log *zap.Logger) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+// Dados do notebook vêm do noteapi.Client (mesma fonte usada pelos comandos !note/*).
+// Buscados em goroutine concorrente com waitgroup.
+func StatsCommand(note *noteapi.Client, log *zap.Logger) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		var (
-			notebook *remoteStats
+			notebook *noteapi.StatusRef
 			nbErr    error
 			wg       sync.WaitGroup
 		)
@@ -73,7 +33,7 @@ func StatsCommand(musicCfg *music.Config, log *zap.Logger) func(ctx context.Cont
 		wg.Add(1)
 		gosafe.Go(log, func() {
 			defer wg.Done()
-			notebook, nbErr = fetchNotebookStats(musicCfg)
+			notebook, nbErr = note.Status(ctx)
 		})
 
 		uptimeStr := time.Since(uptime.ProcessStartTime()).Round(time.Second)
@@ -106,14 +66,14 @@ func StatsCommand(musicCfg *music.Config, log *zap.Logger) func(ctx context.Cont
 			if notebookVersion == "" {
 				notebookVersion = "unknown"
 			}
-			notebookBlock = fmt.Sprintf(
+			stat := fmt.Sprintf(
 				"🏷 *Versão:* `%s`\n"+
 					"⏱ *Uptime:* %s\n"+
 					"🧵 *Goroutines:* %d\n"+
 					"⚙ *CPU cores:* %d\n"+
 					"🖥 *CPU uso:* %.1f%%\n"+
 					"🌡 *CPU temp:* %s\n"+
-					"💾 *RAM:* %.0f MB / %.0f MB (%.1f%%)\n"+
+					"💾 *RAM:* %.0f MB / %.0f MB\n"+
 					"💿 *Disco:* %.1f GB livres de %.1f GB",
 				notebookVersion,
 				notebook.Uptime,
@@ -121,9 +81,10 @@ func StatsCommand(musicCfg *music.Config, log *zap.Logger) func(ctx context.Cont
 				notebook.CPUCores,
 				notebook.CPUUsage,
 				notebook.CPUTemp,
-				notebook.RAMUsed, notebook.RAMTotal, notebook.RAMPercent,
-				notebook.DiskFree, notebook.DiskTotal,
+				notebook.RAMUsedMB, notebook.RAMTotalMB,
+				notebook.DiskFreeGB, notebook.DiskTotalGB,
 			)
+			notebookBlock = stat
 		}
 
 		msg := fmt.Sprintf(

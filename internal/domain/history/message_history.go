@@ -98,11 +98,16 @@ func (s *Store) StartCleanup(ctx context.Context, maxAge time.Duration) {
 		for {
 			select {
 			case <-ticker.C:
-				_, _ = s.db.ExecContext(ctx,
-					`DELETE FROM messages WHERE sent_at < ?`,
-					time.Now().Add(-maxAge).Format("2006-01-02 15:04:05"),
-				)
-				_ = s.PruneStaleFacts(ctx, 30*24*time.Hour)
+				cutoff := time.Now().Add(-maxAge).Format("2006-01-02 15:04:05")
+				if res, err := s.db.ExecContext(ctx,
+					`DELETE FROM messages WHERE sent_at < ?`, cutoff); err != nil {
+					s.log.Warn("history: limpeza de mensagens falhou", zap.Error(err))
+				} else if n, _ := res.RowsAffected(); n > 0 {
+					s.log.Debug("history: mensagens antigas removidas", zap.Int64("removed", n))
+				}
+				if err := s.PruneStaleFacts(ctx, 30*24*time.Hour); err != nil {
+					s.log.Warn("history: limpeza de fatos falhou", zap.Error(err))
+				}
 			case <-ctx.Done():
 				return
 			}
