@@ -142,6 +142,24 @@ Fluxo internamente: `go test` → build estático (`CGO_ENABLED=0`,
 `-trimpath -ldflags "-s -w"`, ~25 MB) com a versão cravada no binário →
 `git add -A` + commit → tag semver → push do branch e da tag.
 
+### Painel de controle (`cmd/shinobu`)
+
+CLI interativa no terminal — empacota status, testes, build e release:
+
+```bash
+make cli                     # compila pra bin/shinobu
+go run ./cmd/shinobu         # ou direto, sem compilar — abre o menu
+
+shinobu status               # branch, tag, pendências, tamanho do binário
+shinobu test | integ         # unitários / integração (APIs reais)
+shinobu build                # build otimizado
+shinobu release minor "feat: x"   # wizard: bump + msg + confirmação
+shinobu clean-cache          # remove storage/music-cache
+```
+
+No menu: números navegam, `0`/`q` sai; o release sempre força o fluxo do
+Makefile (mesma validação de bump antes de tocar em git).
+
 ---
 
 ## Comandos

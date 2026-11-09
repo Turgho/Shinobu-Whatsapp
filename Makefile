@@ -59,7 +59,7 @@ define RELEASE_CMDS
 	git push origin $(TAG)
 endef
 
-.PHONY: release show-version
+.PHONY: release show-version cli
 release:
 	@test -n "$(TAG)" && echo "$(TAG)" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$$' \
 		|| (echo "make: BUMP/VER invalido — use BUMP=patch|minor|major ou VER=vX.Y.Z"; exit 1)
@@ -76,6 +76,10 @@ else
 	$(RELEASE_CMDS)
 	@echo "✅ $(TAG) publicado ($(BRANCH)) — binário: $$(du -h Shinobu | cut -f1)"
 endif
+
+# Painel de controle no terminal: go run ./cmd/shinobu
+cli:
+	go build -o bin/shinobu ./cmd/shinobu/
 
 show-version:
 	@echo "tag=$(TAG) commit=$(COMMIT)"
