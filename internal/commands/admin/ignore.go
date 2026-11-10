@@ -9,9 +9,11 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
+	"go.uber.org/zap"
 )
 
-func IgnoreCommand(ignoreStore *ignore.Store) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+func IgnoreCommand(ignoreStore *ignore.Store, logger *zap.Logger) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+	l := logger.Named("IGNORE")
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		if len(args) == 0 {
 			return usageIgnore(ctx, client, evt)
@@ -28,8 +30,9 @@ func IgnoreCommand(ignoreStore *ignore.Store) func(ctx context.Context, client *
 			}
 			removed, err := ignoreStore.Remove(phone.NormalizeNumber(args[1]))
 			if err != nil {
+				l.Error("falha ao remover da lista de ignorados", zap.Error(err))
 				return whatsapp.SendText(ctx, client, evt,
-					"❌ Erro ao remover: "+err.Error(), true)
+					"❌ Não consegui atualizar a lista de ignorados. Tenta de novo.", true)
 			}
 			if !removed {
 				return whatsapp.SendText(ctx, client, evt,
@@ -41,8 +44,9 @@ func IgnoreCommand(ignoreStore *ignore.Store) func(ctx context.Context, client *
 		default:
 			err := ignoreStore.Add(phone.NormalizeNumber(args[0]))
 			if err != nil {
+				l.Error("falha ao adicionar na lista de ignorados", zap.Error(err))
 				return whatsapp.SendText(ctx, client, evt,
-					"❌ Erro ao ignorar: "+err.Error(), true)
+					"❌ Não consegui atualizar a lista de ignorados. Tenta de novo.", true)
 			}
 			return whatsapp.SendText(ctx, client, evt,
 				"✅ Número adicionado à lista de ignorados.", true)

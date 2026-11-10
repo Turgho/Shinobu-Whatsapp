@@ -9,6 +9,7 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
 )
@@ -56,7 +57,8 @@ func RawMsgHandler(ctx context.Context, cli *whatsmeow.Client, evt *events.Messa
 }
 
 // ChatInfoHandler mostra informações do chat atual (grupo ou DM).
-func ChatInfoHandler(waClient *whatsmeow.Client) commands.HandlerFunc {
+func ChatInfoHandler(waClient *whatsmeow.Client, logger *zap.Logger) commands.HandlerFunc {
+	l := logger.Named("CHATINFO")
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, _ []string) error {
 		jid := evt.Info.Chat
 		jidStr := jid.String()
@@ -67,7 +69,8 @@ func ChatInfoHandler(waClient *whatsmeow.Client) commands.HandlerFunc {
 
 		group, err := waClient.GetGroupInfo(ctx, jid)
 		if err != nil {
-			return whatsapp.Reply(ctx, client, evt, fmt.Sprintf("💬 *Informações do chat*\nJID: `%s`\nTipo: Grupo\nErro ao buscar info: %v", jidStr, err))
+			l.Error("erro ao buscar info do grupo", zap.Error(err))
+			return whatsapp.Reply(ctx, client, evt, fmt.Sprintf("💬 *Informações do chat*\nJID: `%s`\nTipo: Grupo\nNão consegui buscar os detalhes agora.", jidStr))
 		}
 
 		adminCount := 0

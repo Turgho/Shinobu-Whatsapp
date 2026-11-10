@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/identity"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
@@ -17,9 +18,13 @@ const bannerPath = "assets/images/shinobu_banner.png"
 
 // MenuCommand retorna um handler que envia o menu com ou sem banner.
 // Use "banner" como argumento para enviar com a imagem de banner.
-func MenuCommand(r *commands.Router) commands.HandlerFunc {
+func MenuCommand(r *commands.Router, owner identity.Owner, admins []string) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		metas := r.Commands()
+
+		// Owner/admin também enxergam os comandos privados (antes as
+		// categorias de administração ficavam sempre vazias).
+		isOwner := owner.MatchesAny(evt.Info.Sender.ToNonAD().User, evt.Info.Sender.ToNonAD().String(), admins)
 
 		// Ordena primeiro por tipo e depois por nome
 		sort.Slice(metas, func(i, j int) bool {
@@ -33,7 +38,9 @@ func MenuCommand(r *commands.Router) commands.HandlerFunc {
 		grouped := make(map[commands.CommandType][]commands.CommandMeta)
 
 		for _, meta := range metas {
-			if meta.Private {
+			// Comandos privados ficam ocultos para quem não é owner/admin —
+			// o menu é público.
+			if meta.Private && !isOwner {
 				continue
 			}
 
@@ -104,6 +111,12 @@ func MenuCommand(r *commands.Router) commands.HandlerFunc {
 		withBanner := len(args) > 0 && strings.EqualFold(args[0], "banner")
 		if withBanner {
 			return sendBannerWithCaption(ctx, client, evt, sb.String())
+		}
+
+		// Atalhos: mostra os aliases dos comandos visíveis (o menu não
+		// explicava que "!p" é "!play").
+		if atalhos := formatAliases(r, grouped, isOwner); atalhos != "" {
+			sb.WriteString("\n⌨️ *Atalhos*: " + atalhos + "\n")
 		}
 
 		return whatsapp.Reply(ctx, client, evt, sb.String())

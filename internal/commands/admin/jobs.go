@@ -79,7 +79,7 @@ func forceJob(
 
 	if err := sched.ForceRun(ctx, name); err != nil {
 		logger.Error("Erro ao forçar job", zap.String("job", name), zap.Error(err))
-		return whatsapp.Reply(ctx, client, evt, fmt.Sprintf("❌ Erro ao executar *%s*: %v", name, err))
+		return whatsapp.Reply(ctx, client, evt, fmt.Sprintf("❌ Não consegui executar o *%s*. Tenta de novo.", name))
 	}
 
 	return whatsapp.Reply(ctx, client, evt, fmt.Sprintf("✅ Job *%s* executado com sucesso!", name))

@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/failure"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ia"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ignore"
@@ -20,7 +21,7 @@ import (
 )
 
 const (
-	handlerTimeoutMention = 30 * time.Second
+	handlerTimeoutMention = 90 * time.Second
 	handlerTimeoutCommand = 180 * time.Second
 )
 
@@ -223,6 +224,15 @@ func (r *Router) HasCommand(name string) bool {
 	return ok
 }
 
+// Aliases devolve o mapa alias → comando (para o menu mostrar os atalhos).
+func (r *Router) Aliases() map[string]string {
+	out := make(map[string]string, len(r.aliases))
+	for k, v := range r.aliases {
+		out[k] = v
+	}
+	return out
+}
+
 // IsPrivate retorna true se o comando é marcado como privado (requer owner/admin).
 func (r *Router) IsPrivate(name string) bool {
 	cmd, ok := r.commands[r.resolveAlias(name)]
@@ -416,6 +426,9 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 				zap.Error(err),
 			)...,
 		)
+		// O usuário não pode ficar sem saber o que aconteceu: a falha é
+		// classificada e traduzida em uma frase na voz da Shinobu.
+		r.replyFailure(ctx, evt, cmdName, err)
 		return
 	}
 
@@ -426,6 +439,18 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 			zap.String("date", time.Now().Format("2006-01-02 15:04:05")),
 		)...,
 	)
+}
+
+// replyFailure responde ao usuário com a mensagem da categoria da falha.
+// O erro técnico fica no log; o usuário recebe só a explicação.
+func (r *Router) replyFailure(ctx context.Context, evt *events.Message, cmdName string, err error) {
+	msg := failure.Classify(err).UserMessage()
+	if sendErr := whatsapp.Reply(ctx, r.client, evt, msg); sendErr != nil {
+		r.log.Warn("Falha ao responder erro do comando",
+			zap.String("command", cmdName),
+			zap.Error(sendErr),
+		)
+	}
 }
 
 // replyNotACommand responde ao usuário quando o handler não reconheceu a

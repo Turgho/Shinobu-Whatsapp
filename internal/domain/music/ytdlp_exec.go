@@ -18,6 +18,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/failure"
 	"io"
 	"os"
 	"os/exec"
@@ -29,6 +31,21 @@ import (
 
 	"go.uber.org/zap"
 )
+
+// FailureCategory conecta a taxonomia da música à taxonomia compartilhada
+// (internal/domain/failure) — o router usa isso para responder ao usuário.
+func (e *ErrDownload) FailureCategory() failure.Category {
+	switch e.Category {
+	case ErrTimeout:
+		return failure.Unavailable
+	case ErrForbidden, ErrRateLimited, ErrSignIn:
+		return failure.Forbidden
+	case ErrTooBig, ErrExtraction:
+		return failure.InvalidInput
+	default:
+		return failure.Unknown
+	}
+}
 
 // ErrCategory classifica a falha de um download para log e mensagem ao usuário.
 type ErrCategory int

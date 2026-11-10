@@ -28,7 +28,7 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, aiCfg *ia.C
 		Name:        "menu",
 		Description: "Lista todos os comandos disponíveis",
 		Type:        commands.CommandTypeUtility,
-	}, public.MenuCommand(r))
+	}, public.MenuCommand(r, cfg.Owner, cfg.UsersJID.Admins))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "ping",

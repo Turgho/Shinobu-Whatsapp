@@ -110,7 +110,7 @@
 
 ---
 
-## Etapa 6 — Taxonomia de erro e resposta ao usuário
+## Etapa 6 — Taxonomia de erro e resposta ao usuário ✅ (2026-11-10)
 
 | Campo | Conteúdo |
 |---|---|
