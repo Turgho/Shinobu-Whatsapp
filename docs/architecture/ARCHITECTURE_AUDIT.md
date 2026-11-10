@@ -7,6 +7,11 @@
 
 **Legenda de severidade:** 🔴 crítica · 🟠 alta · 🟡 média · ⚪ baixa
 
+> **Status (2026-11-10):** todas as 8 etapas do `IMPLEMENTATION_PLAN.md` foram
+> implementadas e publicadas (v2.23.3 → v2.23.10). Os achados abaixo
+> registram o estado **antes** das correções — serve de referência do que
+> motivou cada mudança.
+
 ---
 
 ## 1. Resumo executivo
