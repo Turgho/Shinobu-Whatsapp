@@ -129,7 +129,8 @@ func (e *Executor) Download(ctx context.Context, query, destPath string) error {
 	// (ffmpeg/deno) que não podem sobreviver ao cancelamento.
 	cmd := exec.CommandContext(runCtx, e.cfg.YtdlpPath, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true, // grupo de processos próprio
+		Setpgid:   true,            // grupo de processos próprio
+		Pdeathsig: syscall.SIGTERM, // morre com o bot (evita órfão no container)
 	}
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {

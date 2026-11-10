@@ -56,7 +56,7 @@
 | **Benefício** | Elimina o risco de o dono ficar **sem acesso ao próprio painel** e a falha silenciosa da lista de ignorados |
 | **Complexidade** | **Pequena–média** (~1 dia) |
 
-## Etapa 3 — Ciclo de vida e reconexão automática
+## Etapa 3 — Ciclo de vida e reconexão automática ✅ (2026-11-10)
 
 | Campo | Conteúdo |
 |---|---|

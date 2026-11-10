@@ -34,7 +34,7 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *histo
 		Description: "Desliga o bot",
 		Type:        commands.CommandTypeOwner,
 		Private:     true,
-	}, admin.ShutdownCommand)
+	}, admin.ShutdownCommand(r.RequestShutdown))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "restart",

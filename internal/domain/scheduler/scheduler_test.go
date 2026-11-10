@@ -46,6 +46,22 @@ func registerAndSetNext(s *Scheduler, job Job, nextRun time.Time) {
 	s.jobs[len(s.jobs)-1].nextRun = nextRun
 }
 
+// waitJob espera o job terminar — a execução agora é assíncrona (cada job
+// roda em goroutine própria).
+func waitJob(t *testing.T, job *mockJob) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if job.ran.Load() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// waitShort dá tempo de um job NÃO disparar (usado nos testes negativos).
+func waitShort() { time.Sleep(150 * time.Millisecond) }
+
 // weeklyNext simula Next() de um job semanal.
 func weeklyNext(nextFixed time.Time) func(time.Time) time.Time {
 	return func(now time.Time) time.Time {
@@ -65,7 +81,8 @@ func TestCheckAndRun_FiresAtScheduledTime(t *testing.T) {
 	job := &mockJob{name: "test", next: scheduled}
 	registerAndSetNext(s, job, scheduled)
 
-	s.checkAndRun(scheduled)
+	s.checkAndRun(context.Background(), scheduled)
+	waitJob(t, job)
 
 	if !job.ran.Load() {
 		t.Error("job should have fired at scheduled time")
@@ -85,7 +102,8 @@ func TestCheckAndRun_FiresWhenTickIsAfterScheduledTime(t *testing.T) {
 	registerAndSetNext(s, job, scheduled)
 
 	// Ticker dispara 5 segundos depois do horário agendado
-	s.checkAndRun(scheduled.Add(5 * time.Second))
+	s.checkAndRun(context.Background(), scheduled.Add(5*time.Second))
+	waitJob(t, job)
 
 	if !job.ran.Load() {
 		t.Error("job should have fired when tick arrived 5s after scheduled time")
@@ -99,7 +117,8 @@ func TestCheckAndRun_DoesNotFireBeforeScheduledTime(t *testing.T) {
 	job := &mockJob{name: "test", next: scheduled}
 	registerAndSetNext(s, job, scheduled)
 
-	s.checkAndRun(scheduled.Add(-5 * time.Second))
+	s.checkAndRun(context.Background(), scheduled.Add(-5*time.Second))
+	waitShort()
 
 	if job.ran.Load() {
 		t.Error("job should NOT have fired before scheduled time")
@@ -119,13 +138,14 @@ func TestCheckAndRun_DoesNotFireTwice(t *testing.T) {
 	registerAndSetNext(s, job, scheduled)
 
 	// Primeiro tick: executa
-	s.checkAndRun(scheduled)
+	s.checkAndRun(context.Background(), scheduled)
+	waitJob(t, job)
 	if runCount != 1 {
 		t.Fatalf("expected 1 run, got %d", runCount)
 	}
 
 	// Segundo tick 1s depois: nextRun agora é 24/07, now (17/07 + 1s) < 24/07
-	s.checkAndRun(scheduled.Add(1 * time.Second))
+	s.checkAndRun(context.Background(), scheduled.Add(1*time.Second))
 	if runCount != 1 {
 		t.Fatalf("should not have run twice, got %d", runCount)
 	}
@@ -142,13 +162,16 @@ func TestCheckAndRun_RecalculatesNextRunAfterExecution(t *testing.T) {
 	}
 	registerAndSetNext(s, job, scheduled)
 
-	s.checkAndRun(scheduled)
+	s.checkAndRun(context.Background(), scheduled)
+	waitJob(t, job)
 	if !job.ran.Load() {
 		t.Fatal("job should have fired")
 	}
 
 	// Verifica que nextRun avançou para a próxima semana
+	s.mu.Lock()
 	entry := s.jobs[0]
+	s.mu.Unlock()
 	if !entry.nextRun.Equal(nextWeek) {
 		t.Errorf("nextRun should be %v, got %v", nextWeek, entry.nextRun)
 	}
@@ -171,8 +194,9 @@ func TestCheckAndRun_WeekdayJobIntegration(t *testing.T) {
 
 	// Simula ticks a cada 15 segundos a partir de 09:59:50
 	for tick := startTime; tick.Before(scheduled.Add(30 * time.Second)); tick = tick.Add(15 * time.Second) {
-		s.checkAndRun(tick)
+		s.checkAndRun(context.Background(), tick)
 	}
+	waitJob(t, job)
 
 	if !job.ran.Load() {
 		t.Error("sextou job should have fired around 10:00")
@@ -188,7 +212,8 @@ func TestCheckAndRun_MultipleJobsOnlyFiresDue(t *testing.T) {
 	registerAndSetNext(s, job1, now)
 	registerAndSetNext(s, job2, now.Add(2*time.Hour))
 
-	s.checkAndRun(now)
+	s.checkAndRun(context.Background(), now)
+	waitJob(t, job1)
 
 	if !job1.ran.Load() {
 		t.Error("sextou should have fired")
@@ -219,7 +244,8 @@ func TestCheckAndRun_RemovesOneShotJobAfterExecution(t *testing.T) {
 		t.Fatalf("expected 1 job registered, got %d", len(s.jobs))
 	}
 
-	s.checkAndRun(now)
+	s.checkAndRun(context.Background(), now)
+	waitJob(t, job)
 
 	if len(s.jobs) != 0 {
 		t.Errorf("one-shot job should have been removed, got %d jobs", len(s.jobs))
@@ -235,7 +261,9 @@ func TestCheckAndRun_TickBetweenTwoJobs(t *testing.T) {
 	registerAndSetNext(s, job1, scheduled)
 	registerAndSetNext(s, job2, scheduled)
 
-	s.checkAndRun(scheduled.Add(30 * time.Second))
+	s.checkAndRun(context.Background(), scheduled.Add(30*time.Second))
+	waitJob(t, job1)
+	waitJob(t, job2)
 
 	if !job1.ran.Load() || !job2.ran.Load() {
 		t.Error("both jobs should have fired")
@@ -261,7 +289,8 @@ func TestCheckAndRun_BirthdayJobSamePattern(t *testing.T) {
 	registerAndSetNext(s, job, scheduled)
 
 	// Ticker às 08:00:10 (10s depois) — deve executar
-	s.checkAndRun(scheduled.Add(10 * time.Second))
+	s.checkAndRun(context.Background(), scheduled.Add(10*time.Second))
+	waitJob(t, job)
 
 	if !job.ran.Load() {
 		t.Error("birthday job should have fired 10s after scheduled time")

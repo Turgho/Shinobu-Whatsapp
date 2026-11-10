@@ -28,6 +28,7 @@ type Scheduler struct {
 type jobEntry struct {
 	job     Job
 	nextRun time.Time
+	running bool // true enquanto o job está em execução (evita disparo duplo)
 }
 
 // NewScheduler cria um scheduler vazio. Deve ser iniciado com Start.
@@ -101,7 +102,7 @@ func (s *Scheduler) run(ctx context.Context) {
 			s.logger.Info("Scheduler parado")
 			return
 		case now := <-ticker.C:
-			s.checkAndRun(now)
+			s.checkAndRun(ctx, now)
 		}
 	}
 }
@@ -144,6 +145,12 @@ func (s *Scheduler) ForceRun(ctx context.Context, name string) error {
 		return fmt.Errorf("job %q não encontrado", name)
 	}
 
+	if entry.running {
+		s.mu.Unlock()
+		return fmt.Errorf("job %q já está em execução", name)
+	}
+	entry.running = true
+
 	s.logger.Info("Force-executando job",
 		zap.String("job", entry.job.Name()),
 		zap.Time("nextRun", entry.nextRun),
@@ -156,6 +163,7 @@ func (s *Scheduler) ForceRun(ctx context.Context, name string) error {
 	err := entry.job.Run(jobCtx)
 
 	s.mu.Lock()
+	entry.running = false
 	entry.nextRun = entry.job.Next(time.Now().Add(time.Second))
 	if entry.nextRun.IsZero() {
 		s.unregisterLocked(name)
@@ -166,66 +174,71 @@ func (s *Scheduler) ForceRun(ctx context.Context, name string) error {
 }
 
 // RunCheck força uma verificação imediata dos jobs (chamado após registrar um job novo).
-func (s *Scheduler) RunCheck() {
-	s.checkAndRun(time.Now())
+func (s *Scheduler) RunCheck(ctx context.Context) {
+	s.checkAndRun(ctx, time.Now())
 }
 
-// checkAndRun itera sobre os jobs registrados, executa os que estão no horário.
-// Usa nextRun armazenado em vez de chamar Next() a cada tick — evita que o job
-// seja pulado se o ticker disparar哪怕 1s depois do horário agendado.
-// O mutex é liberado durante a execução do job (linhas Unlock/Lock) para não
-// bloquear registro de novos jobs ou o ticker enquanto um job roda.
-func (s *Scheduler) checkAndRun(now time.Time) {
+// checkAndRun dispara os jobs vencidos.
+//
+// Usa nextRun armazenado em vez de chamar Next() a cada tick — evita que o
+// job seja pulado se o ticker disparar mesmo 1s depois do horário agendado.
+//
+// Cada job roda em goroutine própria (um job lento não atrasa os outros) e
+// fica marcado como "running" até terminar — assim o ticker, o ForceRun e o
+// RunCheck não disparam o mesmo job duas vezes.
+func (s *Scheduler) checkAndRun(ctx context.Context, now time.Time) {
 	s.mu.Lock()
-
-	var toRemove []string
+	due := make([]*jobEntry, 0, len(s.jobs))
 	for _, entry := range s.jobs {
+		if entry.running {
+			continue
+		}
 		if now.After(entry.nextRun) || now.Equal(entry.nextRun) {
-			s.logger.Info("Executando job",
-				zap.String("job", entry.job.Name()),
-				zap.Time("run_at", entry.nextRun),
-			)
-
-			s.mu.Unlock()
-			jobCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-			start := time.Now()
-			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						s.logger.Error("Job panickou",
-							zap.String("job", entry.job.Name()),
-							zap.Any("panic", r),
-						)
-					}
-				}()
-				if err := entry.job.Run(jobCtx); err != nil {
-					s.logger.Error("Erro no job",
-						zap.String("job", entry.job.Name()),
-						zap.Error(err),
-					)
-				} else {
-					s.logger.Info("Job executado",
-						zap.String("job", entry.job.Name()),
-						zap.Duration("duration", time.Since(start)),
-					)
-				}
-			}()
-			cancel()
-			s.mu.Lock()
-
-			entry.nextRun = entry.job.Next(now.Add(time.Second))
-
-			if entry.nextRun.IsZero() {
-				toRemove = append(toRemove, entry.job.Name())
-				s.logger.Info("Job removido após execução",
-					zap.String("job", entry.job.Name()),
-				)
-			}
+			entry.running = true
+			due = append(due, entry)
 		}
 	}
-
-	for _, name := range toRemove {
-		s.unregisterLocked(name)
-	}
 	s.mu.Unlock()
+
+	for _, entry := range due {
+		s.logger.Info("Executando job",
+			zap.String("job", entry.job.Name()),
+			zap.String("run_at", entry.nextRun.Format("2006-01-02 15:04 MST")),
+		)
+		gosafe.Go(s.logger, func() {
+			s.runJob(ctx, entry, now)
+		})
+	}
+}
+
+// runJob executa um job e recalcula o próximo horário.
+func (s *Scheduler) runJob(ctx context.Context, entry *jobEntry, now time.Time) {
+	jobCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	start := time.Now()
+	if err := entry.job.Run(jobCtx); err != nil {
+		s.logger.Error("Erro no job",
+			zap.String("job", entry.job.Name()),
+			zap.Error(err),
+		)
+	} else {
+		s.logger.Info("Job executado",
+			zap.String("job", entry.job.Name()),
+			zap.Duration("duration", time.Since(start)),
+		)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	entry.running = false
+	entry.nextRun = entry.job.Next(now.Add(time.Second))
+
+	if entry.nextRun.IsZero() {
+		s.unregisterLocked(entry.job.Name())
+		s.logger.Info("Job removido após execução",
+			zap.String("job", entry.job.Name()),
+		)
+	}
 }

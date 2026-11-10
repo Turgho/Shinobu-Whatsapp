@@ -76,19 +76,28 @@ func (c *Client) Connect(ctx context.Context) error {
 }
 
 // RegisterHandlers registra um handler de eventos no cliente WhatsApp.
+// Registrar **antes** de conectar é essencial: entre o Connect e o
+// registro, as mensagens que chegassem seriam descartadas.
 func (c *Client) RegisterHandlers(handler func(evt interface{})) {
 	c.WAClient.AddEventHandler(handler)
 }
 
-// Listen bloqueia até receber SIGINT ou SIGTERM e desconecta o bot graciosamente.
-func (c *Client) Listen() {
-	fmt.Println("Bot rodando. Pressione CTRL+C para parar.")
+// Listen bloqueia até receber SIGINT/SIGTERM (ou o contexto ser cancelado)
+// e desconecta o bot graciosamente.
+func (c *Client) Listen(ctx context.Context) {
+	c.log.Info("Bot rodando. Pressione CTRL+C para parar.")
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigs)
 
-	sig := <-sigs
-	fmt.Println("\nRecebido sinal:", sig)
-	fmt.Println("Encerrando bot...")
+	select {
+	case sig := <-sigs:
+		c.log.Info("Recebido sinal, encerrando", zap.String("sinal", sig.String()))
+	case <-ctx.Done():
+		c.log.Info("Contexto cancelado, encerrando")
+	}
+
+	c.log.Info("Encerrando bot...")
 	c.WAClient.Disconnect()
 }
