@@ -638,6 +638,18 @@ func (j *XyzJob) Run(ctx context.Context) error { ... }
   requisições por mensagem viraram no máximo 4). `mikael.NewStore` propaga
   erro de schema. `Cache.Hit` (morto) removido.
 
+- **Etapa 6 — taxonomia de erro e resposta ao usuário**: novo
+  `internal/domain/failure` (Category + `Classify` + `UserMessage`) —
+  generaliza a taxonomia que já existia no `domain/music` (que agora
+  implementa `FailureCategory`). O router **responde ao usuário** quando o
+  handler falha (antes: silêncio) com a mensagem da categoria
+  ("Não consegui falar com o serviço agora…"), e o erro técnico fica no log.
+  Erro interno que vazava para o chat (`!ignorar`, `!jobs`, `!chatinfo`,
+  `!fig`) deixou de vazar — mensagem amigável + log. Timeout da menção na IA
+  30 s → 90 s (o pipeline encadeia até 4 chamadas). Descoberta: `!ajuda`/`!help`
+  como alias de `!menu`, atalhos listados no menu e comandos privados
+  visíveis para owner/admin (as categorias de administração ficavam vazias).
+
 ### Ainda pendente
 - **Plano de arquitetura em `docs/architecture/IMPLEMENTATION_PLAN.md`** — Etapas 2 a 8
   aprovadas e a executar: identidade do owner, ciclo de vida/reconexão, config,

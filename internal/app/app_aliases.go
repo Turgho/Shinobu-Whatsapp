@@ -6,12 +6,14 @@ import "github.com/Turgho/Shinobu-Whatsapp/internal/commands"
 func registerAliases(r *commands.Router) {
 	aliases := map[string]string{
 		// Shortcuts
-		"p": "play",
-		"s": "sticker",
-		"m": "menu",
-		"c": "clima",
-		"e": "efeito",
-		"a": "aniversário",
+		"p":     "play",
+		"s":     "sticker",
+		"m":     "menu",
+		"ajuda": "menu",
+		"help":  "menu",
+		"c":     "clima",
+		"e":     "efeito",
+		"a":     "aniversário",
 
 		// Play
 		"plau":    "play",

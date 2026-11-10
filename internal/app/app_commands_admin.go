@@ -100,7 +100,7 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *histo
 		Description: "Ignorar mensagens de un número",
 		Type:        commands.CommandTypeAdmin,
 		Private:     true,
-	}, admin.IgnoreCommand(ignoreStore))
+	}, admin.IgnoreCommand(ignoreStore, logger))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "testjob",
@@ -144,7 +144,7 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *histo
 		Description: "Informações do chat atual",
 		Type:        commands.CommandTypeAdmin,
 		Private:     true,
-	}, admin.ChatInfoHandler(waClient))
+	}, admin.ChatInfoHandler(waClient, logger))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "rawevent",

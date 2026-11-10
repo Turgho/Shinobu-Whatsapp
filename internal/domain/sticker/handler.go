@@ -70,7 +70,7 @@ func handleSave(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 	}
 
 	if err := store.Save(name, sticker); err != nil {
-		reply(ctx, client, evt, "❌ Erro ao salvar: "+err.Error())
+		reply(ctx, client, evt, "❌ Não consegui salvar o sticker. Tenta de novo.")
 		return
 	}
 
@@ -87,7 +87,7 @@ func handleDelete(ctx context.Context, client *whatsmeow.Client, evt *events.Mes
 
 	deleted, err := store.Delete(name)
 	if err != nil {
-		reply(ctx, client, evt, "❌ Erro ao remover: "+err.Error())
+		reply(ctx, client, evt, "❌ Não consegui remover o sticker. Tenta de novo.")
 		return
 	}
 	if !deleted {
