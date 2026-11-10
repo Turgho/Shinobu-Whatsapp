@@ -79,13 +79,17 @@ func Load() *Config {
 	viper.AutomaticEnv()
 	viper.SetEnvPrefix("")
 
-	// Defaults do subsistema de mídia (sobrescrevíveis por env/config).
-	viper.SetDefault("apicalls.music.localEnabled", true)
-	viper.SetDefault("apicalls.music.tmpDir", os.TempDir())
-	viper.SetDefault("apicalls.music.cacheDir", "storage/music-cache")
-	viper.SetDefault("apicalls.music.maxFileMB", 25)
-	viper.SetDefault("apicalls.music.maxDownloads", 1)
-	viper.SetDefault("apicalls.music.timeoutSec", 240)
+	// Defaults do subsistema de mídia.
+	viper.SetDefault("music.localEnabled", true)
+	viper.SetDefault("music.tmpDir", os.TempDir())
+	viper.SetDefault("music.cacheDir", "storage/music-cache")
+	viper.SetDefault("music.maxFileMB", 25)
+	viper.SetDefault("music.maxDownloads", 1)
+	viper.SetDefault("music.timeoutSec", 240)
+
+	// Caminhos padrão dos binários locais.
+	viper.SetDefault("music.ytdlpPath", "./bin/yt-dlp")
+	viper.SetDefault("music.ffmpegPath", "./bin/ffmpeg")
 
 	// Mapeamento de env vars → chaves viper
 	viper.BindEnv("bot.prefix", "COMMAND_PREFIX")
@@ -93,19 +97,26 @@ func Load() *Config {
 	viper.BindEnv("log.level", "LOG_LEVEL")
 	viper.BindEnv("database.dsn", "DB_DSN")
 	viper.BindEnv("usersjid.owner", "OWNER_JID")
+
+	// Música
+	viper.BindEnv("music.serverUrl", "MUSIC_SERVER_URL")
+	viper.BindEnv("music.apiToken", "API_AUTH_TOKEN")
+	viper.BindEnv("music.localEnabled", "MUSIC_LOCAL_ENABLED")
+	viper.BindEnv("music.ytdlpPath", "YTDLP_PATH")
+	viper.BindEnv("music.ffmpegPath", "FFMPEG_PATH")
+	viper.BindEnv("music.denoPath", "DENO_PATH")
+	viper.BindEnv("music.tmpDir", "MUSIC_TMP_DIR")
+	viper.BindEnv("music.cacheDir", "MUSIC_CACHE_DIR")
+	viper.BindEnv("music.maxFileMB", "MUSIC_MAX_FILE_MB")
+	viper.BindEnv("music.maxDownloads", "MUSIC_MAX_CONCURRENT")
+	viper.BindEnv("music.timeoutSec", "MUSIC_TIMEOUT_SEC")
+
+	// APIs
+	viper.BindEnv("apicalls.owner.number", "OWNER_NUMBER")
+	viper.BindEnv("apicalls.feriados.apiKey", "FERIADOS_API_KEY")
 	viper.BindEnv("apicalls.groq.url", "GROQ_URL")
 	viper.BindEnv("apicalls.groq.apiKey", "GROQ_API_KEY")
 	viper.BindEnv("apicalls.tavily.apiKey", "TAVILY_API_KEY")
-	viper.BindEnv("apicalls.music.serverUrl", "MUSIC_SERVER_URL")
-	viper.BindEnv("apicalls.music.apiToken", "API_AUTH_TOKEN")
-	viper.BindEnv("apicalls.music.localEnabled", "MUSIC_LOCAL_ENABLED")
-	viper.BindEnv("apicalls.music.ytdlpPath", "YTDLP_PATH")
-	viper.BindEnv("apicalls.music.denoPath", "DENO_PATH")
-	viper.BindEnv("apicalls.music.maxFileMB", "MUSIC_MAX_FILE_MB")
-	viper.BindEnv("apicalls.music.maxDownloads", "MUSIC_MAX_CONCURRENT")
-	viper.BindEnv("apicalls.music.timeoutSec", "MUSIC_TIMEOUT_SEC")
-	viper.BindEnv("apicalls.owner.number", "OWNER_NUMBER")
-	viper.BindEnv("apicalls.feriados.apiKey", "FERIADOS_API_KEY")
 
 	if err := viper.ReadInConfig(); err != nil {
 		log.Println("config.yaml não encontrado, usando env/default")
@@ -134,18 +145,18 @@ func Load() *Config {
 	cfg.Tavily = TavilyConfig{
 		APIKey: viper.GetString("apicalls.tavily.apiKey"),
 	}
-	cfg.Music = MusicConfig{
-		ServerURL:    viper.GetString("apicalls.music.serverUrl"),
-		APIToken:     viper.GetString("apicalls.music.apiToken"),
-		LocalEnabled: viper.GetBool("apicalls.music.localEnabled"),
-		YtdlpPath:    viper.GetString("apicalls.music.ytdlpPath"),
-		FfmpegPath:   viper.GetString("apicalls.music.ffmpegPath"),
-		DenoPath:     viper.GetString("apicalls.music.denoPath"),
-		TmpDir:       viper.GetString("apicalls.music.tmpDir"),
-		CacheDir:     viper.GetString("apicalls.music.cacheDir"),
-		MaxFileMB:    viper.GetInt("apicalls.music.maxFileMB"),
-		MaxDownloads: viper.GetInt("apicalls.music.maxDownloads"),
-		TimeoutSec:   viper.GetInt("apicalls.music.timeoutSec"),
+	cfg.Music = MusicConfig {
+		ServerURL:    viper.GetString("music.serverUrl"),
+		APIToken:     viper.GetString("music.apiToken"),
+		LocalEnabled: viper.GetBool("music.localEnabled"),
+		YtdlpPath:    viper.GetString("music.ytdlpPath"),
+		FfmpegPath:   viper.GetString("music.ffmpegPath"),
+		DenoPath:     viper.GetString("music.denoPath"),
+		TmpDir:       viper.GetString("music.tmpDir"),
+		CacheDir:     viper.GetString("music.cacheDir"),
+		MaxFileMB:    viper.GetInt("music.maxFileMB"),
+		MaxDownloads: viper.GetInt("music.maxDownloads"),
+		TimeoutSec:   viper.GetInt("music.timeoutSec"),
 	}
 	cfg.Owner = OwnerConfig{
 		Number: viper.GetString("apicalls.owner.number"),
