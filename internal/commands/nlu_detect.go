@@ -52,7 +52,9 @@ func (r *Router) isNLApplicable(evt *events.Message, msg string) bool {
 	if !r.nlpGroupTrigger {
 		r.log.Debug("NLU ignorado em grupo: Shinobu não mencionada",
 			zap.String("chat", chat),
-			zap.String("msg", msg[:min(40, len(msg))]),
+			// Trunca por runes (nada de cortar um caractere UTF-8 no meio)
+			// e não loga o texto inteiro (PII).
+			zap.String("msg", truncateRunes(msg, 40)),
 		)
 		return false
 	}
@@ -133,6 +135,15 @@ func isMentioned(msg, botJID string) bool {
 		return true
 	}
 	return false
+}
+
+// truncateRunes corta o texto no limite de runes.
+func truncateRunes(s string, max int) string {
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return string(runes[:max]) + "…"
 }
 
 // wordMatch verifica se word aparece como palavra isolada em s.

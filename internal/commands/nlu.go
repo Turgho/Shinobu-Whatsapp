@@ -37,7 +37,7 @@ func (r *Router) handleNaturalLanguage(evt *events.Message, msg string) {
 	// conversa, evitando que o modelo invente comandos por falta de sinal.
 	if isBareMention(msg, r.botJID) {
 		r.log.Debug("NLU: bare mention, skip DetectIntent",
-			append(eventFields(evt), zap.String("msg", msg))...,
+			append(eventFields(evt), zap.String("msg", truncateRunes(msg, 40)))...,
 		)
 		r.handleShinobuMention(evt, msg, "")
 		return
@@ -84,7 +84,7 @@ func (r *Router) handleNaturalLanguage(evt *events.Message, msg string) {
 		r.log.Info("NLU: intento detectado e despachado",
 			append(eventFields(evt),
 				zap.String("command", intent.Command),
-				zap.Strings("args", intent.Args),
+				zap.Int("args", len(intent.Args)),
 				zap.String("raw_message", msg),
 				zap.Bool("has_context", quotedText != ""),
 			)...,
@@ -112,7 +112,7 @@ func (r *Router) handleNaturalLanguage(evt *events.Message, msg string) {
 	}
 
 	r.log.Info("NLU: sem comando, fallback IA",
-		append(eventFields(evt), zap.String("msg", msg))...,
+		append(eventFields(evt), zap.String("msg", truncateRunes(msg, 40)))...,
 	)
 	r.handleShinobuMention(evt, msg, quotedText)
 }
@@ -137,7 +137,7 @@ func (r *Router) handleShinobuMention(evt *events.Message, msg string, quotedCon
 
 	r.log.Info("Shinobu mencionada",
 		append(eventFields(evt),
-			zap.String("msg", msg),
+			zap.String("msg", truncateRunes(msg, 40)),
 			zap.Bool("has_context", quotedContext != ""),
 		)...,
 	)

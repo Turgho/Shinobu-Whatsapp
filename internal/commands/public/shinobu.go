@@ -109,6 +109,15 @@ func setCachedAnswer(chat, prompt, answer string) {
 	if dupCache.m == nil {
 		dupCache.m = make(map[string]dupEntry)
 	}
+
+	// Poda as entradas vencidas: sem isso o mapa crescia sem limite
+	// (o TTL só impedia o reuso, não a remoção).
+	now := time.Now()
+	for k, e := range dupCache.m {
+		if now.Sub(e.at) > dupCacheTTL {
+			delete(dupCache.m, k)
+		}
+	}
 	dupCache.m[dupKey(chat, prompt)] = dupEntry{
 		answer: answer,
 		at:     time.Now(),

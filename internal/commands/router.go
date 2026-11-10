@@ -52,6 +52,11 @@ type Router struct {
 	aiRateLimitMax   int
 	aiRateLimitEvery time.Duration
 
+	// Contadores simples para o comando !stats (diagnóstico rápido).
+	statsMessages atomic.Int64
+	statsCommands atomic.Int64
+	statsErrors   atomic.Int64
+
 	// handlerSlots limita quantos comandos rodam ao mesmo tempo. Sem isso,
 	// uma rajada de mensagens abre uma goroutine por mensagem (cada uma
 	// capaz de baixar mídia e spawnar ffmpeg) num host de 512MB.
@@ -262,6 +267,12 @@ func (r *Router) HasCommand(name string) bool {
 	return ok
 }
 
+// Stats devolve os contadores internos (mensagens, comandos, erros) desde
+// o boot — diagnóstico rápido pelo comando !stats.
+func (r *Router) Stats() (messages, commands, errors int64) {
+	return r.statsMessages.Load(), r.statsCommands.Load(), r.statsErrors.Load()
+}
+
 // Aliases devolve o mapa alias → comando (para o menu mostrar os atalhos).
 func (r *Router) Aliases() map[string]string {
 	out := make(map[string]string, len(r.aliases))
@@ -341,6 +352,7 @@ func (r *Router) HandleMessage(evt *events.Message) {
 	if msg == "" {
 		return
 	}
+	r.statsMessages.Add(1)
 
 	sender := evt.Info.Sender.String()
 	senderUser := evt.Info.Sender.User
@@ -402,10 +414,11 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 
 	cmdName = r.resolveAlias(cmdName)
 
+	// Log sem o texto do usuário (PII): só o comando e quantos argumentos.
 	r.log.Info("Comando recebido",
 		append(eventFields(evt),
 			zap.String("command", cmdName),
-			zap.Strings("args", args),
+			zap.Int("args", len(args)),
 		)...,
 	)
 
@@ -452,8 +465,10 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 	}
 	defer r.releaseSlot()
 
+	r.statsCommands.Add(1)
 	start := time.Now()
 	if err := cmd.Handler(ctx, r.client, evt, args); err != nil {
+		r.statsErrors.Add(1)
 		// ErrNotACommand = "este handler não é o dono desta entrada".
 		// No caminho NLU isso cai na conversa da IA; no caminho com prefixo
 		// o usuário ficaria sem resposta nenhuma — então avisamos.

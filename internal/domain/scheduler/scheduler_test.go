@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -128,26 +129,37 @@ func TestCheckAndRun_DoesNotFireBeforeScheduledTime(t *testing.T) {
 func TestCheckAndRun_DoesNotFireTwice(t *testing.T) {
 	s := newTestScheduler()
 	scheduled := time.Date(2026, 7, 17, 10, 0, 0, 0, time.Local)
+	// O job roda em goroutine própria → contador sincronizado.
+	var mu sync.Mutex
 	runCount := 0
+	countRuns := func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		return runCount
+	}
 
 	job := &mockJob{
 		name:     "test",
 		nextFunc: weeklyNext(scheduled),
-		runFunc:  func() { runCount++ },
+		runFunc: func() {
+			mu.Lock()
+			runCount++
+			mu.Unlock()
+		},
 	}
 	registerAndSetNext(s, job, scheduled)
 
 	// Primeiro tick: executa
 	s.checkAndRun(context.Background(), scheduled)
 	waitJob(t, job)
-	if runCount != 1 {
-		t.Fatalf("expected 1 run, got %d", runCount)
+	if got := countRuns(); got != 1 {
+		t.Fatalf("expected 1 run, got %d", got)
 	}
 
 	// Segundo tick 1s depois: nextRun agora é 24/07, now (17/07 + 1s) < 24/07
 	s.checkAndRun(context.Background(), scheduled.Add(1*time.Second))
-	if runCount != 1 {
-		t.Fatalf("should not have run twice, got %d", runCount)
+	if got := countRuns(); got != 1 {
+		t.Fatalf("should not have run twice, got %d", got)
 	}
 }
 
@@ -227,28 +239,43 @@ func TestCheckAndRun_RemovesOneShotJobAfterExecution(t *testing.T) {
 	s := newTestScheduler()
 	now := time.Date(2026, 7, 17, 10, 0, 0, 0, time.Local)
 
+	// nextFunc e runFunc rodam em goroutines diferentes (o job roda em
+	// goroutine própria) — o estado precisa de sincronização.
+	var mu sync.Mutex
 	oneShotDone := false
 	job := &mockJob{
 		name: "one-shot",
 		nextFunc: func(_ time.Time) time.Time {
+			mu.Lock()
+			defer mu.Unlock()
 			if oneShotDone {
 				return time.Time{}
 			}
 			return now
 		},
-		runFunc: func() { oneShotDone = true },
+		runFunc: func() {
+			mu.Lock()
+			oneShotDone = true
+			mu.Unlock()
+		},
 	}
 	registerAndSetNext(s, job, now)
 
-	if len(s.jobs) != 1 {
-		t.Fatalf("expected 1 job registered, got %d", len(s.jobs))
+	s.mu.Lock()
+	registered := len(s.jobs)
+	s.mu.Unlock()
+	if registered != 1 {
+		t.Fatalf("expected 1 job registered, got %d", registered)
 	}
 
 	s.checkAndRun(context.Background(), now)
 	waitJob(t, job)
 
-	if len(s.jobs) != 0 {
-		t.Errorf("one-shot job should have been removed, got %d jobs", len(s.jobs))
+	s.mu.Lock()
+	jobsLeft := len(s.jobs)
+	s.mu.Unlock()
+	if jobsLeft != 0 {
+		t.Errorf("one-shot job should have been removed, got %d jobs", jobsLeft)
 	}
 }
 

@@ -664,6 +664,20 @@ func (j *XyzJob) Run(ctx context.Context) error { ... }
   `DynamicJob` marca o lembrete como concluído **também na falha** — antes
   reexecutava a cada tick de 15s enquanto o WhatsApp estivesse fora.
 
+- **Etapa 8 — observabilidade e testes**: `make test` roda com **`-race`** (o
+  detector de corrida faz parte do fluxo; duas races nos testes foram
+  corrigidas). `gosafe` registra **stack trace** do panic e há um
+  `gosafe.Group` (WaitGroup) para esperar tarefas no shutdown. Zap com
+  **sampling** (100 linhas/s passam; o resto é agregado) — em debug o volume
+  era real no contêiner. Logs sem PII: o texto do usuário não é mais
+  logado (só o comando e a quantidade de argumentos) e o truncamento é por
+  **runes** (nada de cortar UTF-8 no meio). `dupCache` (cache de respostas
+  duplicadas) agora **poda** as entradas vencidas — antes crescia sem
+  limite. `!stats` mostra contadores internos (mensagens, comandos, erros
+  desde o boot). `scripts/setup.sh` fixa as versões do yt-dlp e do deno (com
+  "latest" cada setup podia trazer um binário diferente do testado).
+  README ganhou o **mapa de responsabilidades** por pacote.
+
 ### Ainda pendente
 - **Plano de arquitetura em `docs/architecture/IMPLEMENTATION_PLAN.md`** — Etapas 2 a 8
   aprovadas e a executar: identidade do owner, ciclo de vida/reconexão, config,

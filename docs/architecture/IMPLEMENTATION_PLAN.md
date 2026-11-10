@@ -146,7 +146,7 @@
 
 ---
 
-## Etapa 8 — Observabilidade e testes
+## Etapa 8 — Observabilidade e testes ✅ (2026-11-10)
 
 | Campo | Conteúdo |
 |---|---|

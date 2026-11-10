@@ -225,7 +225,17 @@ func buildLogger(cfg *configs.Config) (*zap.Logger, error) {
 		}
 	}
 
-	return logCfg.Build()
+	logger, err := logCfg.Build()
+	if err != nil {
+		return nil, err
+	}
+
+	// Sampling: em debug o bot gera log demais (cada comando, cada
+	// registro do router) e o volume no contêiner é real. As primeiras
+	// 100 linhas de cada segundo passam; o resto é agregado.
+	return logger.WithOptions(zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+		return zapcore.NewSamplerWithOptions(core, time.Second, 100, 100)
+	})), nil
 }
 
 func connectDatabase(cfg *configs.Config, logger *zap.Logger) (*sql.DB, error) {

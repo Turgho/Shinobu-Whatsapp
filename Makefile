@@ -39,8 +39,10 @@ build:
 run:
 	go run $(LDFLAGS) ./cmd/bot/main.go
 
+# -race: as condições de corrida do projeto (scheduler, album, hooks) só
+# aparecem com o detector ligado.
 test:
-	go test ./... -count=1
+	go test -race ./... -count=1
 
 setup:
 	@bash scripts/setup.sh
@@ -65,7 +67,7 @@ release:
 		|| (echo "make: BUMP/VER invalido — use BUMP=patch|minor|major ou VER=vX.Y.Z"; exit 1)
 	@echo "→ branch: $(BRANCH) | tag: $(TAG) | msg: \"$(MSG)\""
 	@echo "→ testes primeiro..."
-	@go test ./... -count=1
+	@go test -race ./... -count=1
 ifeq ($(DRY),1)
 	@echo "→ DRY RUN — nada será commitado ou enviado. Fluxo que rodaria:"
 	@echo "  1. build     CGO_ENABLED=0 go build -trimpath (versão=$(TAG))"
