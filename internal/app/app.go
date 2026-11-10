@@ -33,11 +33,16 @@ import (
 func Run() error {
 	uptime.Start()
 
-	if err := checkDeps(); err != nil {
-		return fmt.Errorf("dependências ausentes: %w", err)
+	// A config vem primeiro: a checagem de dependências depende dela
+	// (os binários de música só são exigidos no modo local).
+	cfg, err := configs.Load()
+	if err != nil {
+		return fmt.Errorf("configuração inválida: %w", err)
 	}
 
-	cfg := configs.Load()
+	if err := checkDeps(cfg); err != nil {
+		return fmt.Errorf("dependências ausentes: %w", err)
+	}
 
 	logger, err := buildLogger(cfg)
 	if err != nil {
@@ -245,15 +250,28 @@ func buildRouter(ctx context.Context, cfg *configs.Config, waClient *whatsmeow.C
 	return r
 }
 
-func checkDeps() error {
+func checkDeps(cfg *configs.Config) error {
 	deps := []struct {
 		path string
 		name string
 	}{
 		{"./bin/ffmpeg", "ffmpeg"},
 		{"./bin/webpmux", "webpmux"},
-		{"./bin/deno", "deno"},
-		{"./bin/yt-dlp", "yt-dlp"},
+	}
+
+	// O yt-dlp e o deno só são usados no processamento local de música —
+	// com localEnabled=false (fallback do notebook) não são necessários.
+	if cfg.Music.LocalEnabled {
+		deps = append(deps,
+			struct {
+				path string
+				name string
+			}{"./bin/yt-dlp", "yt-dlp"},
+			struct {
+				path string
+				name string
+			}{"./bin/deno", "deno"},
+		)
 	}
 	for _, d := range deps {
 		if _, err := exec.LookPath(d.path); err != nil {

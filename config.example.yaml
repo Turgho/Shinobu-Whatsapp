@@ -10,7 +10,10 @@ bot:
 
 database:
   driver: sqlite3
-  dsn: "file:storage/storage.db?_foreign_keys=on"
+  # Driver modernc.org/sqlite (puro Go): o PRAGMA é escrito como _pragma=.
+  # A sintaxe _foreign_keys=on é do driver antigo (mattn) e é IGNORADA aqui —
+  # com foreign_keys desligado o upgrade do schema do whatsmeow falha.
+  dsn: "file:storage/storage.db?_pragma=foreign_keys(1)"
 
 log:
   level: debug         # debug | info | warn | error
