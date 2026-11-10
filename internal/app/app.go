@@ -59,6 +59,9 @@ func Run() error {
 	defer store.Close()
 
 	store.StartCleanup(ctx, 24*time.Hour)
+	// Poda as memórias por usuário (user_memory) — sem isso a tabela cresce
+	// sem limite, porque o cleanup de mensagens não a toca.
+	store.UserMemory.StartMemoryCleanup(ctx, 30*24*time.Hour)
 
 	mikaelStore := mikael.NewStore(store, store.DB(), cfg.Mikael.Groups, cfg.Mikael.LID, logger.Named("MIKAEL"))
 

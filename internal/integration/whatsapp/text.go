@@ -11,12 +11,28 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// maxTextLength é o limite seguro de texto do WhatsApp. Acima de ~4096
+// caracteres o envio é recusado pelo servidor — e o bot ficaria sem
+// resposta nenhuma, sem erro visível.
+const maxTextLength = 3500
+
+// truncateText corta o texto no limite, preservando runes (nada de cortar
+// um caractere UTF-8 no meio) e avisando que houve corte.
+func truncateText(text string) string {
+	runes := []rune(text)
+	if len(runes) <= maxTextLength {
+		return text
+	}
+	const sufixo = "… (continua)"
+	return string(runes[:maxTextLength-len([]rune(sufixo))]) + sufixo
+}
+
 // SendText envia texto; reply=true cita a mensagem que disparou o comando.
 func SendText(ctx context.Context, client *whatsmeow.Client, evt *events.Message, text string, reply bool) error {
 	return withTyping(ctx, client, evt, types.ChatPresenceMediaText, func() error {
 		msg := &waE2E.Message{
 			ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-				Text:        proto.String(text),
+				Text:        proto.String(truncateText(text)),
 				ContextInfo: buildContext(evt, reply, nil),
 			},
 		}
@@ -33,7 +49,7 @@ func SendTextWithMentions(ctx context.Context, client *whatsmeow.Client, evt *ev
 	return withTyping(ctx, client, evt, types.ChatPresenceMediaText, func() error {
 		msg := &waE2E.Message{
 			ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-				Text:        proto.String(text),
+				Text:        proto.String(truncateText(text)),
 				ContextInfo: buildContext(evt, reply, mentions),
 			},
 		}
@@ -52,7 +68,7 @@ func SendTextToJID(ctx context.Context, client *whatsmeow.Client, chat types.JID
 
 	msg := &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-			Text:        proto.String(text),
+			Text:        proto.String(truncateText(text)),
 			ContextInfo: mentionContext(mentions),
 		},
 	}
@@ -71,7 +87,7 @@ func SendAllToJID(ctx context.Context, client *whatsmeow.Client, chat types.JID,
 
 	msg := &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-			Text: proto.String(text),
+			Text: proto.String(truncateText(text)),
 			ContextInfo: &waE2E.ContextInfo{
 				NonJIDMentions: &nonJID,
 			},

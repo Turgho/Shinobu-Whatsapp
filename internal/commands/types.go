@@ -12,6 +12,22 @@ import (
 // para a mensagem. O pipeline de NLU deve cair de volta para IA geral.
 var ErrNotACommand = errors.New("handler: not the right command for this input")
 
+// NotACommandError carrega a mensagem que deve ser respondida ao usuário
+// quando o handler não reconhece a entrada (ex.: moeda inválida).
+type NotACommandError struct {
+	Message string
+}
+
+func (e *NotACommandError) Error() string { return ErrNotACommand.Error() }
+
+// Unwrap mantém errors.Is(err, ErrNotACommand) funcionando.
+func (e *NotACommandError) Unwrap() error { return ErrNotACommand }
+
+// NotACommand cria o erro com a mensagem amigável para o usuário.
+func NotACommand(message string) error {
+	return &NotACommandError{Message: message}
+}
+
 // HandlerFunc é a assinatura de um handler de comando.
 // O contexto vem do Router (timeouts); args exclui o nome do comando.
 type HandlerFunc func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error

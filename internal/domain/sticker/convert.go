@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/ffmpeg"
 )
@@ -30,7 +29,14 @@ func ConvertToWebP(ctx context.Context, data []byte, ext string, animated bool) 
 	}
 	tmpIn.Close()
 
-	tmpOut := filepath.Join(os.TempDir(), fmt.Sprintf("sticker-out-%d.webp", os.Getpid()))
+	// Nome único por requisição: um nome derivado do PID colidia entre
+	// "!sticker" simultâneos (mesmo arquivo sobrescrito pelo ffmpeg -y).
+	tmpOutFile, err := os.CreateTemp(os.TempDir(), "sticker-out-*.webp")
+	if err != nil {
+		return nil, fmt.Errorf("sticker/convert: erro ao criar arquivo temporário de saída: %w", err)
+	}
+	tmpOut := tmpOutFile.Name()
+	tmpOutFile.Close()
 	defer os.Remove(tmpOut)
 
 	if err := runFFmpeg(ctx, tmpIn.Name(), tmpOut, animated); err != nil {
@@ -90,7 +96,9 @@ func runFFmpeg(ctx context.Context, input, output string, animated bool) error {
 		return fmt.Errorf("sticker/convert: ffmpeg falhou: %w\n%s", err, stderr.String())
 	}
 
-	injectStickerMeta(output, "𝕯𝖗𝖆𝖒𝖆𝖙𝖍𝖚𝖗𝖌𝖔 14991791379", "𝑺𝒉𝒊𝒏𝒐𝒃𝒖 🦇")
+	if err := injectStickerMeta(ctx, output, "𝕯𝖗𝖆𝖒𝖆𝖙𝖍𝖚𝖗𝖌𝖔 14991791379", "𝑺𝒉𝒊𝒏𝒐𝒃𝒖 🦇"); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -99,7 +107,7 @@ func runFFmpeg(ctx context.Context, input, output string, animated bool) error {
 // O EXIF segue formato TIFF little-endian (0x49,0x49) com tag "Application Notes" (0x41,0x57 = "AW")
 // contendo um JSON com pack-name, publisher e emoji. O tamanho do payload é colocado
 // nos bytes 14-17 do cabeçalho EXIF (little-endian uint32).
-func injectStickerMeta(webpPath, author, pack string) error {
+func injectStickerMeta(ctx context.Context, webpPath, author, pack string) error {
 	jsonBytes := []byte(fmt.Sprintf(
 		`{"sticker-pack-id":"yuuko.shinobu","sticker-pack-name":"%s","sticker-pack-publisher":"%s","emojis":["🦇"]}`,
 		pack, author,
@@ -132,7 +140,9 @@ func injectStickerMeta(webpPath, author, pack string) error {
 	tmpExif.Close()
 
 	tmpOut := webpPath + ".tmp.webp"
-	cmd := exec.Command("./bin/webpmux",
+	// CommandContext: se o pedido for cancelado (timeout do handler), o
+	// webpmux morre junto — antes ele ficava órfão rodando.
+	cmd := exec.CommandContext(ctx, "./bin/webpmux",
 		"-set", "exif", tmpExif.Name(),
 		webpPath, "-o", tmpOut,
 	)
@@ -140,7 +150,7 @@ func injectStickerMeta(webpPath, author, pack string) error {
 
 	if out, err := cmd.CombinedOutput(); err != nil {
 		os.Remove(tmpOut)
-		return fmt.Errorf("webpmux: %v\n%s", err, string(out))
+		return fmt.Errorf("webpmux: %w\n%s", err, string(out))
 	}
 
 	return os.Rename(tmpOut, webpPath)

@@ -240,6 +240,25 @@ Fallback para ambíguos: `coloca` → play, `manda` → agenda, `conta` sozinho 
   - Respostas a status são visíveis publicamente — nunca responder
   - Broadcast lists também usam Server `"broadcast"` mas com User diferente de `"status"`
 
+### Texto enviado ao WhatsApp
+- Limite do WhatsApp: ~4096 caracteres. `whatsapp.SendText` **trunca em 3500** e
+  acrescenta "… (continua)" (corta por runes, nunca no meio de um caractere UTF-8).
+- Todo envio de texto passa por `truncateText` — nenhum caminho envia texto cru.
+
+### Erros de comando (vocês da Shinobu)
+- `commands.ErrNotACommand`: o handler não reconheceu a entrada (ex.: moeda
+  inválida). No caminho NLU cai na conversa da IA; **no caminho com prefixo
+  responde o usuário** (antes ficava em silêncio).
+- `commands.NotACommand(msg)`: erro com mensagem amigável para o usuário
+  (`NotACommandError` + `Unwrap` → `errors.Is` continua funcionando).
+- `noteapi.OK(code)`: classifica o status HTTP do notebook. `code == 0` =
+  conexão morta antes da resposta — para operação destrutiva (reboot/túnel)
+  significa "provavelmente executou"; para as demais, é falha.
+
+### Temporários
+- Nome **único por requisição** (`os.CreateTemp`). Nunca `fmt.Sprintf("...-%d",
+  os.Getpid())` — duas requisições simultâneas colidiam no mesmo arquivo.
+
 ### Album (múltiplas mídias)
 - WhatsApp entrega cada item do album como `*events.Message` separado
 - Primeiro item: `AlbumMessage` protobuf com `ExpectedImageCount` + `ExpectedVideoCount`
@@ -540,7 +559,38 @@ func (j *XyzJob) Run(ctx context.Context) error { ... }
 - **README:** seção "Build e release (make release)" adicionada.
 - `go build ./...`, `go vet ./...`, `gofmt -l` limpos; 9 pacotes de teste ok.
 
+### Feito nesta sessão (2026-11-10, auditoria de arquitetura — Etapa 1)
+- **Auditoria completa** documentada em `docs/architecture/` (CURRENT_ARCHITECTURE,
+  ARCHITECTURE_AUDIT, TARGET_ARCHITECTURE, IMPLEMENTATION_PLAN). Medido ao vivo
+  na SquareCloud: RAM mediana 18 MB / pico 66 MB (limite 512 MB), CPU máx 0,6%.
+- **Pânico corrigido**: `weather.go` indexava arrays da Open-Meteo sem guarda
+  (panic em resposta parcial) → helper `dailyForecastAt` com guarda por campo;
+  `card.go` acessava `forecasts[0]` sem validar → erro (fallback textual).
+- **Sucesso falso corrigido**: `noteapi` devolvia `err == nil` em qualquer status
+  HTTP → o owner recebia "✅ API reiniciando" em falha. Agora `noteapi.OK(code)`
+  classifica; reboot/túnel mantêm a semântica "conexão morta = provavelmente
+  executou".
+- **Colisão de temporários corrigida**: `audio-out-<pid>.mp3` e
+  `sticker-out-<pid>.webp` → `os.CreateTemp` (nome único por requisição).
+- **`webpmux` com `CommandContext`** (antes ficava órfão) e `%w` no erro.
+- **`moveFile`**: destino já existente (outro download ganhou) deixa de ser
+  erro — antes caía no fallback remoto e devolvia mp3 no lugar de m4a.
+- **`StartMemoryCleanup` ligado no boot** — `user_memory` não cresce mais.
+- **`ErrNotACommand` tratado no caminho com prefixo** — `!cotacao usd` inválido
+  responde em vez de ficar mudo.
+- **Texto truncado em 3500 chars** no envio (WhatsApp recusa acima de ~4096).
+- **`noteapi.NewClient` com logger nil** não entra mais em panic.
+- Testes novos: `weather_daily_test.go`, `card_test.go`, `noteapi_test.go`,
+  `text_test.go`, `move_file_test.go`, `not_a_command_test.go`.
+
 ### Ainda pendente
-- `configs/config.go`: usar `mapstructure` tags nos BindEnv paths para alinhar com struct layout
+- **Plano de arquitetura em `docs/architecture/IMPLEMENTATION_PLAN.md`** — Etapas 2 a 8
+  aprovadas e a executar: identidade do owner, ciclo de vida/reconexão, config,
+  persistência/cache, taxonomia de erro + UX, concorrência, observabilidade/testes.
 - `ia/search.go`: auditar se `shouldSearchWeb` e `keywords.go` coexistem no hot path
 - Memória em grupos: separar resumo por usuário dentro do mesmo chat de grupo
+- `config.example.yaml`: DSN com `?_foreign_keys=on` (sintaxe mattn) — o
+  `modernc` ignora e o `container.Upgrade` do whatsmeow falha ("foreign keys are
+  not enabled") → corrigir para `?_pragma=foreign_keys(1)` na Etapa 4
+- `storage/` não é criado pelo código (`MkdirAll` faltando) — deploy limpo falha
+  no `Ping`; corrigir na Etapa 5

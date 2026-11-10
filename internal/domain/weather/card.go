@@ -78,6 +78,12 @@ func ensureFonts() {
 // current é opcional — se nil, usa forecasts[0] como dado do hero.
 // Retorna bytes PNG ou erro (caller deve fazer fallback para texto).
 func GenerateForecastCard(forecasts []DailyForecast, current *WeatherResult, location, country string) ([]byte, error) {
+	// Sem nenhum dia previsto não há o que desenhar — o caller cai no
+	// fallback textual. Sem este guard, forecasts[0] estouraria o índice.
+	if len(forecasts) == 0 {
+		return nil, fmt.Errorf("weather card: nenhuma previsão recebida")
+	}
+
 	ensureFonts()
 	if fontErr != nil {
 		return nil, fmt.Errorf("weather card: %w", fontErr)

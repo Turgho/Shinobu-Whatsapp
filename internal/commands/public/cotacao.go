@@ -34,7 +34,7 @@ func CotacaoCommand(
 ) error {
 	// Se veio do NLU com args que não batem com moeda, não é cotação
 	if len(args) > 0 && parseCurrencyFilter(args) == "" {
-		return fmt.Errorf("%w: args não reconhecidos como moeda: %v", commands.ErrNotACommand, args)
+		return commands.NotACommand("Não entendi a moeda. Usa assim: !cotacao usd, !cotacao eur")
 	}
 
 	rates, err := cotacaoClient.Fetch(ctx)

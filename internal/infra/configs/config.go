@@ -145,7 +145,7 @@ func Load() *Config {
 	cfg.Tavily = TavilyConfig{
 		APIKey: viper.GetString("apicalls.tavily.apiKey"),
 	}
-	cfg.Music = MusicConfig {
+	cfg.Music = MusicConfig{
 		ServerURL:    viper.GetString("music.serverUrl"),
 		APIToken:     viper.GetString("music.apiToken"),
 		LocalEnabled: viper.GetBool("music.localEnabled"),
