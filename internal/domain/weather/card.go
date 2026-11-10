@@ -15,11 +15,11 @@ import (
 )
 
 const (
-	cardW         = 800
-	heroH         = 290
-	rowH          = 90
-	cardPadding   = 20
-	iconSizeRow   = 36.0
+	cardW       = 800
+	heroH       = 290
+	rowH        = 90
+	cardPadding = 20
+	iconSizeRow = 36.0
 
 	// row X layout — measured: "Amanhã"=86px at 22pt bold
 	rowLabelX   = 30.0  // label anchor (left)

@@ -47,6 +47,8 @@ type StatusRef struct {
 	WifiSignal   string  `json:"wifi_signal"`
 	CacheEntries int     `json:"cache_entries"`
 	CacheSizeMB  float64 `json:"cache_size_mb"`
+	Goroutines   int     `json:"goroutines"`
+	Version      string  `json:"version"`
 }
 
 // Status consulta GET /stats e decodifica o JSON de resposta.

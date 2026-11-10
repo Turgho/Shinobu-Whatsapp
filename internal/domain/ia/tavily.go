@@ -125,5 +125,3 @@ func formatResults(result tavilyResponse) string {
 
 	return strings.TrimSpace(sb.String())
 }
-
-

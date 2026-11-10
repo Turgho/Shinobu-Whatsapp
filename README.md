@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
 [![Último commit](https://img.shields.io/github/last-commit/Turgho/Shinobu-Whatsapp?style=flat-square)](https://github.com/Turgho/Shinobu-Whatsapp/commits/main)
 
-Bot de WhatsApp escrito em Go, construído sobre **whatsmeow**. Possui router de comandos com middlewares, IA com personalidade via **Groq**, memória atômica por usuário, histórico de conversa em SQLite, busca web via **Tavily** com priorização de resultados brasileiros, gerenciamento de aniversários com scheduler diário, lembretes dinâmicos agendados por linguagem natural, scheduler genérico para jobs semanais/configuráveis (áudio + @all + sticker), efeitos de áudio com **ffmpeg**, reprodução de música via servidor remoto com **yt-dlp** e sistema de figurinhas salvas.
+Bot de WhatsApp escrito em Go, construído sobre **whatsmeow**. Possui router de comandos com middlewares, IA com personalidade via **Groq**, memória atômica por usuário, histórico de conversa em SQLite, busca web via **Tavily** com priorização de resultados brasileiros, gerenciamento de aniversários com scheduler diário, lembretes dinâmicos agendados por linguagem natural, scheduler genérico para jobs semanais/configuráveis (áudio + @all + sticker), efeitos de áudio com **ffmpeg**, reprodução de música com **yt-dlp** local (processo filho, cache em disco e fallback remoto opcional) e sistema de figurinhas salvas.
 
 > **Módulo Go:** `github.com/Turgho/Shinobu-Whatsapp`
 > O repositório pode ser clonado como `Shinobu-Whatsapp` — use sempre o caminho do módulo nos imports.
@@ -34,7 +34,7 @@ Bot de WhatsApp escrito em Go, construído sobre **whatsmeow**. Possui router de
 | **Go 1.26+** | Ver `go.mod` |
 | **ffmpeg** | Necessário para `!sticker`, `!efeito` e extração de capa de áudio. Binário em `./bin/ffmpeg` |
 | **webpmux** | Necessário para injetar metadados nos stickers. Binário em `./bin/webpmux` |
-| **Servidor de música** | `!play` e `!stats` dependem de `MUSIC_SERVER_URL` (servidor com yt-dlp) |
+| **Servidor de música** | LEGADO — `!stats`/`!note` dependem de `MUSIC_SERVER_URL` (notebook). O `!play` roda local |
 | **Groq** | Obrigatório para `!shinobu`, NLU e memória da IA |
 | **Tavily** | Opcional — habilita busca web na IA |
 
@@ -44,7 +44,7 @@ Bot de WhatsApp escrito em Go, construído sobre **whatsmeow**. Possui router de
 ./scripts/setup.sh
 ```
 
-O script baixa automaticamente as versões mais recentes de **ffmpeg**, **webpmux** e **yt-dlp** para `./bin/`. O webpmux resolve a versão atual via GitHub API.
+O script baixa automaticamente as versões mais recentes de **ffmpeg**, **webpmux**, **yt-dlp** e **deno** para `./bin/`. O webpmux resolve a versão atual via GitHub API.
 
 ---
 
@@ -91,8 +91,10 @@ TAVILY_API_KEY=tvly-sua-chave-aqui
 # Número do dono (somente dígitos)
 OWNER_NUMBER=5511999999999
 
-# Servidor de música (yt-dlp)
-MUSIC_SERVER_URL=http://seu-servidor:porta
+# Fallback LEGADO de música (notebook via Cloudflare Tunnel) — opcional.
+# Com o processamento LOCAL ativado (padrão), o yt-dlp roda dentro do
+# próprio bot como processo filho; sem MUSIC_SERVER_URL nenhuma dependência externa.
+# MUSIC_SERVER_URL=http://seu-servidor:porta
 ```
 
 > **JID do dono:** inicie o bot, envie uma mensagem e copie o JID que aparece nos logs. Cole em `usersJID.owner` no `config.yaml`.
@@ -103,6 +105,16 @@ MUSIC_SERVER_URL=http://seu-servidor:porta
 >
 > **Tavily:** plano free em [tavily.com](https://tavily.com).
 
+### Música local (!play)
+
+O `!play` executa o `yt-dlp` como processo filho do Go (`internal/domain/music`):
+
+- Cache em disco (`storage/music-cache/`, TTL 7 dias) evita baixar a mesma busca duas vezes.
+- Concorrência limitada (padrão 1 download simultâneo) e timeout por tarefa (240s).
+- Limite de tamanho (25 MB) e classificação de erro: 403, 429, exigência de sign-in, runtime JS ausente, arquivo grande, timeout — cada uma com mensagem clara no WhatsApp.
+- Runtime JS (**Deno ≥ 2.3**) em `bin/deno` é obrigatório: os desafios EJS do YouTube são resolvidos via `yt-dlp-ejs` (embutido no binário oficial).
+- Parâmetros centralizados em `config.example.yaml` (seção `music:`) e envs `MUSIC_*`.
+
 ---
 
 ## Execução
@@ -112,6 +124,41 @@ go run cmd/bot/main.go
 ```
 
 Na primeira execução, escaneie o QR Code exibido no terminal. A sessão WhatsApp é persistida em SQLite conforme `database.dsn` (padrão: `storage/storage.db`). O histórico da IA usa `storage/message_history.db`.
+
+### Build e release (`make release`)
+
+O binário é compilado no PC e versionado no git (o plano da SquareCloud não
+compila em-container). Um único comando faz tudo:
+
+```bash
+make release                          # bump de patch: v2.22.0 → v2.22.1
+make release BUMP=minor               # feature nova: v2.22.0 → v2.23.0
+make release BUMP=major               # breaking change: v2.22.0 → v3.0.0
+make release VER=v2.23.0 MSG="feat: música local"   # versão e mensagem custom
+make release DRY=1                    # só mostra o que faria
+```
+
+Fluxo internamente: `go test` → build estático (`CGO_ENABLED=0`,
+`-trimpath -ldflags "-s -w"`, ~25 MB) com a versão cravada no binário →
+`git add -A` + commit → tag semver → push do branch e da tag.
+
+### Painel de controle (`cmd/shinobu`)
+
+CLI interativa no terminal — empacota status, testes, build e release:
+
+```bash
+make cli                     # compila pra bin/shinobu
+go run ./cmd/shinobu         # ou direto, sem compilar — abre o menu
+
+shinobu status               # branch, tag, pendências, tamanho do binário
+shinobu test | integ         # unitários / integração (APIs reais)
+shinobu build                # build otimizado
+shinobu release minor "feat: x"   # wizard: bump + msg + confirmação
+shinobu clean-cache          # remove storage/music-cache
+```
+
+No menu: números navegam, `0`/`q` sai; o release sempre força o fluxo do
+Makefile (mesma validação de bump antes de tocar em git).
 
 ---
 
@@ -275,7 +322,7 @@ Envia sequencialmente: áudio PTT → mensagem com `@all` → sticker salvo.
 ├── cmd/bot/main.go                          # Entry point
 ├── AGENTS.md                                # Contexto do projeto para o OpenCode
 ├── config.example.yaml                      # Modelo de configuração
-├── scripts/setup.sh                         # Instala ffmpeg, webpmux e yt-dlp em ./bin/
+├── scripts/setup.sh                         # Instala ffmpeg, webpmux, yt-dlp e deno em ./bin/
 ├── go.mod                                   # Módulo: github.com/Turgho/Shinobu-Whatsapp
 │
 ├── assets/
@@ -320,7 +367,7 @@ Envia sequencialmente: áudio PTT → mensagem com `@all` → sticker salvo.
     │   │   ├── models.go                      # Constantes de modelo e config
     │   │   └── utils.go                       # Helpers (cleanPrompt, sanitizePrompt, truncateText)
     │   ├── ignore/                          # Store JSON de números ignorados
-    │   ├── music/                           # Efeitos ffmpeg, MIME, requisição yt-dlp
+    │   ├── music/                           # Executor yt-dlp (exec/timeout/classificação), cache, efeitos ffmpeg, MIME
     │   ├── scheduler/                       # Scheduler genérico + DynamicJob + DynamicStore
     │   ├── sticker/                         # Conversão WebP, store, envio
     │   ├── weekday/                         # WeekdayJob

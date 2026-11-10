@@ -69,12 +69,12 @@ type hourlyResponse struct {
 // dailyResponse mapeia a resposta daily da Open-Meteo (/forecast?daily=...).
 type dailyResponse struct {
 	Daily struct {
-		Time                      []string  `json:"time"`
-		WeatherCode               []int     `json:"weather_code"`
-		Temperature2MMax          []float64 `json:"temperature_2m_max"`
-		Temperature2MMin          []float64 `json:"temperature_2m_min"`
-		ApparentTemperatureMax    []float64 `json:"apparent_temperature_max"`
-		PrecipitationProbMax      []float64 `json:"precipitation_probability_max"`
+		Time                   []string  `json:"time"`
+		WeatherCode            []int     `json:"weather_code"`
+		Temperature2MMax       []float64 `json:"temperature_2m_max"`
+		Temperature2MMin       []float64 `json:"temperature_2m_min"`
+		ApparentTemperatureMax []float64 `json:"apparent_temperature_max"`
+		PrecipitationProbMax   []float64 `json:"precipitation_probability_max"`
 	} `json:"daily"`
 }
 
@@ -86,12 +86,12 @@ type combinedResponse struct {
 		WeatherCode         int     `json:"weather_code"`
 	} `json:"current"`
 	Daily struct {
-		Time                      []string  `json:"time"`
-		WeatherCode               []int     `json:"weather_code"`
-		Temperature2MMax          []float64 `json:"temperature_2m_max"`
-		Temperature2MMin          []float64 `json:"temperature_2m_min"`
-		ApparentTemperatureMax    []float64 `json:"apparent_temperature_max"`
-		PrecipitationProbMax      []float64 `json:"precipitation_probability_max"`
+		Time                   []string  `json:"time"`
+		WeatherCode            []int     `json:"weather_code"`
+		Temperature2MMax       []float64 `json:"temperature_2m_max"`
+		Temperature2MMin       []float64 `json:"temperature_2m_min"`
+		ApparentTemperatureMax []float64 `json:"apparent_temperature_max"`
+		PrecipitationProbMax   []float64 `json:"precipitation_probability_max"`
 	} `json:"daily"`
 }
 

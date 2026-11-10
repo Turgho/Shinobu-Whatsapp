@@ -96,6 +96,15 @@ func parseAgendaTime(input string, loc *time.Location) (time.Time, error) {
 	s := strings.TrimSpace(input)
 	s = strings.Trim(s, "`\"'")
 
+	// ISO 8601 com "T" maiúsculo: tentar ANTES do normalizePtMonths, que
+	// lowercasa a string inteira e quebra o layout ("t" minúsculo não existe
+	// na referência de layout do Go).
+	for _, layout := range []string{time.RFC3339, "2006-01-02T15:04"} {
+		if t, err := time.ParseInLocation(layout, s, loc); err == nil {
+			return t, nil
+		}
+	}
+
 	// Palavras-chave de data: "hoje 14:00", "amanhã 08:00"
 	if t, ok := parseRelativeDate(s, loc); ok {
 		return t, nil

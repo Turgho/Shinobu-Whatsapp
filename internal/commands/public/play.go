@@ -11,7 +11,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func PlayCommand(musicCfg *music.Config, logger *zap.Logger) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+// PlayCommand baixa a música via music.Service e envia como áudio.
+func PlayCommand(svc *music.Service, logger *zap.Logger) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	l := logger.Named("PLAY")
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		if len(args) == 0 {
@@ -21,9 +22,14 @@ func PlayCommand(musicCfg *music.Config, logger *zap.Logger) func(ctx context.Co
 		_ = whatsapp.SendText(ctx, client, evt, "⏳ Processando sua música...", true)
 
 		query := strings.Join(args, " ")
-		audio, ext, err := music.DownloadAudio(ctx, musicCfg, query)
+		audio, ext, err := svc.DownloadAudio(ctx, query)
 		if err != nil {
-			l.Debug("download failed", zap.Error(err), zap.String("query", query))
+			l.Warn("play: download falhou",
+				zap.String("query", query), zap.Error(err))
+			// Erros classificados recebem mensagem específica em PT.
+			if ed, ok := music.AsErrDownload(err); ok {
+				return whatsapp.SendText(ctx, client, evt, "❌ "+ed.Category.CategoryText(), true)
+			}
 			return whatsapp.SendText(ctx, client, evt, msgDownloadFail, true)
 		}
 
