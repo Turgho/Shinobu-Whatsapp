@@ -25,6 +25,7 @@ import (
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/database"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/uptime"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/types"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -44,7 +45,12 @@ func Run() error {
 	}
 	defer logger.Sync()
 
-	ctx := context.Background()
+	// Contexto raiz: cancelado no encerramento (scheduler, cleanup e hooks
+	// param junto). Antes era context.Background() e nada era cancelado.
+	ctx, cancel := context.WithCancel(context.Background())
+	// Garante o cancelamento em qualquer caminho de saída (o encerramento
+	// orderly também cancela explicitamente, lá embaixo).
+	defer cancel()
 
 	db, err := connectDatabase(cfg, logger)
 	if err != nil {
@@ -71,13 +77,9 @@ func Run() error {
 		return fmt.Errorf("erro ao criar client WhatsApp: %w", err)
 	}
 
-	if err := client.Connect(ctx); err != nil {
-		return fmt.Errorf("erro ao conectar no WhatsApp: %w", err)
-	}
-
 	ignoreStore := ignore.NewStore()
 	stickerStore := sticker.NewStore()
-	r := buildRouter(cfg, client.WAClient, logger, store, ignoreStore)
+	r := buildRouter(ctx, cfg, client.WAClient, logger, store, ignoreStore)
 	r.AddMessageHook(mikaelStore.SaveMessageHook())
 
 	r.SetAIConfig(&ia.Config{
@@ -149,11 +151,46 @@ func Run() error {
 
 	sched.Start(ctx)
 
+	// !shutdown encerra o bot de forma limpa: cancela o contexto raiz, o
+	// que faz o Listen() voltar e os defer rodarem (logger.Sync, db.Close).
+	r.SetShutdownHook(cancel)
+
+	// O handler é registrado ANTES do connect: entre o Connect e o
+	// registro, as mensagens que chegassem seriam descartadas.
 	handler := bot.NewHandler(client.WAClient, r, logger.Named("HANDLER"))
+	if ownerJID := ownerJIDFromConfig(cfg); ownerJID != nil {
+		handler.SetOwnerJID(ownerJID)
+	}
 	client.RegisterHandlers(handler.EventHandler)
 
-	client.Listen()
+	if err := client.Connect(ctx); err != nil {
+		return fmt.Errorf("erro ao conectar no WhatsApp: %w", err)
+	}
+
+	// Encerramento em ordem: cancela o contexto → para o scheduler →
+	// desconecta o WhatsApp → fecha os bancos (defers registered above).
+	defer func() {
+		cancel()
+		sched.Stop()
+		client.WAClient.Disconnect()
+		logger.Info("Encerramento concluído")
+	}()
+
+	client.Listen(ctx)
 	return nil
+}
+
+// ownerJIDFromConfig monta o JID do dono a partir da config (para avisar
+// quando a sessão cai). nil quando não há JID configurado.
+func ownerJIDFromConfig(cfg *configs.Config) *types.JID {
+	if cfg.Owner.JID == "" {
+		return nil
+	}
+	jid, err := types.ParseJID(cfg.Owner.JID)
+	if err != nil {
+		return nil
+	}
+	return &jid
 }
 
 func buildLogger(cfg *configs.Config) (*zap.Logger, error) {
@@ -188,7 +225,7 @@ func connectDatabase(cfg *configs.Config, logger *zap.Logger) (*sql.DB, error) {
 	return db, nil
 }
 
-func buildRouter(cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Logger, store *history.Store, ignoreStore *ignore.Store) *commands.Router {
+func buildRouter(ctx context.Context, cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Logger, store *history.Store, ignoreStore *ignore.Store) *commands.Router {
 	r := commands.NewRouter(cfg.Bot.Prefix, waClient, logger.Named("ROUTER"), store, ignoreStore)
 
 	r.Use(commands.IgnoreSelfMiddleware)
@@ -201,6 +238,7 @@ func buildRouter(cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Lo
 		r.SetBotJID(id.ToNonAD().String())
 	}
 
+	r.SetRootContext(ctx)
 	r.SetNLPGroupTrigger(cfg.Bot.NLPGroupTrigger)
 	r.SetIntentEnabled(cfg.Bot.IntentEnabled)
 

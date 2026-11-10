@@ -92,7 +92,7 @@ func AgendaCommand(
 
 	// Força uma verificação imediata para jobs de curta duração
 	// (ex: "daqui 1 minuto"), reduzindo o delay máximo para 1 tick (15s).
-	dynSched.RunCheck()
+	dynSched.RunCheck(ctx)
 
 	allTag := ""
 	if mentionAll {

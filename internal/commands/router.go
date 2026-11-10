@@ -42,6 +42,7 @@ type Router struct {
 	rateLimitEvery time.Duration
 
 	messageHooks    []func(ctx context.Context, evt *events.Message, msg string)
+	shutdownHook    func()
 	botJID          string
 	maintenance     atomic.Bool
 	aiConfig        *ia.Config
@@ -49,6 +50,11 @@ type Router struct {
 	intentEnabled   bool
 
 	albumCoordinator *AlbumCoordinator
+
+	// rootCtx é o contexto da aplicação (cancelado no encerramento). Os
+	// handlers derivatives dele — assim o shutdown interrompe o trabalho em
+	// andamento em vez de deixá-lo rodando até o timeout.
+	rootCtx context.Context
 }
 
 // NewRouter cria um router com prefixo de comando, client WhatsApp e dependências.
@@ -76,6 +82,20 @@ func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *
 }
 
 // --- Setters de configuração ---
+
+// SetRootContext define o contexto raiz da aplicação (cancelado no
+// encerramento do bot).
+func (r *Router) SetRootContext(ctx context.Context) {
+	r.rootCtx = ctx
+}
+
+// ctx devolve o contexto raiz da aplicação (ou Background se não definido).
+func (r *Router) ctx() context.Context {
+	if r.rootCtx != nil {
+		return r.rootCtx
+	}
+	return context.Background()
+}
 
 // SetBotJID define o JID do bot para detecção de menção em mensagens.
 func (r *Router) SetBotJID(jid string) {
@@ -105,6 +125,22 @@ func (r *Router) SetIntentEnabled(enabled bool) {
 func (r *Router) SetMaintenance(on bool) {
 	r.maintenance.Store(on)
 	r.log.Info("Modo manutenção alterado", zap.Bool("on", on))
+}
+
+// SetShutdownHook registra a função que encerra o bot de forma limpa
+// (usada pelo comando !shutdown — assim os defer do app rodam).
+func (r *Router) SetShutdownHook(fn func()) {
+	r.shutdownHook = fn
+}
+
+// RequestShutdown pede o encerramento limpo do bot. Sem hook registrado,
+// nada acontece (o comando fica inerte em vez de matar o processo).
+func (r *Router) RequestShutdown() bool {
+	if r.shutdownHook == nil {
+		return false
+	}
+	r.shutdownHook()
+	return true
 }
 
 // AddMessageHook registra uma função chamada para cada mensagem recebida,
@@ -259,7 +295,7 @@ func (r *Router) HandleMessage(evt *events.Message) {
 		return
 	}
 
-	hookCtx, hookCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	hookCtx, hookCancel := context.WithTimeout(r.ctx(), 30*time.Second)
 	for _, hook := range r.messageHooks {
 		hook(hookCtx, evt, msg)
 	}
@@ -289,7 +325,7 @@ func (r *Router) handlePrefixedMessage(evt *events.Message, msg string) {
 	cmdName := strings.ToLower(parts[0])
 
 	if r.IsMaintenance() && r.resolveAlias(cmdName) != "manutencao" {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(r.ctx(), 10*time.Second)
 		defer cancel()
 		maintenanceMsg := "😅 *O bot está em manutenção!*\n\nComandos temporariamente desativados. Tente novamente mais tarde."
 		if err := whatsapp.Reply(ctx, r.client, evt, maintenanceMsg); err != nil {
@@ -350,7 +386,7 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), handlerTimeoutCommand)
+	ctx, cancel := context.WithTimeout(r.ctx(), handlerTimeoutCommand)
 	defer cancel()
 
 	start := time.Now()
@@ -422,7 +458,7 @@ func (r *Router) dispatchBatch(cmdName string, args []string, items []*events.Me
 		zap.Int("items", len(items)),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), handlerTimeoutCommand)
+	ctx, cancel := context.WithTimeout(r.ctx(), handlerTimeoutCommand)
 	defer cancel()
 
 	start := time.Now()

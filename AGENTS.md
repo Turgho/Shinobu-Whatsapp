@@ -593,6 +593,21 @@ func (j *XyzJob) Run(ctx context.Context) error { ... }
   chave normalizada (número) — o `!ignorar` gravava o número e a checagem
   procurava o JID, então **ninguém era bloqueado**.
 
+- **Etapa 3 — ciclo de vida e reconexão**: contexto raiz cancelável
+  (`context.WithCancel` + `defer cancel()`), cadeia de encerramento explícita
+  (cancel → `sched.Stop()` → `Disconnect()` → fechar bancos), `bot.Listen(ctx)`
+  (sinal **ou** contexto), **handlers registrados antes do `Connect`** (as
+  mensagens do início do processo e o backlog do offline-sync eram
+  descartados). Eventos de conexão agora são tratados e registrados:
+  `Connected`, `Disconnected`, `LoggedOut`, `StreamReplaced`, `ConnectFailure`,
+  `TemporaryBan` — os graves avisam o dono (JID do dono vem de `cfg.Owner.JID`).
+  `!shutdown` sinaliza o encerramento (hook do router → cancela o contexto) em
+  vez de `os.Exit(0)`, que pulava `logger.Sync()` e `db.Close()`. Scheduler:
+  cada job roda em goroutine própria (um job lento não atrasa os outros), usa o
+  contexto do scheduler e fica marcado como "running" (ticker, `ForceRun` e
+  `RunCheck` não disparam o mesmo job em paralelo). `yt-dlp` com `Pdeathsig`
+  (não deixa filho órfão no container).
+
 ### Ainda pendente
 - **Plano de arquitetura em `docs/architecture/IMPLEMENTATION_PLAN.md`** — Etapas 2 a 8
   aprovadas e a executar: identidade do owner, ciclo de vida/reconexão, config,
