@@ -57,7 +57,7 @@ func AskIA(ctx context.Context, cfg *Config, chat, prompt string, isOwner bool, 
 	userContent := buildUserContent(prompt, mode, webContext)
 	messages = append(messages, history.IAMessage{Role: "user", Content: userContent})
 
-	params := mainAnswerParams(mode, usedSearch)
+	params := mainAnswerParams(mode, usedSearch, cfg.ConversationModel())
 	answer, err := callGroq(ctx, cfg.HTTPClient, cfg.GroqURL, cfg.GroqKey, params.model, messages, params.temperature, params.maxTokens)
 	if err != nil {
 		return "", usedSearch, err

@@ -146,9 +146,19 @@ por arquivo. Exceção aceitável: system prompts extensos em `intent.go`.
   - No fallback IA, o contexto é prependido ao prompt para continuidade natural
 
 ### IA / Groq
-- **Conversa e resumo:** `openai/gpt-oss-120b` (antes: qwen/qwen3.6-27b — thinking mode consumia todo max_tokens; antes disso llama-4-scout — descontinuado)
-- **Contexto web:** `openai/gpt-oss-120b`
-- **NLU / classificação:** `llama-3.1-8b-instant` com `MaxTokens` reduzido (50 para DetectIntent, 100–150 para outros)
+Modelos em uso (novembro/2026) — todos com 1K requisições/dia:
+- **Uso contínuo:** `openai/gpt-oss-20b` (~1000 tokens/s) — conversa, resumo,
+  facts, NLU, classificador, comandos rápidos (piada, fato, filme, traduz)
+- **Personalidade (teste):** `qwen/qwen3.8-27b` (~450 tokens/s) — selecionável
+  por `ia.model` (env `IA_MODEL`) sem recompilar
+- **Elaborado:** `openai/gpt-oss-120b` (~500 tokens/s) — resposta com busca web,
+  `!noticia` e `!receita`
+- Constantes: `ia.ModelContinuous`, `ia.ModelPersonality`, `ia.ModelElaborate`
+  (`internal/domain/ia/models.go`)
+- Todos os três são modelos de raciocínio: `reasoning_effort: low` é aplicado
+  automaticamente e, na família qwen, também `reasoning_format: hidden` (sem
+  isso o raciocínio vem junto da resposta e consome `max_tokens`)
+- `MaxTokens` do NLU continua reduzido (50 para DetectIntent, 100–150 para outros)
 - System prompts: nunca repetir regras no user content — cada turno só no system
 - `buildUserContent` deve conter apenas o conteúdo, sem regras duplicadas
 - `classifyPromptMode` retorna `ModeBrief` por padrão (mais econômico)

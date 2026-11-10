@@ -47,7 +47,15 @@ func callGroq(ctx context.Context, httpClient *http.Client, groqURL, groqKey, mo
 		MaxTokens:   maxTokens,
 	}
 	if isReasoningModel(model) {
-		req.ReasoningEffort = "low" // minimiza tokens gastos "pensando", maximiza tokens de resposta
+		// Minimiza os tokens gastos "pensando" (maximiza o que sobra
+		// para a resposta).
+		req.ReasoningEffort = "low"
+		if strings.Contains(model, "qwen") {
+			// qwen devolve o raciocínio no mesmo campo da resposta
+			// quando o formato não é "hidden" — ele contaria como token
+			// e poluiria a mensagem enviada ao usuário.
+			req.ReasoningFormat = "hidden"
+		}
 	}
 
 	resp, err := groqChat(ctx, httpClient, groqURL, groqKey, req)

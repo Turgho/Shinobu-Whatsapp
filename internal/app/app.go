@@ -99,6 +99,8 @@ func Run() error {
 		TavilyKey:  cfg.Tavily.APIKey,
 		HTTPClient: &http.Client{Timeout: 30 * time.Second},
 		Log:        logger.Named("AI"),
+		// Modelo da conversa principal (vazio = padrão do pacote).
+		Model: cfg.IA.Model,
 	}
 	r.SetAIConfig(aiCfg)
 

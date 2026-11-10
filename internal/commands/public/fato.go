@@ -23,7 +23,7 @@ func FatoCommand(
 		{Role: "system", Content: "Compartilhe um fato curioso e surpreendente em português. Máximo 3 frases. Comece diretamente com o fato."},
 	}
 
-	answer, err := ia.QuickChat(ctx, aiCfg.HTTPClient, aiCfg.GroqURL, aiCfg.GroqKey, ia.ModelScoutFast, msgs, 0.85, 150)
+	answer, err := ia.QuickChat(ctx, aiCfg.HTTPClient, aiCfg.GroqURL, aiCfg.GroqKey, ia.ModelContinuous, msgs, 0.85, 150)
 	if err != nil {
 		return whatsapp.Reply(ctx, client, evt, msgFatoFail)
 	}

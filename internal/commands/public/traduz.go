@@ -33,7 +33,7 @@ func TraduzCommand(
 		{Role: "user", Content: text},
 	}
 
-	answer, err := ia.QuickChat(ctx, aiCfg.HTTPClient, aiCfg.GroqURL, aiCfg.GroqKey, ia.ModelFastClass, msgs, 0, 300)
+	answer, err := ia.QuickChat(ctx, aiCfg.HTTPClient, aiCfg.GroqURL, aiCfg.GroqKey, ia.ModelContinuous, msgs, 0, 300)
 	if err != nil {
 		return whatsapp.Reply(ctx, client, evt, msgTraduzFail)
 	}
