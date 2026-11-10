@@ -16,7 +16,7 @@ func Go(logger *zap.Logger, fn func()) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logger.Error("panic recuperado", zap.Any("panic", r))
+				logger.Error("panic recuperado", zap.Any("panic", r), zap.Stack("stack"))
 			}
 		}()
 		fn()
@@ -40,7 +40,7 @@ func (g *Group) Go(logger *zap.Logger, fn func()) {
 		defer g.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
-				logger.Error("panic recuperado", zap.Any("panic", r))
+				logger.Error("panic recuperado", zap.Any("panic", r), zap.Stack("stack"))
 			}
 		}()
 		fn()

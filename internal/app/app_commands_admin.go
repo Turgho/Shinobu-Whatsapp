@@ -27,7 +27,7 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *histo
 		Description: "Exibe estatísticas de runtime do bot",
 		Type:        commands.CommandTypeOwner,
 		Private:     true,
-	}, admin.StatsCommand(noteClient, logger))
+	}, admin.StatsCommand(noteClient, r, logger))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "shutdown",

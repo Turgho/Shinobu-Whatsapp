@@ -315,6 +315,30 @@ Envia sequencialmente: áudio PTT → mensagem com `@all` → sticker salvo.
 
 ---
 
+## Mapa de responsabilidades
+
+| Pacote | Responsabilidade |
+|---|---|
+| `cmd/bot` | entry point do bot · `cmd/shinobu`: CLI de release |
+| `internal/app` | **composição**: config → logger → bancos → stores → client → router → scheduler → shutdown |
+| `internal/bot` | ciclo de vida do whatsmeow (conexão, QR, eventos de conexão) |
+| `internal/commands` | router, middlewares, rate limit, NLU, dispatch dos handlers |
+| `internal/commands/public` | interação com o usuário (43 comandos) |
+| `internal/commands/admin` | comandos de owner/admin |
+| `internal/domain/*` | regras de negócio por subsistema (ia, music, weather, geocoding, scheduler, history…) |
+| `internal/domain/failure` | taxonomia de falha → mensagem amigável (usada pelo router) |
+| `internal/identity` | regra única de "quem é o dono" (número **ou** JID) |
+| `internal/integration/whatsapp` | envio de mensagens/mídia (fronteira do whatsmeow) |
+| `internal/integration/media` | download de mídia do WhatsApp |
+| `internal/infra/*` | config, database (SQLite), cache, ffmpeg, gosafe, logger, phone, store, uptime, version |
+
+Regras que o código segue (detalhes em `AGENTS.md`):
+- handlers só interagem com o usuário; regra de negócio mora em `internal/domain`;
+- nada de `http.DefaultClient`, nada de goroutine crua (sempre `gosafe.Go`);
+- `max_tokens` sempre definido nas chamadas de IA;
+- o `go:embed` do `web/dist` exige o build do Angular presente no repo;
+- `make test` roda com `-race` (o detector de corrida faz parte do fluxo).
+
 ## Estrutura do projeto
 
 ```text

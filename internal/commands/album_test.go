@@ -221,17 +221,34 @@ func TestDispatchTimeoutDiscardsWithoutCommand(t *testing.T) {
 func TestBufferizeUnknownExpectedFiresTimerFast(t *testing.T) {
 	ac := NewAlbumCoordinator(zap.NewNop())
 
-	var gotLen int
-	ac.SetBatchHandler(func(_ string, _ []string, items []*events.Message) { gotLen = len(items) })
+	// O handler roda em outra goroutine (o timer do album): o contador
+	// precisa de sincronização — sem isso o -race acusa data race.
+	var mu sync.Mutex
+	gotLen := 0
+	ac.SetBatchHandler(func(_ string, _ []string, items []*events.Message) {
+		mu.Lock()
+		gotLen = len(items)
+		mu.Unlock()
+	})
 
 	// expected=0 (desconhecido) → timer de 3s dispara despacho
 	ac.Bufferize("p6", albumChild("p6"), "sticker", nil, 0)
 
 	deadline := time.Now().Add(4 * time.Second)
-	for time.Now().Before(deadline) && gotLen == 0 {
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		n := gotLen
+		mu.Unlock()
+		if n != 0 {
+			break
+		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	if gotLen != 1 {
-		t.Fatalf("timeout de album desconhecido não despachou (gotLen=%d)", gotLen)
+
+	mu.Lock()
+	final := gotLen
+	mu.Unlock()
+	if final != 1 {
+		t.Fatalf("timeout de album desconhecido não despachou (gotLen=%d)", final)
 	}
 }

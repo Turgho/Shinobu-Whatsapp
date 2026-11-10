@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/commands"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/noteapi"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/uptime"
@@ -22,7 +23,7 @@ import (
 // StatsCommand exibe stats do sistema (CPU, RAM, temperatura, uptime, notebook remoto).
 // Dados do notebook vêm do noteapi.Client (mesma fonte usada pelos comandos !note/*).
 // Buscados em goroutine concorrente com waitgroup.
-func StatsCommand(note *noteapi.Client, log *zap.Logger) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+func StatsCommand(note *noteapi.Client, r *commands.Router, log *zap.Logger) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		var (
 			notebook *noteapi.StatusRef
@@ -87,6 +88,8 @@ func StatsCommand(note *noteapi.Client, log *zap.Logger) func(ctx context.Contex
 			notebookBlock = stat
 		}
 
+		messages, commands, errors := r.Stats()
+
 		msg := fmt.Sprintf(
 			"📊 *Bot Status*\n\n"+
 				"☁️ *Square Cloud*\n"+
@@ -96,7 +99,8 @@ func StatsCommand(note *noteapi.Client, log *zap.Logger) func(ctx context.Contex
 				"⚙ *CPU cores:* %d\n"+
 				"🖥 *CPU uso:* %.1f%%\n"+
 				"🌡 *CPU temp:* %s\n"+
-				"📦 *RAM bot:* %.2f MB\n\n"+
+				"📦 *RAM bot:* %.2f MB\n"+
+				"📈 *Desde o boot:* %d mensagens · %d comandos · %d erros\n\n"+
 				"——————————————\n"+
 				"🖥 *Notebook (yt-dlp)*\n"+
 				"%s",
@@ -107,6 +111,7 @@ func StatsCommand(note *noteapi.Client, log *zap.Logger) func(ctx context.Contex
 			cpuUsage,
 			cpuTemp,
 			float64(botMem.Alloc)/1024/1024,
+			messages, commands, errors,
 			notebookBlock,
 		)
 

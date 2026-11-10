@@ -2,10 +2,14 @@
 set -e
 mkdir -p bin
 
-# yt-dlp (já pega latest)
-echo "Instalando yt-dlp..."
+# Versões fixas: com "latest" cada setup podia trazer um binário
+# diferente do que foi testado (e deno + yt-dlp precisam combinar).
+YTDLP_VERSION="2025.09.25"
+DENO_VERSION="2.4.3"
+
+echo "Instalando yt-dlp ${YTDLP_VERSION}..."
 curl -L -o bin/yt-dlp \
-    https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux
+    "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/yt-dlp_linux"
 chmod +x bin/yt-dlp
 
 # Deno — runtime JS obrigatório para os desafios EJS do YouTube (yt-dlp-ejs).
@@ -17,7 +21,7 @@ if ! command -v unzip >/dev/null 2>&1; then
     exit 1
 fi
 curl -fsSL -o /tmp/deno.zip \
-    https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip
+    "https://github.com/denoland/deno/releases/download/v${DENO_VERSION}/deno-x86_64-unknown-linux-gnu.zip"
 unzip -p /tmp/deno.zip > bin/deno
 chmod +x bin/deno
 rm -f /tmp/deno.zip
