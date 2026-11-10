@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -193,7 +194,13 @@ func buildRouter(cfg *configs.Config, waClient *whatsmeow.Client, logger *zap.Lo
 	r.Use(commands.IgnoreSelfMiddleware)
 	r.Use(commands.IgnoreOldMessagesMiddleware)
 	r.Use(commands.CommandNotFoundMiddleware(r))
-	r.Use(commands.PrivateCommandsMiddleware(r, cfg.UsersJID.Owner, cfg.UsersJID.Admins))
+	r.Use(commands.PrivateCommandsMiddleware(r, cfg.Owner, cfg.UsersJID.Admins))
+	// JID do próprio bot: sem isso o NLU não reconhece menção por @jid
+	// nem trata "reply só com o JID" como menção simples.
+	if id := waClient.Store.ID; id != nil {
+		r.SetBotJID(id.ToNonAD().String())
+	}
+
 	r.SetNLPGroupTrigger(cfg.Bot.NLPGroupTrigger)
 	r.SetIntentEnabled(cfg.Bot.IntentEnabled)
 

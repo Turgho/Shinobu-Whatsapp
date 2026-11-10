@@ -43,7 +43,8 @@ func ShinobuCommand(store *history.Store, cfg *configs.Config, stickerStore *sti
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		chat := evt.Info.Chat.String()
 		sender := evt.Info.Sender.User
-		isOwner := sender == cfg.Owner.Number
+		// Regra única de identidade (internal/identity): número ou JID.
+		isOwner := cfg.Owner.Matches(evt.Info.Sender.ToNonAD().User, evt.Info.Sender.ToNonAD().String())
 		prompt := strings.Join(args, " ")
 
 		prompt = strings.TrimSpace(

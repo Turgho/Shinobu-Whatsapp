@@ -582,6 +582,16 @@ func (j *XyzJob) Run(ctx context.Context) error { ... }
 - **`noteapi.NewClient` com logger nil** não entra mais em panic.
 - Testes novos: `weather_daily_test.go`, `card_test.go`, `noteapi_test.go`,
   `text_test.go`, `move_file_test.go`, `not_a_command_test.go`.
+- **Etapa 2 — identidade do owner**: novo pacote `internal/identity` com a
+  regra única `Owner.Matches(user, jid)` (aceita número **ou** JID, com
+  normalização de `@lid`/`@s.whatsapp.net` e sufixo de dispositivo). As 4
+  comparações divergentes (middleware de comandos privados, `!fig`, `!aniversário`
+  e o modo "mestre" da IA) passam a usar essa regra. `cfg.Owner` unifica
+  `usersJID.owner` + `owner.number` (envs `OWNER_JID`/`OWNER_NUMBER` seguem
+  valendo). `SetBotJID` agora é chamado no boot (antes `botJID` ficava vazio e
+  a menção por @jid nunca era detectada). A lista de ignorados passa a usar a
+  chave normalizada (número) — o `!ignorar` gravava o número e a checagem
+  procurava o JID, então **ninguém era bloqueado**.
 
 ### Ainda pendente
 - **Plano de arquitetura em `docs/architecture/IMPLEMENTATION_PLAN.md`** — Etapas 2 a 8
