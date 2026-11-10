@@ -204,6 +204,8 @@ func checkDeps() error {
 	}{
 		{"./bin/ffmpeg", "ffmpeg"},
 		{"./bin/webpmux", "webpmux"},
+		{"./bin/deno", "deno"},
+		{"./bin/yt-dlp", "yt-dlp"},
 	}
 	for _, d := range deps {
 		if _, err := exec.LookPath(d.path); err != nil {
