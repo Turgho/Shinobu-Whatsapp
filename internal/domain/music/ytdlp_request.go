@@ -46,7 +46,7 @@ func (s *Service) downloadViaTunnel(ctx context.Context, query string) ([]byte, 
 			Detail: fmt.Sprintf("tunel: servidor retornou %d: %s", resp.StatusCode, body)}
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 	if err != nil {
 		return nil, "", &ErrDownload{Category: ErrUnknown,
 			Detail: fmt.Sprintf("tunel: ler resposta: %v", err)}

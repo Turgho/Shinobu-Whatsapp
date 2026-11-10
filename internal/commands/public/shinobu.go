@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"math/rand/v2"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -39,7 +38,7 @@ func dupKey(chat, prompt string) string {
 	return fmt.Sprintf("%x", h[:8])
 }
 
-func ShinobuCommand(store *history.Store, cfg *configs.Config, stickerStore *sticker.Store) commands.HandlerFunc {
+func ShinobuCommand(store *history.Store, cfg *configs.Config, iaCfg *ia.Config, stickerStore *sticker.Store) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		chat := evt.Info.Chat.String()
 		sender := evt.Info.Sender.User
@@ -75,11 +74,8 @@ func ShinobuCommand(store *history.Store, cfg *configs.Config, stickerStore *sti
 				stickerStore, cfg.Bot.NormalStickerChance, cfg.Bot.NormalStickerBlacklist)
 		}
 
-		iaCfg := &ia.Config{
-			GroqURL:    cfg.Groq.URL,
-			GroqKey:    cfg.Groq.APIKey,
-			TavilyKey:  cfg.Tavily.APIKey,
-			HTTPClient: &http.Client{Timeout: 30 * time.Second},
+		if iaCfg == nil {
+			return whatsapp.Reply(ctx, client, evt, msgShinobuFail)
 		}
 
 		answer, usedSearch, err := ia.AskIA(ctx, iaCfg, chat, prompt, isOwner, sender, store)

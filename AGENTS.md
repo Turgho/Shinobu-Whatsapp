@@ -621,6 +621,23 @@ func (j *XyzJob) Run(ctx context.Context) error { ... }
   `music.localEnabled` (yt-dlp/deno só são exigidos no modo local). Viper
   deixou de ser global (instância por chamada). Testes: `config_test.go`.
 
+- **Etapa 5 — persistência e integrações**: política única de SQLite em
+  `infra/database.Open` (PRAGMA `foreign_keys` + `busy_timeout(5000)` + 1
+  conexão) — o histórico usava `sql.Open` sem pragma e com pool ilimitado
+  (risco de `SQLITE_BUSY`); o diretório `storage/` agora é criado no boot.
+  Índice em `messages(sent_at)` (a limpeza horária varria a tabela toda).
+  Novo `infra/cache` (map + TTL): geocoding 10min, clima 10min, cotação
+  30min, feriado 6h, **música 24h** (era 7 dias). `io.LimitReader` em todos
+  os bodies externos; wttr.in com User-Agent; erro de `ParseFloat` no
+  geocoding deixa de virar (0,0); cotação com valor inválido mostra
+  "indisponível" em vez de R$ 0,00 (NaN). Mídia: tamanho checado **antes**
+  do download (FileLength do protobuf) — antes o arquivo inteiro ia para a
+  RAM. `ia.Config` única (router + comandos de IA): mesmo HTTP client e
+  **logger presente** (falhas de resumo/fatos não eram logadas). Retry de 429
+  do Groq só na resposta principal (o resto virou 1 tentativa — até 12
+  requisições por mensagem viraram no máximo 4). `mikael.NewStore` propaga
+  erro de schema. `Cache.Hit` (morto) removido.
+
 ### Ainda pendente
 - **Plano de arquitetura em `docs/architecture/IMPLEMENTATION_PLAN.md`** — Etapas 2 a 8
   aprovadas e a executar: identidade do owner, ciclo de vida/reconexão, config,

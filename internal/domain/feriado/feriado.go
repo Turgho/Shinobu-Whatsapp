@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/cache"
 	"go.uber.org/zap"
 )
 
@@ -41,6 +42,9 @@ type FeriadosClient struct {
 	apiKey     string
 	httpClient *http.Client
 	logger     *zap.Logger
+	// Cache de 6h por ano+UF: feriados mudam uma vez por ano — não faz
+	// sentido chamar a API a cada "!feriado".
+	cache *cache.Cache[[]Feriado]
 }
 
 // NewFeriadosClient cria um cliente para a Feriados API.
@@ -53,6 +57,7 @@ func NewFeriadosClient(baseURL, apiKey string, logger *zap.Logger) *FeriadosClie
 			Timeout: 8 * time.Second,
 		},
 		logger: logger,
+		cache:  cache.New[[]Feriado](6 * time.Hour),
 	}
 }
 
@@ -93,6 +98,11 @@ func (c *FeriadosClient) Upcoming(ctx context.Context, n int, uf string) ([]Feri
 }
 
 func (c *FeriadosClient) fetchYear(ctx context.Context, year int, uf string) ([]Feriado, error) {
+	key := fmt.Sprintf("%d|%s", year, uf)
+	if cached, ok := c.cache.Get(key); ok {
+		return cached, nil
+	}
+
 	var url string
 	if uf != "" {
 		url = fmt.Sprintf("%s/api/v1/feriados/estado/%s?ano=%d", c.baseURL, uf, year)
@@ -132,6 +142,7 @@ func (c *FeriadosClient) fetchYear(ctx context.Context, year int, uf string) ([]
 		})
 	}
 
+	c.cache.Set(key, result)
 	return result, nil
 }
 

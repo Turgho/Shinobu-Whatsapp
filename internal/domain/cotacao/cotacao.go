@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/cache"
 	"go.uber.org/zap"
 )
 
@@ -45,11 +47,15 @@ type CotacaoClient struct {
 	APIURL     string
 	httpClient *http.Client
 	logger     *zap.Logger
+	// Cache de 30min: cotação muda pouco e a API é pública (sem chave) —
+	// hammering ela prejudica todo mundo que usa o endpoint.
+	cache *cache.Cache[[]CotacaoResult]
 }
 
 // NewCotacaoClient cria um cliente com timeout de 8s.
 func NewCotacaoClient(apiURL string, logger *zap.Logger) *CotacaoClient {
 	return &CotacaoClient{
+		cache:  cache.New[[]CotacaoResult](30 * time.Minute),
 		APIURL: apiURL,
 		httpClient: &http.Client{
 			Timeout: 8 * time.Second,
@@ -60,6 +66,10 @@ func NewCotacaoClient(apiURL string, logger *zap.Logger) *CotacaoClient {
 
 // Fetch busca as cotações de USD e EUR contra BRL em uma única chamada.
 func (c *CotacaoClient) Fetch(ctx context.Context) ([]CotacaoResult, error) {
+	if cached, ok := c.cache.Get("todas"); ok {
+		return cached, nil
+	}
+
 	c.logger.Debug("cotacao: buscando cotações", zap.String("url", c.APIURL))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.APIURL, nil)
@@ -75,7 +85,7 @@ func (c *CotacaoClient) Fetch(ctx context.Context) ([]CotacaoResult, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 	if err != nil {
 		return nil, fmt.Errorf("cotacao: ler body: %w", err)
 	}
@@ -126,14 +136,18 @@ func (c *CotacaoClient) Fetch(ctx context.Context) ([]CotacaoResult, error) {
 		return nil, fmt.Errorf("cotacao: nenhuma moeda retornada")
 	}
 
+	c.cache.Set("todas", result)
 	return result, nil
 }
 
-// parseFloat converte string para float64; loga warn e retorna 0 em erro.
+// parseFloat converte string para float64. Em caso de valor malformado
+// devolve NaN (não 0) — assim a apresentação mostra "indisponível" em vez
+// de um preço falso de R$ 0,00.
 func parseFloat(logger *zap.Logger, s string) float64 {
 	v, err := strconv.ParseFloat(s, 64)
 	if err != nil {
 		logger.Warn("cotacao: parse float", zap.String("value", s), zap.Error(err))
+		return math.NaN()
 	}
 	return v
 }

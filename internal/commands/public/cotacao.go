@@ -3,6 +3,7 @@ package public
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 
@@ -17,6 +18,15 @@ import (
 func formatoBR(v float64) string {
 	s := fmt.Sprintf("%.2f", v)
 	return strings.Replace(s, ".", ",", 1)
+}
+
+// valorBR formata um valor de cotação; quando o valor veio inválido
+// (NaN) mostra "indisponível" em vez de um número falso.
+func valorBR(v float64) string {
+	if math.IsNaN(v) {
+		return "indisponível"
+	}
+	return formatoBR(v)
 }
 
 // CotacaoCommand busca e exibe cotações de USD e EUR em reais.
@@ -77,9 +87,9 @@ func CotacaoCommand(
 			sig = "+"
 		}
 
-		fmt.Fprintf(&b, "%s *%s* R$ %s\n\n", emoji, r.Name, formatoBR(r.Bid))
+		fmt.Fprintf(&b, "%s *%s* R$ %s\n\n", emoji, r.Name, valorBR(r.Bid))
 		fmt.Fprintf(&b, "📈 Máx %s • Mín %s • Variação %s%s%%\n",
-			formatoBR(r.High), formatoBR(r.Low), sig, formatoBR(r.PctChange))
+			valorBR(r.High), valorBR(r.Low), sig, valorBR(r.PctChange))
 	}
 
 	if len(rates) > 0 {

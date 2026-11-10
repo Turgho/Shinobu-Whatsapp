@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/database"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
 	"go.uber.org/zap"
-	_ "modernc.org/sqlite"
 )
 
 // AssistantSenderName é o valor de `sender` gravado para respostas do bot (ver Save em shinobu).
@@ -42,7 +42,8 @@ func NewStore(path string, log *zap.Logger) (*Store, error) {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	db, err := sql.Open("sqlite", path)
+	// Política única de SQLite (PRAGMA foreign_keys + busy_timeout + 1 conexão).
+	db, err := database.Open(path, log)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao abrir history db: %w", err)
 	}
@@ -74,6 +75,9 @@ func NewStore(path string, log *zap.Logger) (*Store, error) {
 		`CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat)`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_chat_sender ON messages(chat, sender)`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_chat_sent_at ON messages(chat, sent_at)`,
+		// A limpeza por idade filtra só por sent_at — sem este índice ela
+		// varre a tabela inteira a cada hora.
+		`CREATE INDEX IF NOT EXISTS idx_messages_sent_at ON messages(sent_at)`,
 	}
 	for _, q := range stmts {
 		if _, err := db.Exec(q); err != nil {

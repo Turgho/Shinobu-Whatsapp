@@ -75,7 +75,10 @@ func Run() error {
 	// sem limite, porque o cleanup de mensagens não a toca.
 	store.UserMemory.StartMemoryCleanup(ctx, 30*24*time.Hour)
 
-	mikaelStore := mikael.NewStore(store, store.DB(), cfg.Mikael.Groups, cfg.Mikael.LID, logger.Named("MIKAEL"))
+	mikaelStore, err := mikael.NewStore(store, store.DB(), cfg.Mikael.Groups, cfg.Mikael.LID, logger.Named("MIKAEL"))
+	if err != nil {
+		return fmt.Errorf("erro ao abrir store do mikael: %w", err)
+	}
 
 	client, err := bot.NewClient(ctx, db, logger.Named("CLIENT"))
 	if err != nil {
@@ -87,13 +90,17 @@ func Run() error {
 	r := buildRouter(ctx, cfg, client.WAClient, logger, store, ignoreStore)
 	r.AddMessageHook(mikaelStore.SaveMessageHook())
 
-	r.SetAIConfig(&ia.Config{
+	// Uma única config de IA para o router e para os comandos — mesmo
+	// HTTP client (pool reaproveitado) e mesmo logger (falhas de resumo
+	// e fatos ficavam invisíveis quando o Log vinia vazio).
+	aiCfg := &ia.Config{
 		GroqURL:    cfg.Groq.URL,
 		GroqKey:    cfg.Groq.APIKey,
 		TavilyKey:  cfg.Tavily.APIKey,
 		HTTPClient: &http.Client{Timeout: 30 * time.Second},
 		Log:        logger.Named("AI"),
-	})
+	}
+	r.SetAIConfig(aiCfg)
 
 	r.StartRateLimitCleanup(ctx)
 
@@ -102,7 +109,7 @@ func Run() error {
 	dynStore := scheduler.NewDynamicStore("storage/dynamic_jobs.json", dynLogger)
 	sched := scheduler.NewScheduler(logger.Named("SCHEDULER"))
 
-	registerPublicCommands(r, cfg, logger, store, sched, dynStore, stickerStore, mikaelStore)
+	registerPublicCommands(r, cfg, aiCfg, logger, store, sched, dynStore, stickerStore, mikaelStore)
 	registerAdminCommands(r, cfg, store, logger, ignoreStore, stickerStore, client.WAClient, sched)
 	registerAliases(r)
 

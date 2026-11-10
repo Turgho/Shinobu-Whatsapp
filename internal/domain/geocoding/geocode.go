@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/cache"
+
 	"go.uber.org/zap"
 )
 
@@ -17,6 +19,7 @@ type GeoCoding struct {
 	OpenMeteoURL string
 	Logger       *zap.Logger
 	httpClient   *http.Client
+	cache        *cache.Cache[[]GeoResult]
 }
 
 type GeoResult struct {
@@ -34,6 +37,10 @@ func NewGeoCoding(nominatimURL, openMeteoURL string, logger *zap.Logger) *GeoCod
 		OpenMeteoURL: openMeteoURL,
 		Logger:       logger,
 		httpClient:   &http.Client{Timeout: 10 * time.Second},
+		// Cache de 10min por query: o Nominatim pede no máximo 1 req/s e
+		// proíbe uso pesado — repetir a mesma cidade não devia virar nova
+		// chamada a cada "!clima São Paulo".
+		cache: cache.New[[]GeoResult](10 * time.Minute),
 	}
 }
 
@@ -44,6 +51,22 @@ func (g *GeoCoding) Lookup(ctx context.Context, query string, limit int) ([]GeoR
 	if strings.TrimSpace(query) == "" {
 		return nil, fmt.Errorf("geocoding: query vazia")
 	}
+
+	key := strings.ToLower(strings.TrimSpace(query))
+	if results, ok := g.cache.Get(key); ok {
+		return results, nil
+	}
+
+	results, err := g.lookup(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	g.cache.Set(key, results)
+	return results, nil
+}
+
+// lookup consulta as fontes sem passar pelo cache.
+func (g *GeoCoding) lookup(ctx context.Context, query string, limit int) ([]GeoResult, error) {
 	if results, err := g.lookupNominatim(ctx, query, limit); err == nil && len(results) > 0 {
 		return results, nil
 	}
@@ -103,8 +126,14 @@ func (g *GeoCoding) lookupNominatim(ctx context.Context, query string, limit int
 
 	results := make([]GeoResult, 0, len(raw))
 	for _, r := range raw {
-		lat, _ := strconv.ParseFloat(r.Lat, 64)
-		lon, _ := strconv.ParseFloat(r.Lon, 64)
+		lat, err := strconv.ParseFloat(r.Lat, 64)
+		if err != nil {
+			return nil, fmt.Errorf("geocoding: latitude inválida (%q): %w", r.Lat, err)
+		}
+		lon, err := strconv.ParseFloat(r.Lon, 64)
+		if err != nil {
+			return nil, fmt.Errorf("geocoding: longitude inválida (%q): %w", r.Lon, err)
+		}
 
 		// city/town/village nasce por prioridade — AGENTS (geocoding): nunca
 		// montar DisplayName do display_name cru do Nominatim.

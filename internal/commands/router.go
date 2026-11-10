@@ -108,6 +108,12 @@ func (r *Router) SetAIConfig(cfg *ia.Config) {
 	r.log.Info("AI config definido", zap.Bool("groq", cfg.GroqKey != ""), zap.Bool("tavily", cfg.TavilyKey != ""))
 }
 
+// AIConfig devolve a config de IA em uso (mesma instância do router: com
+// logger e HTTP client compartilhados). Retorna nil se não configurada.
+func (r *Router) AIConfig() *ia.Config {
+	return r.aiConfig
+}
+
 // SetNLPGroupTrigger ativa/desativa heurísticas NLU em grupos sem menção explícita.
 func (r *Router) SetNLPGroupTrigger(on bool) {
 	r.nlpGroupTrigger = on

@@ -10,8 +10,6 @@ package music
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,7 +19,7 @@ import (
 )
 
 // CacheTTL varredura mínima entre limpezas de arquivos vencidos.
-const CacheTTL = 7 * 24 * time.Hour
+const CacheTTL = 24 * time.Hour
 
 // Cache é o cache em disco de áudios prontos.
 type Cache struct {
@@ -76,19 +74,6 @@ func (c *Cache) Put(query string) string {
 		return ""
 	}
 	return filepath.Join(c.dir, cacheKey(query))
-}
-
-// Hit move um arquivo atomicamente para o local do cache.
-// Falha em mover não é erro fatal — o áudio já está pronto pra uso.
-func (c *Cache) Hit(query, srcPath string) error {
-	if c == nil {
-		return nil
-	}
-	dst := c.Put(query)
-	if err := os.Rename(srcPath, dst); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("music/cache: mover para cache: %w", err)
-	}
-	return nil
 }
 
 // Sweep remove arquivos vencidos. É barata (dir pequeno) e executada
