@@ -74,7 +74,7 @@
 
 ---
 
-## Etapa 4 — Configuração previsível
+## Etapa 4 — Configuração previsível ✅ (2026-11-10)
 
 | Campo | Conteúdo |
 |---|---|

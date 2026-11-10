@@ -608,6 +608,19 @@ func (j *XyzJob) Run(ctx context.Context) error { ... }
   `RunCheck` não disparam o mesmo job em paralelo). `yt-dlp` com `Pdeathsig`
   (não deixa filho órfão no container).
 
+- **Etapa 4 — configuração previsível**: `configs.Load()` agora devolve
+  `(*Config, error)` e **valida** prefixo, DSN, timezone e owner — o bot não
+  sobe com config inválida (falha no boot, não no primeiro comando). Path
+  canônico para as APIs (`groq.apiKey`, `tavily.apiKey`, `feriados.apiKey`,
+  `owner.number`) **e** o legado `apicalls.*` como fallback (compatibilidade).
+  `config.example.yaml` corrigido: o DSN usava `?_foreign_keys=on` (sintaxe do
+  driver mattn, ignorada pelo modernc) — com foreign_keys desligado o
+  `container.Upgrade` do whatsmeow falha e **o bot não sobe** em deploy novo.
+  `NormalStickerChance` aceita 0 (default só quando não configurado, via
+  sentinel -1). `DenoPath` com default. `checkDeps` ficou condicional a
+  `music.localEnabled` (yt-dlp/deno só são exigidos no modo local). Viper
+  deixou de ser global (instância por chamada). Testes: `config_test.go`.
+
 ### Ainda pendente
 - **Plano de arquitetura em `docs/architecture/IMPLEMENTATION_PLAN.md`** — Etapas 2 a 8
   aprovadas e a executar: identidade do owner, ciclo de vida/reconexão, config,
