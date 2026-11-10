@@ -16,7 +16,13 @@ func LowPriorityProc() *syscall.SysProcAttr {
 // RunLowPriority inicia cmd com prioridade baixa (nice+10) e espera terminar.
 // Equivalente a cmd.Run() mas ajusta o nice do processo filho após o start.
 func RunLowPriority(cmd *exec.Cmd) error {
-	cmd.SysProcAttr = LowPriorityProc()
+	// Não sobrescreve o SysProcAttr do caller: quem define Setpgid (para
+	// matar o grupo de processos) perde o Pdeathsig se fosse sobrescrito.
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = LowPriorityProc()
+	} else {
+		cmd.SysProcAttr.Pdeathsig = syscall.SIGTERM
+	}
 	if err := cmd.Start(); err != nil {
 		return err
 	}

@@ -128,7 +128,7 @@
 
 ---
 
-## Etapa 7 — Limite de concorrência e recursos
+## Etapa 7 — Limite de concorrência e recursos ✅ (2026-11-10)
 
 | Campo | Conteúdo |
 |---|---|

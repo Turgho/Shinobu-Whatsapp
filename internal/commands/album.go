@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/gosafe"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types/events"
 	"go.uber.org/zap"
@@ -137,8 +138,12 @@ func (ac *AlbumCoordinator) Bufferize(parentID string, evt *events.Message, cmdN
 		if expected == 0 {
 			timeout = albumBufferTimeoutUnk
 		}
+		// O callback do time.AfterFunc roda em goroutine própria: sem o
+		// recover, um panic aqui derrubaria o processo inteiro.
 		pa.timer = time.AfterFunc(timeout, func() {
-			ac.dispatchTimeout(parentID)
+			gosafe.Go(ac.log, func() {
+				ac.dispatchTimeout(parentID)
+			})
 		})
 
 		ac.log.Debug("album: buffering iniciado",
