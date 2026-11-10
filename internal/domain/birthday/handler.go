@@ -2,12 +2,13 @@ package birthday
 
 import (
 	"context"
+
 	"fmt"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/identity"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/phone"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
@@ -25,7 +26,7 @@ import (
 //
 //	!aniversario salvar @pessoa DD/MM — salva aniversário de outra pessoa
 //	!aniversario remover @pessoa      — remove aniversário de outra pessoa
-func HandleGroup(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string, ownerNumber string, admins []string) error {
+func HandleGroup(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string, owner identity.Owner, admins []string) error {
 	if len(args) == 0 {
 		return usage(ctx, client, evt)
 	}
@@ -37,7 +38,7 @@ func HandleGroup(ctx context.Context, client *whatsmeow.Client, evt *events.Mess
 	case "salvar":
 		// Salvar outro → só dono/admin
 		if len(args) >= 3 && strings.HasPrefix(args[1], "@") {
-			if !isPrivileged(evt, ownerNumber, admins) {
+			if !isPrivileged(evt, owner, admins) {
 				return whatsapp.SendText(ctx, client, evt,
 					"❌ Apenas o dono ou admins podem salvar o aniversário de outras pessoas.", true)
 			}
@@ -53,7 +54,7 @@ func HandleGroup(ctx context.Context, client *whatsmeow.Client, evt *events.Mess
 	case "remover":
 		// Remover outro → só dono/admin
 		if len(args) >= 2 && strings.HasPrefix(args[1], "@") {
-			if !isPrivileged(evt, ownerNumber, admins) {
+			if !isPrivileged(evt, owner, admins) {
 				return whatsapp.SendText(ctx, client, evt,
 					"❌ Apenas o dono ou admins podem remover o aniversário de outras pessoas.", true)
 			}
@@ -200,17 +201,10 @@ func usage(ctx context.Context, client *whatsmeow.Client, evt *events.Message) e
 }
 
 // isPrivileged verifica se o remetente é o dono ou um dos admins.
-func isPrivileged(evt *events.Message, ownerNumber string, admins []string) bool {
-	sender := phone.NormalizeNumber(evt.Info.Sender.ToNonAD().User)
-	if sender == phone.NormalizeNumber(ownerNumber) {
-		return true
-	}
-	for _, admin := range admins {
-		if sender == phone.NormalizeNumber(admin) {
-			return true
-		}
-	}
-	return false
+// Usa a regra única de internal/identity (número OU JID).
+func isPrivileged(evt *events.Message, owner identity.Owner, admins []string) bool {
+	sender := evt.Info.Sender.ToNonAD()
+	return owner.MatchesAny(sender.User, sender.String(), admins)
 }
 
 // extractMention pega o primeiro JID mencionado na mensagem.

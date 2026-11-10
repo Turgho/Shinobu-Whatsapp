@@ -112,7 +112,7 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Name:        "aniversário",
 		Description: "Gerencia aniversário de grupos",
 		Type:        commands.CommandTypeGroup,
-	}, public.BirthdayCommand(cfg.UsersJID.Owner, cfg.UsersJID.Admins))
+	}, public.BirthdayCommand(cfg.Owner, cfg.UsersJID.Admins))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "efeito",

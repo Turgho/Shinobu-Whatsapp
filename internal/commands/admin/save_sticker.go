@@ -3,6 +3,8 @@ package admin
 import (
 	"context"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/identity"
+
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/sticker"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
@@ -21,10 +23,10 @@ import (
 // Em grupos ou DM:
 //
 //	!fig <nome>         — envia o sticker salvo
-func SaveStickerCommand(ownerNumber string, stickerStore *sticker.Store) commands.HandlerFunc {
+func SaveStickerCommand(owner identity.Owner, stickerStore *sticker.Store) commands.HandlerFunc {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		// HandleDM já filtra por DM, dono e prefixo !fig salvar/remover/lista.
-		sticker.HandleDM(ctx, client, evt, ownerNumber, stickerStore)
+		sticker.HandleDM(ctx, client, evt, owner, stickerStore)
 
 		// Enviar sticker salvo pelo nome.
 		if len(args) == 0 {

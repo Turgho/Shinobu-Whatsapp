@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/identity"
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
@@ -20,8 +21,12 @@ type Config struct {
 	Groq     GroqConfig
 	Tavily   TavilyConfig
 	Music    MusicConfig
-	Owner    OwnerConfig
 	Feriados FeriadosConfig
+
+	// Owner é a identidade do dono — número e/ou JID. Substitui as duas
+	// configurações antigas (usersJID.owner e owner.number), que seguem
+	// sendo lidas para compatibilidade.
+	Owner identity.Owner
 }
 
 type WeekdayJobConfig struct {
@@ -158,8 +163,12 @@ func Load() *Config {
 		MaxDownloads: viper.GetInt("music.maxDownloads"),
 		TimeoutSec:   viper.GetInt("music.timeoutSec"),
 	}
-	cfg.Owner = OwnerConfig{
+	// Identidade do dono: número vem de OWNER_NUMBER (path legado
+	// "apicalls.owner.number"), JID vem de usersJID.owner (YAML ou
+	// OWNER_JID). As duas formas são aceitas na comparação.
+	cfg.Owner = identity.Owner{
 		Number: viper.GetString("apicalls.owner.number"),
+		JID:    viper.GetString("usersjid.owner"),
 	}
 	cfg.Feriados = FeriadosConfig{
 		APIKey: viper.GetString("apicalls.feriados.apiKey"),

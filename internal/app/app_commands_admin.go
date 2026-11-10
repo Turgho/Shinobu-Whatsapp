@@ -93,7 +93,7 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *histo
 			{Name: "nome", Required: false},
 		},
 		Private: true,
-	}, admin.SaveStickerCommand(cfg.UsersJID.Owner, stickerStore))
+	}, admin.SaveStickerCommand(cfg.Owner, stickerStore))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "ignorar",

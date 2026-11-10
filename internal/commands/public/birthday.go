@@ -3,6 +3,8 @@ package public
 import (
 	"context"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/identity"
+
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/birthday"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
@@ -21,13 +23,13 @@ import (
 //
 //	!aniversario salvar @pessoa DD/MM — salva de outra pessoa
 //	!aniversario remover @pessoa      — remove de outra pessoa
-func BirthdayCommand(ownerNumber string, admins []string) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
+func BirthdayCommand(owner identity.Owner, admins []string) func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 	return func(ctx context.Context, client *whatsmeow.Client, evt *events.Message, args []string) error {
 		if !evt.Info.IsGroup {
 			return whatsapp.SendText(ctx, client, evt,
 				"❌ Este comando só funciona em grupos.", true)
 		}
 
-		return birthday.HandleGroup(ctx, client, evt, args, ownerNumber, admins)
+		return birthday.HandleGroup(ctx, client, evt, args, owner, admins)
 	}
 }

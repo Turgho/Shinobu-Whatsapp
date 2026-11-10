@@ -22,7 +22,7 @@
 
 ---
 
-## Etapa 1 — Não quebrar e não mentir
+## Etapa 1 — Não quebrar e não mentir ✅ (v2.23.3, 2026-11-10)
 
 | Campo | Conteúdo |
 |---|---|
@@ -40,7 +40,7 @@
 
 ---
 
-## Etapa 2 — Identidade do owner e menção do bot
+## Etapa 2 — Identidade do owner e menção do bot ✅ (2026-11-10)
 
 | Campo | Conteúdo |
 |---|---|

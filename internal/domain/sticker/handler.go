@@ -2,10 +2,11 @@ package sticker
 
 import (
 	"context"
+
 	"fmt"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/identity"
 	"strings"
 
-	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/phone"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -19,11 +20,13 @@ import (
 //	!fig salvar <nome>   — salva um sticker (mande junto ou cite um)
 //	!fig remover <nome>  — remove um sticker salvo
 //	!fig lista           — lista todos os stickers cadastrados
-func HandleDM(ctx context.Context, client *whatsmeow.Client, evt *events.Message, ownerNumber string, store *Store) {
+func HandleDM(ctx context.Context, client *whatsmeow.Client, evt *events.Message, owner identity.Owner, store *Store) {
 	if evt == nil || evt.Message == nil || evt.Info.IsGroup {
 		return
 	}
-	if phone.NormalizeNumber(evt.Info.Sender.User) != phone.NormalizeNumber(ownerNumber) {
+	// Regra única de identidade (internal/identity): número OU JID.
+	sender := evt.Info.Sender.ToNonAD()
+	if !owner.Matches(sender.User, sender.String()) {
 		return
 	}
 

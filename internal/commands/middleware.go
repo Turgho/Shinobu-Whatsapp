@@ -2,8 +2,8 @@ package commands
 
 import (
 	"context"
-	"slices"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/identity"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/uptime"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/integration/whatsapp"
 	"go.mau.fi/whatsmeow/types/events"
@@ -53,7 +53,10 @@ func CommandNotFoundMiddleware(r *Router) Middleware {
 
 // PrivateCommandsMiddleware bloqueia comandos marcados como Private=true para
 // usuários sem permissão. Usa os metadados do Router — sem mapa manual externo.
-func PrivateCommandsMiddleware(r *Router, owner string, admins []string) Middleware {
+//
+// A identidade usa a regra única de internal/identity: número OU JID casam,
+// independente do modo de endereçamento (LID ou @s.whatsapp.net).
+func PrivateCommandsMiddleware(r *Router, owner identity.Owner, admins []string) Middleware {
 	return func(cmd string, evt *events.Message) bool {
 		if !r.IsPrivate(cmd) {
 			return true
@@ -61,15 +64,15 @@ func PrivateCommandsMiddleware(r *Router, owner string, admins []string) Middlew
 
 		// ToNonAD() remove o número de dispositivo do JID, permitindo que o mesmo
 		// usuário seja reconhecido independente de enviar pelo celular, PC ou Web.
-		jid := evt.Info.Sender.ToNonAD().String()
+		sender := evt.Info.Sender.ToNonAD()
 
-		if jid == owner || slices.Contains(admins, jid) {
+		if owner.MatchesAny(sender.User, sender.String(), admins) {
 			return true
 		}
 
 		ctx := context.Background()
 		msg := "🔒 Você não tem permissão para usar este comando."
-		sendMiddlewareNotice(ctx, r, evt, cmd, jid, msg, "Falha ao notificar acesso negado")
+		sendMiddlewareNotice(ctx, r, evt, cmd, sender.String(), msg, "Falha ao notificar acesso negado")
 		return false
 	}
 }
