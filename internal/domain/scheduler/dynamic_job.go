@@ -65,6 +65,14 @@ func (j *DynamicJob) Run(ctx context.Context) error {
 		err = whatsapp.SendTextToJID(sendCtx, j.client, jid, j.Message, nil)
 	}
 	if err != nil {
+		// Marca como concluído mesmo na falha: sem isso o job voltava a
+		// cada tick de 15s (tentando de novo indefinidamente enquanto o
+		// WhatsApp estivesse fora).
+		j.done.Store(true)
+		j.logger.Warn("Lembrete não enviado — não será reenviado",
+			zap.String("job_id", j.ID),
+			zap.Error(err),
+		)
 		return fmt.Errorf("dynamic_job: enviar mensagem: %w", err)
 	}
 

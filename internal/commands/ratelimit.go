@@ -70,3 +70,23 @@ func (r *Router) SetRateLimit(max int, every time.Duration) {
 	r.rateLimitMax = max
 	r.rateLimitEvery = every
 }
+
+// checkAIRateLimit limita os comandos de IA (Groq/Tavily) por remetente —
+// cota menor que o limite geral de mensagens.
+func (r *Router) checkAIRateLimit(key string) bool {
+	r.aiRateLimitMu.Lock()
+	defer r.aiRateLimitMu.Unlock()
+
+	now := time.Now()
+	entry, ok := r.aiRateLimitMap[key]
+	if !ok || now.After(entry.resetAt) {
+		r.aiRateLimitMap[key] = &rateLimitEntry{
+			count:   1,
+			resetAt: now.Add(r.aiRateLimitEvery),
+		}
+		return true
+	}
+
+	entry.count++
+	return entry.count <= r.aiRateLimitMax
+}

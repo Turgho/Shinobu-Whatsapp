@@ -23,6 +23,10 @@ import (
 const (
 	handlerTimeoutMention = 90 * time.Second
 	handlerTimeoutCommand = 180 * time.Second
+
+	// maxConcurrentHandlers é quantos comandos podem rodar ao mesmo tempo.
+	// Acima disso o usuário recebe um aviso em vez de o bot engasgar.
+	maxConcurrentHandlers = 5
 )
 
 // Router coordena registro de comandos, middlewares, rate limit e dispatch.
@@ -41,6 +45,17 @@ type Router struct {
 	rateLimitMap   map[string]*rateLimitEntry
 	rateLimitMax   int
 	rateLimitEvery time.Duration
+
+	// Limite próprio para comandos de IA (Groq/Tavily) — mais apertado.
+	aiRateLimitMu    sync.Mutex
+	aiRateLimitMap   map[string]*rateLimitEntry
+	aiRateLimitMax   int
+	aiRateLimitEvery time.Duration
+
+	// handlerSlots limita quantos comandos rodam ao mesmo tempo. Sem isso,
+	// uma rajada de mensagens abre uma goroutine por mensagem (cada uma
+	// capaz de baixar mídia e spawnar ffmpeg) num host de 512MB.
+	handlerSlots chan struct{}
 
 	messageHooks    []func(ctx context.Context, evt *events.Message, msg string)
 	shutdownHook    func()
@@ -62,16 +77,20 @@ type Router struct {
 // Rate limit padrão: 10 mensagens por minuto por sender.
 func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *history.Store, ignoreStore *ignore.Store) *Router {
 	r := &Router{
-		commands:       make(map[string]command),
-		aliases:        make(map[string]string),
-		prefix:         prefix,
-		client:         client,
-		log:            log,
-		store:          store,
-		ignoreStore:    ignoreStore,
-		rateLimitMap:   make(map[string]*rateLimitEntry),
-		rateLimitMax:   10,
-		rateLimitEvery: time.Minute,
+		commands:         make(map[string]command),
+		aliases:          make(map[string]string),
+		prefix:           prefix,
+		client:           client,
+		log:              log,
+		store:            store,
+		ignoreStore:      ignoreStore,
+		rateLimitMap:     make(map[string]*rateLimitEntry),
+		rateLimitMax:     10,
+		rateLimitEvery:   time.Minute,
+		aiRateLimitMap:   make(map[string]*rateLimitEntry),
+		aiRateLimitMax:   5,
+		aiRateLimitEvery: time.Minute,
+		handlerSlots:     make(chan struct{}, maxConcurrentHandlers),
 	}
 
 	r.albumCoordinator = NewAlbumCoordinator(log)
@@ -83,6 +102,25 @@ func NewRouter(prefix string, client *whatsmeow.Client, log *zap.Logger, store *
 }
 
 // --- Setters de configuração ---
+
+// acquireSlot reserva uma vaga de execução. Devolve false quando já há
+// maxConcurrentHandlers comandos em andamento.
+func (r *Router) acquireSlot() bool {
+	select {
+	case r.handlerSlots <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+// releaseSlot devolve a vaga de execução.
+func (r *Router) releaseSlot() {
+	select {
+	case <-r.handlerSlots:
+	default:
+	}
+}
 
 // SetRootContext define o contexto raiz da aplicação (cancelado no
 // encerramento do bot).
@@ -317,7 +355,9 @@ func (r *Router) HandleMessage(evt *events.Message) {
 	}
 	hookCancel()
 
-	rateLimitKey := evt.Info.Sender.ToNonAD().String()
+	// Rate limit por (sender, chat): 11 mensagens num grupo não devem
+	// bloquear o mesmo usuário em todos os outros chats.
+	rateLimitKey := evt.Info.Sender.ToNonAD().String() + "|" + evt.Info.Chat.ToNonAD().String()
 	if !r.checkRateLimit(rateLimitKey) {
 		return
 	}
@@ -404,6 +444,13 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 
 	ctx, cancel := context.WithTimeout(r.ctx(), handlerTimeoutCommand)
 	defer cancel()
+
+	if !r.acquireSlot() {
+		r.log.Warn("Comandos concorrentes acima do limite", zap.String("command", cmdName))
+		_ = whatsapp.Reply(ctx, r.client, evt, "😅 Tô occupied, tenta de novo em instantes.")
+		return
+	}
+	defer r.releaseSlot()
 
 	start := time.Now()
 	if err := cmd.Handler(ctx, r.client, evt, args); err != nil {

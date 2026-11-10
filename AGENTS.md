@@ -650,6 +650,20 @@ func (j *XyzJob) Run(ctx context.Context) error { ... }
   como alias de `!menu`, atalhos listados no menu e comandos privados
   visíveis para owner/admin (as categorias de administração ficavam vazias).
 
+- **Etapa 7 — concorrência e recursos**: semáforo de **5 comandos
+  simultâneos** no router (acima disso o usuário recebe um aviso em vez de o
+  bot engasgar — antes havia uma goroutine por mensagem, cada uma capaz de
+  baixar mídia e spawnar ffmpeg num host de 512MB). Rate limit por
+  **(sender, chat)** — 11 mensagens num grupo não bloqueavam mais o mesmo
+  usuário em todos os chats — e limite próprio para comandos de IA
+  (5/min por remetente, mais apertado que o geral). `gosafe.Group` (WaitGroup
+  + recover) para esperar tarefas no shutdown. O dispatch do album por
+  `time.AfterFunc` agora passa por `gosafe.Go` — era o **único caminho sem
+  recover**: um panic ali derrubava o processo inteiro. `ffmpeg.RunLowPriority`
+  não sobrescreve mais o `SysProcAttr` do caller (preserva o `Setpgid`).
+  `DynamicJob` marca o lembrete como concluído **também na falha** — antes
+  reexecutava a cada tick de 15s enquanto o WhatsApp estivesse fora.
+
 ### Ainda pendente
 - **Plano de arquitetura em `docs/architecture/IMPLEMENTATION_PLAN.md`** — Etapas 2 a 8
   aprovadas e a executar: identidade do owner, ciclo de vida/reconexão, config,

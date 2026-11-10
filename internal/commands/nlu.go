@@ -18,6 +18,13 @@ import (
 // 3. Se aprovado → despacha para o handler
 // 4. Se falhar ou sem comando → fallback para IA geral
 func (r *Router) handleNaturalLanguage(evt *events.Message, msg string) {
+	// Comandos de IA são caros (Groq/Tavily). Um limite próprio, menor
+	// que o geral, evita que um remetente consuma a cota do plano.
+	if !r.checkAIRateLimit(evt.Info.Sender.ToNonAD().String()) {
+		r.log.Warn("Limite de comandos de IA atingido")
+		return
+	}
+
 	// Intent desativado via config — pula direto para conversa geral,
 	// sem chamar DetectIntent. Comportamento idêntico ao pré-Intent.
 	if !r.intentEnabled {
