@@ -1,7 +1,6 @@
 package app
 
 import (
-	"net/http"
 	"os"
 	"time"
 
@@ -21,7 +20,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap.Logger, store *history.Store, sched *scheduler.Scheduler, dynStore *scheduler.DynamicStore, stickerStore *sticker.Store, mikaelStore *mikael.Store) {
+func registerPublicCommands(r *commands.Router, cfg *configs.Config, aiCfg *ia.Config, logger *zap.Logger, store *history.Store, sched *scheduler.Scheduler, dynStore *scheduler.DynamicStore, stickerStore *sticker.Store, mikaelStore *mikael.Store) {
 	geoClient := geocoding.NewGeoCoding(cfg.ApiURLs.Geocoding, cfg.ApiURLs.OpenMeteoGeo, logger.Named("GEOCODING"))
 	weatherClient := weather.NewWeatherClient(cfg.ApiURLs.Weather, logger.Named("WEATHER"))
 
@@ -106,7 +105,7 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Description: "converse com shinobu",
 		Type:        commands.CommandTypeAI,
 		Args:        []commands.ArgMeta{{Name: "escreva algo", Required: false}},
-	}, public.ShinobuCommand(store, cfg, stickerStore))
+	}, public.ShinobuCommand(store, cfg, aiCfg, stickerStore))
 
 	r.RegisterCommand(commands.CommandMeta{
 		Name:        "aniversário",
@@ -141,13 +140,6 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, logger *zap
 		Type:        commands.CommandTypeUtility,
 		Private:     false,
 	}, public.FeriadoHandler(feriadoClient))
-
-	aiCfg := &ia.Config{
-		GroqURL:    cfg.Groq.URL,
-		GroqKey:    cfg.Groq.APIKey,
-		TavilyKey:  cfg.Tavily.APIKey,
-		HTTPClient: &http.Client{Timeout: 30 * time.Second},
-	}
 
 	loc, errLoc := time.LoadLocation(cfg.Bot.Timezone)
 	if errLoc != nil {

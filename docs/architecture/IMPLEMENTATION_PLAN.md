@@ -92,7 +92,7 @@
 
 ---
 
-## Etapa 5 — Persistência e integrações externas
+## Etapa 5 — Persistência e integrações externas ✅ (2026-11-10)
 
 | Campo | Conteúdo |
 |---|---|

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/cache"
 	"go.uber.org/zap"
 )
 
@@ -16,6 +17,7 @@ type WeatherClient struct {
 	APIURL     string
 	Logger     *zap.Logger
 	httpClient *http.Client
+	cache      *cache.Cache[*WeatherResult]
 }
 
 type WeatherResult struct {
@@ -100,10 +102,23 @@ func NewWeatherClient(apiURL string, logger *zap.Logger) *WeatherClient {
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
+		// Cache de 10min por coordenada: "!clima" repetido na mesma cidade
+		// não precisa virar nova chamada à Open-Meteo.
+		cache: cache.New[*WeatherResult](10 * time.Minute),
 	}
 }
 
+// cacheKey monta a chave do cache de clima.
+func cacheKey(lat, lon float64) string {
+	return fmt.Sprintf("%.4f,%.4f", lat, lon)
+}
+
 func (w *WeatherClient) GetCurrentWeather(ctx context.Context, lat, lon float64) (*WeatherResult, error) {
+	key := cacheKey(lat, lon)
+	if cached, ok := w.cache.Get(key); ok {
+		return cached, nil
+	}
+
 	if resp, err := w.fetchHourly(ctx, lat, lon, 1); err == nil {
 		result := &WeatherResult{
 			Time:                resp.Current.Time,
@@ -119,6 +134,7 @@ func (w *WeatherClient) GetCurrentWeather(ctx context.Context, lat, lon float64)
 			idx < len(resp.Hourly.PrecipitationProb) {
 			result.PrecipitationProb = resp.Hourly.PrecipitationProb[idx]
 		}
+		w.cache.Set(key, result)
 		return result, nil
 	}
 
@@ -218,7 +234,7 @@ func (w *WeatherClient) GetCurrentAndDailyForecast(ctx context.Context, lat, lon
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return nil, nil, fmt.Errorf("weather: status %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -301,7 +317,7 @@ func (w *WeatherClient) fetchHourly(ctx context.Context, lat, lon float64, forec
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		w.Logger.Error("Open-Meteo retornou status inesperado",
 			zap.Int("status", resp.StatusCode), zap.String("body", string(body)))
 		return nil, fmt.Errorf("weather: status %d", resp.StatusCode)
@@ -345,7 +361,7 @@ func (w *WeatherClient) fetchDaily(ctx context.Context, lat, lon float64, days i
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		w.Logger.Error("Open-Meteo daily retornou status inesperado",
 			zap.Int("status", resp.StatusCode), zap.String("body", string(body)))
 		return nil, fmt.Errorf("weather: daily status %d", resp.StatusCode)
@@ -371,6 +387,8 @@ func (w *WeatherClient) fetchWttr(ctx context.Context, lat, lon float64) (*Weath
 	if err != nil {
 		return nil, fmt.Errorf("weather: request wttr.in: %w", err)
 	}
+	// wttr.in recusa (ou devolve HTML) sem User-Agent.
+	req.Header.Set("User-Agent", "Shinobu-Whatsapp/1.0")
 	resp, err := w.httpClient.Do(req)
 	if err != nil {
 		w.Logger.Error("Erro ao fazer request HTTP (wttr.in)", zap.Error(err))
@@ -379,7 +397,7 @@ func (w *WeatherClient) fetchWttr(ctx context.Context, lat, lon float64) (*Weath
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		w.Logger.Error("wttr.in retornou status inesperado",
 			zap.Int("status", resp.StatusCode), zap.String("body", string(body)))
 		return nil, fmt.Errorf("weather: wttr.in status %d", resp.StatusCode)

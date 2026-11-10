@@ -3,6 +3,7 @@ package mikael
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
@@ -27,7 +28,7 @@ type Store struct {
 
 // NewStore cria uma Store. groups são os JIDs de grupo onde monitorar mensagens;
 // lid é o identificador do Mikael (com ou sem domínio).
-func NewStore(historyStore *history.Store, db *sql.DB, groups []string, lid string, log *zap.Logger) *Store {
+func NewStore(historyStore *history.Store, db *sql.DB, groups []string, lid string, log *zap.Logger) (*Store, error) {
 	g := make(map[string]bool, len(groups))
 	for _, grp := range groups {
 		g[grp] = true
@@ -45,14 +46,16 @@ func NewStore(historyStore *history.Store, db *sql.DB, groups []string, lid stri
 		targetSender: sender,
 	}
 
-	s.initSchema()
+	if err := s.initSchema(); err != nil {
+		return nil, err
+	}
 	s.migrateLegacyData()
 
-	return s
+	return s, nil
 }
 
 // initSchema cria a tabela word_counts se não existir.
-func (s *Store) initSchema() {
+func (s *Store) initSchema() error {
 	_, err := s.db.Exec(`
 		CREATE TABLE IF NOT EXISTS word_counts (
 			id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,7 +69,9 @@ func (s *Store) initSchema() {
 	`)
 	if err != nil {
 		s.log.Error("Erro ao criar tabela word_counts", zap.Error(err))
+		return fmt.Errorf("mikael: criar tabela word_counts: %w", err)
 	}
+	return nil
 }
 
 // migrateLegacyData faz uma migração única dos dados existentes na tabela

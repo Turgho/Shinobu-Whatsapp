@@ -58,9 +58,25 @@ func callGroq(ctx context.Context, httpClient *http.Client, groqURL, groqKey, mo
 }
 
 // groqChat é a camada pública que envolve groqChatRaw com retry em caso de 429.
+// groqChat faz a chamada com retry em 429 (usado na resposta principal).
 func groqChat(ctx context.Context, httpClient *http.Client, groqURL, groqKey string, req IARequest) (IAResponse, error) {
+	return groqChatWithRetry(ctx, httpClient, groqURL, groqKey, req, maxRetries)
+}
+
+// groqChatOnce faz UMA tentativa, sem retry.
+//
+// Usado pelo classificador de busca web, NLU, resumo e fatos: o retry
+// multiplicava o consumo de cota (até 12 requisições por mensagem numa
+// rajada de 429) sem garantir resposta — e esses caminhos são
+// opcionalmente degradáveis (a conversa continua sem eles).
+func groqChatOnce(ctx context.Context, httpClient *http.Client, groqURL, groqKey string, req IARequest) (IAResponse, error) {
+	return groqChatWithRetry(ctx, httpClient, groqURL, groqKey, req, 0)
+}
+
+// groqChatWithRetry executa a chamada com até "retries" retentativas em 429.
+func groqChatWithRetry(ctx context.Context, httpClient *http.Client, groqURL, groqKey string, req IARequest, retries int) (IAResponse, error) {
 	var lastErr error
-	for attempt := range maxRetries + 1 {
+	for attempt := range retries + 1 {
 		resp, err := groqChatRaw(ctx, httpClient, groqURL, groqKey, req)
 		if err == nil {
 			return resp, nil
@@ -73,7 +89,7 @@ func groqChat(ctx context.Context, httpClient *http.Client, groqURL, groqKey str
 
 		lastErr = err
 
-		if attempt < maxRetries {
+		if attempt < retries {
 			backoff := time.Duration(math.Min(
 				float64(baseBackoff)*math.Pow(2, float64(attempt)),
 				float64(maxBackoff),
@@ -85,7 +101,7 @@ func groqChat(ctx context.Context, httpClient *http.Client, groqURL, groqKey str
 			}
 		}
 	}
-	return IAResponse{}, fmt.Errorf("groq: rate limit excedido após %d tentativas: %w", maxRetries+1, lastErr)
+	return IAResponse{}, fmt.Errorf("groq: rate limit excedido após %d tentativas: %w", retries+1, lastErr)
 }
 
 // groqChatRaw faz a chamada HTTP real à API Groq, sem retry.
@@ -121,7 +137,7 @@ func groqChatRaw(ctx context.Context, httpClient *http.Client, groqURL, groqKey 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(resp.Body)
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		if resp.StatusCode == http.StatusTooManyRequests {
 			return zero, &RateLimitError{Model: req.Model, Reason: string(b)}
 		}

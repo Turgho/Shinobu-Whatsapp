@@ -50,13 +50,21 @@ func DownloadFromEvent(ctx context.Context, client *whatsmeow.Client, evt *event
 		return nil, err
 	}
 
+	// Checagem ANTES do download: a maioria das mídias traz o tamanho no
+	// próprio protobuf (FileLength). Sem isso, um vídeo de 300MB era
+	// carregado inteiro na RAM (limite de 512MB no contêiner) e só depois
+	// descartado.
+	if size, ok := fileLength(info.source); ok && size > MaxDownloadSize {
+		return nil, fmt.Errorf("media: mídia muito grande (%d bytes, máximo %d)", size, MaxDownloadSize)
+	}
+
 	data, err := client.Download(ctx, info.source)
 	if err != nil {
 		return nil, fmt.Errorf("media: falha ao baixar mídia: %w", err)
 	}
 
-	// Checagem pós-download: a API do WhatsApp não expõe o tamanho do arquivo
-	// de forma confiável antes de baixar (alguns tipos de mídia não têm o campo).
+	// Checagem pós-download (rede de segurança): nem toda mídia traz o
+	// tamanho no protobuf.
 	if len(data) > MaxDownloadSize {
 		return nil, fmt.Errorf("media: mídia muito grande (%d bytes, máximo %d)", len(data), MaxDownloadSize)
 	}
@@ -67,6 +75,20 @@ func DownloadFromEvent(ctx context.Context, client *whatsmeow.Client, evt *event
 		Animated: info.animated,
 		Type:     info.mediaType,
 	}, nil
+}
+
+// fileLengthGetter é implementado pelos tipos de mídia do WhatsApp que
+// carregam o tamanho do arquivo (ImageMessage, VideoMessage, Document...).
+type fileLengthGetter interface {
+	GetFileLength() uint64
+}
+
+// fileLength devolve o tamanho declarado da mídia, quando disponível.
+func fileLength(source whatsmeow.DownloadableMessage) (int, bool) {
+	if fl, ok := source.(fileLengthGetter); ok {
+		return int(fl.GetFileLength()), true
+	}
+	return 0, false
 }
 
 type downloadable struct {
