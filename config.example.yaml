@@ -58,9 +58,16 @@ music:
   # serverUrl ou env MUSIC_SERVER_URL
   # apiToken  ou env API_AUTH_TOKEN
 
+# --- IA (Groq) ---
+ia:
+  # Modelo da conversa principal. Vazio = padrão (openai/gpt-oss-20b).
+  # Para testar a personalidade: qwen/qwen3.8-27b
+  model: ""
+
 # --- Variáveis de ambiente (sobrescrevem config.yaml) ---
 # GROQ_URL=https://api.groq.com/openai/v1/chat/completions
 # GROQ_API_KEY=gsk_...
+# IA_MODEL=openai/gpt-oss-20b   # ou qwen/qwen3.8-27b para testar personalidade
 # TAVILY_API_KEY=tvly-...
 # MUSIC_SERVER_URL=http://...
 # MUSIC_API_TOKEN=token_...

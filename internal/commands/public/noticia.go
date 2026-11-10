@@ -39,7 +39,7 @@ func NoticiaCommand(
 		{Role: "user", Content: user},
 	}
 
-	answer, err := ia.QuickChat(ctx, aiCfg.HTTPClient, aiCfg.GroqURL, aiCfg.GroqKey, ia.ModelScoutFast, msgs, 0.2, 350)
+	answer, err := ia.QuickChat(ctx, aiCfg.HTTPClient, aiCfg.GroqURL, aiCfg.GroqKey, ia.ModelElaborate, msgs, 0.2, 350)
 	if err != nil {
 		return whatsapp.Reply(ctx, client, evt, msgNoticiaFail)
 	}

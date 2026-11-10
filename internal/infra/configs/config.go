@@ -22,6 +22,7 @@ type Config struct {
 
 	Groq     GroqConfig
 	Tavily   TavilyConfig
+	IA       IAConfig
 	Music    MusicConfig
 	Feriados FeriadosConfig
 
@@ -132,6 +133,7 @@ func Load() (*Config, error) {
 	v.BindEnv("groq.url", "GROQ_URL")
 	v.BindEnv("groq.apiKey", "GROQ_API_KEY")
 	v.BindEnv("tavily.apiKey", "TAVILY_API_KEY")
+	v.BindEnv("ia.model", "IA_MODEL")
 
 	if err := v.ReadInConfig(); err != nil {
 		// Sem YAML: segue só com env/default (deploy mínimo).
@@ -161,6 +163,9 @@ func Load() (*Config, error) {
 	cfg.Groq = GroqConfig{
 		URL:    firstNonEmpty(v.GetString("groq.url"), v.GetString("apicalls.groq.url")),
 		APIKey: firstNonEmpty(v.GetString("groq.apiKey"), v.GetString("apicalls.groq.apiKey")),
+	}
+	cfg.IA = IAConfig{
+		Model: v.GetString("ia.model"),
 	}
 	cfg.Tavily = TavilyConfig{
 		APIKey: firstNonEmpty(v.GetString("tavily.apiKey"), v.GetString("apicalls.tavily.apiKey")),
@@ -234,6 +239,14 @@ type GroqConfig struct {
 
 type TavilyConfig struct {
 	APIKey string `mapstructure:"apiKey"`
+}
+
+// IAConfig ajusta o comportamento dos modelos de IA.
+type IAConfig struct {
+	// Model sobrescreve o modelo da conversa principal. Vazio = padrão do
+	// pacote (openai/gpt-oss-20b). Útil para testar personalidade
+	// (qwen/qwen3.8-27b) sem recompilar.
+	Model string `mapstructure:"model"`
 }
 
 type MusicConfig struct {
