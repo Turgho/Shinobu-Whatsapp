@@ -53,7 +53,7 @@ func RestartAPICommand(c *noteapi.Client, logger *zap.Logger) func(ctx context.C
 		}
 
 		_, code, callErr := c.Action(ctx, "/admin/restart", 15*time.Second)
-		if callErr != nil && code != 0 {
+		if callErr != nil || !noteapi.OK(code) {
 			logger.Error("restart da API falhou", zap.Error(callErr))
 			return whatsapp.Reply(ctx, client, evt, "❌ Não consegui reiniciar a API, olha os logs do notebook.")
 		}
@@ -69,8 +69,10 @@ func RestartTunnelCommand(c *noteapi.Client, logger *zap.Logger) func(ctx contex
 			return fmt.Errorf("falha ao avisar antes de reiniciar o túnel: %w", err)
 		}
 
+		// O restart do túnel derruba a conexão: erro de transporte aqui
+		// significa "provavelmente executou". Só o status HTTP decide falha.
 		_, code, callErr := c.Action(ctx, "/admin/restart-tunnel", 30*time.Second)
-		if callErr != nil && code != 0 {
+		if callErr == nil && !noteapi.OK(code) {
 			logger.Error("restart do túnel falhou", zap.Error(callErr))
 			return whatsapp.Reply(ctx, client, evt, "❌ Falhou o restart do túnel, olha o log do cloudflared no notebook.")
 		}
@@ -86,7 +88,7 @@ func ResetWifiCommand(c *noteapi.Client, logger *zap.Logger) func(ctx context.Co
 		}
 
 		body, code, callErr := c.Action(ctx, "/admin/wifi-recover", 30*time.Second)
-		if callErr != nil && code != 0 {
+		if callErr != nil || !noteapi.OK(code) {
 			logger.Error("reset de wifi falhou", zap.Error(callErr))
 			if strings.Contains(body, "sudo") {
 				return whatsapp.Reply(ctx, client, evt, "⚠️ O notebook ainda não tem a regra sudo pra isso — configura o sudoers e tenta de novo.")
@@ -106,7 +108,7 @@ func RebootNotebookCommand(c *noteapi.Client, logger *zap.Logger) func(ctx conte
 
 		body, code, callErr := c.Action(ctx, "/admin/reboot", 15*time.Second)
 		// Conexão morta aqui é esperado: o reboot derruba o túnel.
-		if callErr != nil && code != 0 && !strings.Contains(body, "sudo") {
+		if callErr == nil && !noteapi.OK(code) && !strings.Contains(body, "sudo") {
 			logger.Error("reboot do notebook falhou", zap.Error(callErr))
 			return whatsapp.Reply(ctx, client, evt, "❌ Não consegui reiniciar o notebook (a API respondeu?).")
 		}

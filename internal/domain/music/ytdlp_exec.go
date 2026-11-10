@@ -283,9 +283,9 @@ func taskID() string {
 }
 
 // moveFile move com rename e fallback de cópia (tmpdir e cache podem
-// estar em filesystems distintos). Não sobrescreve destino já pronto
-// de outra concorrência: se rename falhou por existir, o vencedor é o
-// download que escreveu primeiro.
+// estar em filesystems distintos). Não sobrescreve destino já pronto de
+// outra concorrência: se o destino já existe, o download que chegou
+// primeiro é o vencedor e o arquivo existente é servido.
 func moveFile(src, dst string) error {
 	if err := os.Rename(src, dst); err == nil {
 		return nil
@@ -297,7 +297,11 @@ func moveFile(src, dst string) error {
 	defer in.Close()
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o644)
 	if err != nil {
-		return err // destino ocupado: chamador serve o arquivo já existente
+		if errors.Is(err, os.ErrExist) {
+			// Destino já pronto (outro download ganhou): serve o existente.
+			return nil
+		}
+		return err
 	}
 	defer out.Close()
 	_, err = io.Copy(out, in)

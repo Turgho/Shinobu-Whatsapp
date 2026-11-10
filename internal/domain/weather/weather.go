@@ -67,15 +67,19 @@ type hourlyResponse struct {
 }
 
 // dailyResponse mapeia a resposta daily da Open-Meteo (/forecast?daily=...).
+// dailyData são os arrays paralelos do bloco `daily` da Open-Meteo.
+// Cada array é lido com guarda própria — ver dailyForecastAt.
+type dailyData struct {
+	Time                   []string  `json:"time"`
+	WeatherCode            []int     `json:"weather_code"`
+	Temperature2MMax       []float64 `json:"temperature_2m_max"`
+	Temperature2MMin       []float64 `json:"temperature_2m_min"`
+	ApparentTemperatureMax []float64 `json:"apparent_temperature_max"`
+	PrecipitationProbMax   []float64 `json:"precipitation_probability_max"`
+}
+
 type dailyResponse struct {
-	Daily struct {
-		Time                   []string  `json:"time"`
-		WeatherCode            []int     `json:"weather_code"`
-		Temperature2MMax       []float64 `json:"temperature_2m_max"`
-		Temperature2MMin       []float64 `json:"temperature_2m_min"`
-		ApparentTemperatureMax []float64 `json:"apparent_temperature_max"`
-		PrecipitationProbMax   []float64 `json:"precipitation_probability_max"`
-	} `json:"daily"`
+	Daily dailyData `json:"daily"`
 }
 
 // combinedResponse mapeia uma resposta com current + daily no mesmo request.
@@ -85,14 +89,7 @@ type combinedResponse struct {
 		ApparentTemperature float64 `json:"apparent_temperature"`
 		WeatherCode         int     `json:"weather_code"`
 	} `json:"current"`
-	Daily struct {
-		Time                   []string  `json:"time"`
-		WeatherCode            []int     `json:"weather_code"`
-		Temperature2MMax       []float64 `json:"temperature_2m_max"`
-		Temperature2MMin       []float64 `json:"temperature_2m_min"`
-		ApparentTemperatureMax []float64 `json:"apparent_temperature_max"`
-		PrecipitationProbMax   []float64 `json:"precipitation_probability_max"`
-	} `json:"daily"`
+	Daily dailyData `json:"daily"`
 }
 
 // NewWeatherClient cria client com timeout de 10s para Open-Meteo + wttr.in.
@@ -183,19 +180,8 @@ func (w *WeatherClient) GetDailyForecast(ctx context.Context, lat, lon float64, 
 	}
 
 	forecasts := make([]DailyForecast, 0, len(resp.Daily.Time))
-	for i := range resp.Daily.Time {
-		apparentMax := 0.0
-		if i < len(resp.Daily.ApparentTemperatureMax) {
-			apparentMax = resp.Daily.ApparentTemperatureMax[i]
-		}
-		forecasts = append(forecasts, DailyForecast{
-			Date:              resp.Daily.Time[i],
-			WeatherCode:       resp.Daily.WeatherCode[i],
-			TempMax:           resp.Daily.Temperature2MMax[i],
-			TempMin:           resp.Daily.Temperature2MMin[i],
-			ApparentTempMax:   apparentMax,
-			PrecipitationProb: resp.Daily.PrecipitationProbMax[i],
-		})
+	for i, day := range resp.Daily.Time {
+		forecasts = append(forecasts, dailyForecastAt(i, day, resp.Daily))
 	}
 
 	w.Logger.Info("Previsão diária obtida",
@@ -248,22 +234,39 @@ func (w *WeatherClient) GetCurrentAndDailyForecast(ctx context.Context, lat, lon
 	}
 
 	forecasts := make([]DailyForecast, 0, len(data.Daily.Time))
-	for i := range data.Daily.Time {
-		apparentMax := 0.0
-		if i < len(data.Daily.ApparentTemperatureMax) {
-			apparentMax = data.Daily.ApparentTemperatureMax[i]
-		}
-		forecasts = append(forecasts, DailyForecast{
-			Date:              data.Daily.Time[i],
-			WeatherCode:       data.Daily.WeatherCode[i],
-			TempMax:           data.Daily.Temperature2MMax[i],
-			TempMin:           data.Daily.Temperature2MMin[i],
-			ApparentTempMax:   apparentMax,
-			PrecipitationProb: data.Daily.PrecipitationProbMax[i],
-		})
+	for i, day := range data.Daily.Time {
+		forecasts = append(forecasts, dailyForecastAt(i, day, data.Daily))
 	}
 
 	return current, forecasts, nil
+}
+
+// dailyForecastAt monta o forecast do dia i lendo os arrays da API.
+//
+// A Open-Meteo devolve arrays paralelos, mas uma resposta parcial (campo
+// omitido, erro de proxy, `daily` vazio) faria o indexador estourar o
+// limite e derrubar o comando com panic. Cada campo tem guarda própria e um
+// array ausente vira 0 — o forecast segue utilizável.
+func dailyForecastAt(i int, day string, daily dailyData) DailyForecast {
+	at := func(values []float64) float64 {
+		if i < len(values) {
+			return values[i]
+		}
+		return 0
+	}
+	code := 0
+	if i < len(daily.WeatherCode) {
+		code = daily.WeatherCode[i]
+	}
+
+	return DailyForecast{
+		Date:              day,
+		WeatherCode:       code,
+		TempMax:           at(daily.Temperature2MMax),
+		TempMin:           at(daily.Temperature2MMin),
+		ApparentTempMax:   at(daily.ApparentTemperatureMax),
+		PrecipitationProb: at(daily.PrecipitationProbMax),
+	}
 }
 
 // fetchHourly consulta a Open-Meteo /forecast com parâmetros current + hourly.

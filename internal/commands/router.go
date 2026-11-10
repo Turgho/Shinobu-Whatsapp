@@ -4,6 +4,7 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -354,6 +355,19 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 
 	start := time.Now()
 	if err := cmd.Handler(ctx, r.client, evt, args); err != nil {
+		// ErrNotACommand = "este handler não é o dono desta entrada".
+		// No caminho NLU isso cai na conversa da IA; no caminho com prefixo
+		// o usuário ficaria sem resposta nenhuma — então avisamos.
+		if errors.Is(err, ErrNotACommand) {
+			r.log.Info("Comando não reconhecido para esta entrada",
+				append(eventFields(evt),
+					zap.String("command", cmdName),
+				)...,
+			)
+			r.replyNotACommand(ctx, evt, err)
+			return
+		}
+
 		r.log.Error("Erro no comando",
 			append(eventFields(evt),
 				zap.String("command", cmdName),
@@ -370,6 +384,27 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 			zap.String("date", time.Now().Format("2006-01-02 15:04:05")),
 		)...,
 	)
+}
+
+// replyNotACommand responde ao usuário quando o handler não reconheceu a
+// entrada. Sem isso o comando terminava em silêncio — o pior sintoma para
+// quem usa o bot.
+func (r *Router) replyNotACommand(ctx context.Context, evt *events.Message, err error) {
+	msg := notACommandMessage(err)
+	if sendErr := whatsapp.Reply(ctx, r.client, evt, msg); sendErr != nil {
+		r.log.Warn("Falha ao responder comando não reconhecido", zap.Error(sendErr))
+	}
+}
+
+// notACommandMessage escolhe a mensagem amigável para o usuário quando o
+// handler não reconheceu a entrada.
+func notACommandMessage(err error) string {
+	const fallback = "Não entendi esse pedido. Tenta de novo ou manda !menu pra ver o que dá pra fazer."
+	var nce *NotACommandError
+	if errors.As(err, &nce) && nce.Message != "" {
+		return nce.Message
+	}
+	return fallback
 }
 
 // dispatchBatch despacha um batch de itens de album para o BatchHandler do comando.

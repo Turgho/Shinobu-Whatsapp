@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/infra/ffmpeg"
@@ -144,7 +143,14 @@ func Apply(ctx context.Context, data []byte, ext string, effectName string, inte
 	}
 	defer os.Remove(tmpInPath)
 
-	tmpOut := filepath.Join(os.TempDir(), fmt.Sprintf("audio-out-%d.mp3", os.Getpid()))
+	// Nome único por requisição: um nome derivado do PID colidia entre
+	// "!efeito" simultâneos (mesmo arquivo sobrescrito pelo ffmpeg -y).
+	tmpOutFile, err := os.CreateTemp(os.TempDir(), "audio-out-*.mp3")
+	if err != nil {
+		return nil, fmt.Errorf("audioeffects: erro ao criar arquivo de saída: %w", err)
+	}
+	tmpOut := tmpOutFile.Name()
+	tmpOutFile.Close()
 	defer os.Remove(tmpOut)
 
 	if err := runFFmpeg(ctx, tmpInPath, tmpOut, filter); err != nil {

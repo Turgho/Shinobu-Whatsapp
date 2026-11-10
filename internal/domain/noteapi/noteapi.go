@@ -24,7 +24,11 @@ type Client struct {
 }
 
 // NewClient constrói o cliente http e injeta o logger.
+// Logger nil vira um Nop — evita panic por configuração de boot/teste.
 func NewClient(serverURL, apiToken string, logger *zap.Logger) *Client {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 	return &Client{
 		serverURL: strings.TrimRight(serverURL, "/"),
 		apiToken:  apiToken,
@@ -70,6 +74,9 @@ func (c *Client) Status(ctx context.Context) (*StatusRef, error) {
 // Action executa POST em um endpoint admin (/admin/...) e retorna o
 // código HTTP e o corpo. Timeouts curtos: comandos de reboot/tunnel podem
 // derrubar a conexão antes da resposta — nesse caso consideramos enviado.
+//
+// code == 0 significa "a conexão morreu antes da resposta". O chamador
+// decide o que fazer com isso (ver OK).
 func (c *Client) Action(ctx context.Context, path string, timeout time.Duration) (string, int, error) {
 	body, code, err := c.do(ctx, http.MethodPost, path, timeout)
 	if err != nil {
@@ -78,6 +85,13 @@ func (c *Client) Action(ctx context.Context, path string, timeout time.Duration)
 		return body, 0, err
 	}
 	return body, code, nil
+}
+
+// OK informa se o código HTTP recebido pelo servidor indica sucesso.
+// code == 0 (conexão morta antes da resposta) não é sucesso — quem chama
+// decide se esse caso significa "executado" (operação destrutiva) ou falha.
+func OK(code int) bool {
+	return code >= 200 && code < 300
 }
 
 // ClearCache executa DELETE /cache.
