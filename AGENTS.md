@@ -702,6 +702,11 @@ func (j *XyzJob) Run(ctx context.Context) error { ... }
   (env). Sem `CONSOLE_URL`/`CONSOLE_TOKEN`, o bot funciona só com o
   estado local.
 
+- **Contagem do Mikael ajustável**: `!mikael somar <n>` / `!mikael ajustar <n>`
+  (só o dono) para corrigir a contagem de "pix" sem mexer no arquivo do
+  banco — a tabela `messages` é limpa periodicamente, então recalcular por
+  ela perderia o histórico. `!mikael` continua público (mostra a contagem).
+
 ### Ainda pendente
 - **Plano de arquitetura em `docs/architecture/IMPLEMENTATION_PLAN.md`** — Etapas 2 a 8
   aprovadas e a executar: identidade do owner, ciclo de vida/reconexão, config,

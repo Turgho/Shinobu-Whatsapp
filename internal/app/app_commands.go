@@ -224,5 +224,5 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, aiCfg *ia.C
 		Name:        "mikael",
 		Description: "Conta quantas vezes o Mikael escreveu 'pix' no grupo",
 		Type:        commands.CommandTypeFun,
-	}, public.MikaelHandler(mikaelStore, logger))
+	}, public.MikaelHandler(mikaelStore, cfg.Owner, logger))
 }
