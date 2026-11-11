@@ -25,7 +25,9 @@ import (
 
 // Estado é o conjunto de comandos desabilitados desejado (no Console).
 type State struct {
-	Disabled  []string `json:"disabled"`
+	// Desired é o que o Console guardou como pedido (campo "desired" no
+	// contrato — precisa bater com o que o Console devolve).
+	Desired   []string `json:"desired"`
 	UpdatedAt string   `json:"updatedAt"`
 }
 

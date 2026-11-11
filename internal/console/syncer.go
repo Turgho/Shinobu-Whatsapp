@@ -79,14 +79,14 @@ func (s *Syncer) poll(ctx context.Context) {
 		return
 	}
 
-	changed, err := s.router.CommandState().Apply(state.Disabled)
+	changed, err := s.router.CommandState().Apply(state.Desired)
 	if err != nil {
 		s.log.Error("Falha ao aplicar estado dos comandos", zap.Error(err))
 		return
 	}
 	if changed {
 		s.log.Info("Estado dos comandos aplicado",
-			zap.Strings("desabilitados", state.Disabled),
+			zap.Strings("desabilitados", state.Desired),
 		)
 	}
 }
