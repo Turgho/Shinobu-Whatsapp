@@ -471,11 +471,7 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 		r.log.Warn("Comando desabilitado — ignorado",
 			append(eventFields(evt), zap.String("command", cmdName))...,
 		)
-		ctx, cancel := context.WithTimeout(r.ctx(), 10*time.Second)
-		defer cancel()
-		if err := whatsapp.Reply(ctx, r.client, evt, "🛠️ Esse comando tá desativado no momento. Os outros funcionam normal."); err != nil {
-			r.log.Warn("Falha ao avisar comando desabilitado", zap.Error(err))
-		}
+		r.notify(r.ctx(), evt, "🛠️ Esse comando tá desativado no momento. Os outros funcionam normal.")
 		return
 	}
 
@@ -553,6 +549,19 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 			zap.String("date", time.Now().Format("2006-01-02 15:04:05")),
 		)...,
 	)
+}
+
+// notify manda um aviso ao usuário. Sem client (testes) apenas registra.
+func (r *Router) notify(ctx context.Context, evt *events.Message, msg string) {
+	if r.client == nil {
+		r.log.Info("Aviso sem client (teste)", zap.String("msg", msg))
+		return
+	}
+	sendCtx, cancel := context.WithTimeout(r.ctx(), 10*time.Second)
+	defer cancel()
+	if err := whatsapp.Reply(sendCtx, r.client, evt, msg); err != nil {
+		r.log.Warn("Falha ao avisar comando desabilitado", zap.Error(err))
+	}
 }
 
 // replyFailure responde ao usuário com a mensagem da categoria da falha.
