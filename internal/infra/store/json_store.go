@@ -16,6 +16,12 @@ func NewJSONStore[T any](path string) *JSONStore[T] {
 	return &JSONStore[T]{path: path}
 }
 
+// Path devolve o caminho do arquivo (útil para criar o diretório antes
+// de escrever).
+func (s *JSONStore[T]) Path() string {
+	return s.path
+}
+
 func (s *JSONStore[T]) Read() (T, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

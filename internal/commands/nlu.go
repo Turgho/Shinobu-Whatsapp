@@ -70,6 +70,15 @@ func (r *Router) handleNaturalLanguage(evt *events.Message, msg string) {
 			return
 		}
 
+		// Comando desabilitado: não despacha — a mensagem vira conversa.
+		if r.IsCommandDisabled(intent.Command) {
+			r.log.Info("NLU: comando desabilitado, seguindo para conversa",
+				append(eventFields(evt), zap.String("command", intent.Command))...,
+			)
+			r.handleShinobuMention(evt, msg, quotedText)
+			return
+		}
+
 		if !r.runMiddlewares(intent.Command, evt) {
 			return
 		}
@@ -85,7 +94,7 @@ func (r *Router) handleNaturalLanguage(evt *events.Message, msg string) {
 			append(eventFields(evt),
 				zap.String("command", intent.Command),
 				zap.Int("args", len(intent.Args)),
-				zap.String("raw_message", msg),
+				zap.Int("msg_len", len(msg)),
 				zap.Bool("has_context", quotedText != ""),
 			)...,
 		)
