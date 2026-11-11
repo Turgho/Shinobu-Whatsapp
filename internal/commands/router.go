@@ -5,6 +5,7 @@ package commands
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -51,6 +52,10 @@ type Router struct {
 	aiRateLimitMap   map[string]*rateLimitEntry
 	aiRateLimitMax   int
 	aiRateLimitEvery time.Duration
+
+	// state guarda os comandos desabilitados (tirar um comando de
+	// circulação sem derrubar o bot).
+	state *CommandState
 
 	// Contadores simples para o comando !stats (diagnóstico rápido).
 	statsMessages atomic.Int64
@@ -144,6 +149,39 @@ func (r *Router) ctx() context.Context {
 // SetBotJID define o JID do bot para detecção de menção em mensagens.
 func (r *Router) SetBotJID(jid string) {
 	r.botJID = jid
+}
+
+// SetCommandState define o estado de habilitação dos comandos.
+func (r *Router) SetCommandState(state *CommandState) {
+	r.state = state
+}
+
+// CommandState devolve o estado de habilitação (nil = sem estado).
+func (r *Router) CommandState() *CommandState {
+	return r.state
+}
+
+// IsCommandDisabled informa se o comando está desabilitado.
+func (r *Router) IsCommandDisabled(name string) bool {
+	return r.state.IsDisabled(name)
+}
+
+// SetCommandDisabled habilita/desabilita um comando e persiste o estado.
+func (r *Router) SetCommandDisabled(name string, disabled bool) error {
+	return r.state.SetDisabled(name, disabled)
+}
+
+// CommandCatalog devolve os comandos registrados (nome, descrição, tipo)
+// — é o catálogo que o Console exibe.
+func (r *Router) CommandCatalog() []CommandMeta {
+	metas := r.Commands()
+	sort.Slice(metas, func(i, j int) bool {
+		if metas[i].Type == metas[j].Type {
+			return metas[i].Name < metas[j].Name
+		}
+		return metas[i].Type < metas[j].Type
+	})
+	return metas
 }
 
 // SetAIConfig configura o provider de IA (Groq + Tavily) para NLU e respostas.
@@ -424,6 +462,20 @@ func (r *Router) handlePrefixedCommand(evt *events.Message, cmdName string, args
 
 	cmd, ok := r.commands[cmdName]
 	if !ok {
+		return
+	}
+
+	// Comando desabilitado: o bot continua vivo, só este comando não
+	// responde (útil quando um comando está com bug).
+	if r.IsCommandDisabled(cmdName) {
+		r.log.Warn("Comando desabilitado — ignorado",
+			append(eventFields(evt), zap.String("command", cmdName))...,
+		)
+		ctx, cancel := context.WithTimeout(r.ctx(), 10*time.Second)
+		defer cancel()
+		if err := whatsapp.Reply(ctx, r.client, evt, "🛠️ Esse comando tá desativado no momento. Os outros funcionam normal."); err != nil {
+			r.log.Warn("Falha ao avisar comando desabilitado", zap.Error(err))
+		}
 		return
 	}
 

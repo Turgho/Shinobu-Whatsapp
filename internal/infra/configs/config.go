@@ -23,6 +23,7 @@ type Config struct {
 	Groq     GroqConfig
 	Tavily   TavilyConfig
 	IA       IAConfig
+	Console  ConsoleConfig
 	Music    MusicConfig
 	Feriados FeriadosConfig
 
@@ -135,6 +136,10 @@ func Load() (*Config, error) {
 	v.BindEnv("tavily.apiKey", "TAVILY_API_KEY")
 	v.BindEnv("ia.model", "IA_MODEL")
 
+	// Console (controle remoto dos comandos)
+	v.BindEnv("console.url", "CONSOLE_URL")
+	v.BindEnv("console.token", "CONSOLE_TOKEN")
+
 	if err := v.ReadInConfig(); err != nil {
 		// Sem YAML: segue só com env/default (deploy mínimo).
 		log.Println("config.yaml não encontrado, usando env/default")
@@ -166,6 +171,10 @@ func Load() (*Config, error) {
 	}
 	cfg.IA = IAConfig{
 		Model: v.GetString("ia.model"),
+	}
+	cfg.Console = ConsoleConfig{
+		URL:   v.GetString("console.url"),
+		Token: v.GetString("console.token"),
 	}
 	cfg.Tavily = TavilyConfig{
 		APIKey: firstNonEmpty(v.GetString("tavily.apiKey"), v.GetString("apicalls.tavily.apiKey")),
@@ -239,6 +248,13 @@ type GroqConfig struct {
 
 type TavilyConfig struct {
 	APIKey string `mapstructure:"apiKey"`
+}
+
+// ConsoleConfig liga o bot ao Shinobu Console (controle remoto dos
+// comandos). Sem URL/token, a sincronização fica desligada.
+type ConsoleConfig struct {
+	URL   string `mapstructure:"url"`
+	Token string `mapstructure:"token"`
 }
 
 // IAConfig ajusta o comportamento dos modelos de IA.

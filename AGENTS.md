@@ -688,6 +688,20 @@ func (j *XyzJob) Run(ctx context.Context) error { ... }
   "latest" cada setup podia trazer um binário diferente do testado).
   README ganhou o **mapa de responsabilidades** por pacote.
 
+- **Comandos ligáveis/desligáveis (controle remoto)**: novo
+  `internal/commands/state.go` — estado de habilitação persistido em
+  `assets/info/disabled_commands.json` (mesmo diretório da lista de
+  ignorados). Comando desabilitado **não executa** (prefixo e NLU) e o
+  usuário recebe um aviso — o resto do bot continua vivo. Comando admin
+  `!comandos` (owner): lista os comandos com estado, `!comandos
+  desabilitar <nome>` e `!comandos habilitar <nome>`. Como o app do bot na
+  SquareCloud **não tem domínio público**, o canal com o Console é o
+  inverso: o bot **consulta** o Console a cada 15s (`GET /api/v1/commands/state`)
+  e **reporta** catálogo + estado aplicado a cada 60s
+  (`POST /api/v1/commands/state`), ambos com o token `CONSOLE_TOKEN`
+  (env). Sem `CONSOLE_URL`/`CONSOLE_TOKEN`, o bot funciona só com o
+  estado local.
+
 ### Ainda pendente
 - **Plano de arquitetura em `docs/architecture/IMPLEMENTATION_PLAN.md`** — Etapas 2 a 8
   aprovadas e a executar: identidade do owner, ciclo de vida/reconexão, config,

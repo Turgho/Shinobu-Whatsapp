@@ -30,6 +30,13 @@ func registerAdminCommands(r *commands.Router, cfg *configs.Config, store *histo
 	}, admin.StatsCommand(noteClient, r, logger))
 
 	r.RegisterCommand(commands.CommandMeta{
+		Name:        "comandos",
+		Description: "Lista e habilita/desabilita comandos",
+		Type:        commands.CommandTypeOwner,
+		Private:     true,
+	}, admin.ComandosCommand(r, logger))
+
+	r.RegisterCommand(commands.CommandMeta{
 		Name:        "shutdown",
 		Description: "Desliga o bot",
 		Type:        commands.CommandTypeOwner,

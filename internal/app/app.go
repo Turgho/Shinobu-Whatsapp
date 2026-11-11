@@ -13,6 +13,7 @@ import (
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/bot"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands"
+	"github.com/Turgho/Shinobu-Whatsapp/internal/console"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/birthday"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/history"
 	"github.com/Turgho/Shinobu-Whatsapp/internal/domain/ia"
@@ -165,6 +166,11 @@ func Run() error {
 
 	sched.Start(ctx)
 
+	// Sincronização com o Shinobu Console (controle remoto dos comandos).
+	// Sem CONSOLE_URL/CONSOLE_TOKEN, o bot funciona só com o estado local.
+	consoleClient := console.NewClient(cfg.Console.URL, cfg.Console.Token, logger)
+	console.NewSyncer(consoleClient, r, logger).Start(ctx)
+
 	// !shutdown encerra o bot de forma limpa: cancela o contexto raiz, o
 	// que faz o Listen() voltar e os defer rodarem (logger.Sync, db.Close).
 	r.SetShutdownHook(cancel)
@@ -261,6 +267,11 @@ func buildRouter(ctx context.Context, cfg *configs.Config, waClient *whatsmeow.C
 	if id := waClient.Store.ID; id != nil {
 		r.SetBotJID(id.ToNonAD().String())
 	}
+
+	// Estado de habilitação dos comandos (JSON em assets/info) — permite
+	// tirar um comando de circulação sem derrubar o bot.
+	commandState := commands.NewCommandState()
+	r.SetCommandState(commandState)
 
 	r.SetRootContext(ctx)
 	r.SetNLPGroupTrigger(cfg.Bot.NLPGroupTrigger)
