@@ -192,6 +192,44 @@ func (s *Store) CountWord(ctx context.Context, chat, word string) (int, error) {
 	return count, nil
 }
 
+// AddCount soma delta ao contador da palavra no chat (delta pode ser
+// negativo para corrigir). Usado pelo comando admin para ajustar a
+// contagem sem mexer no arquivo do banco.
+func (s *Store) AddCount(ctx context.Context, chat, word string, delta int) (int, error) {
+	if delta == 0 {
+		return s.CountWord(ctx, chat, word)
+	}
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO word_counts (chat, sender, word, count, updated_at)
+		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(chat, sender, word) DO UPDATE SET
+			count = count + excluded.count,
+			updated_at = CURRENT_TIMESTAMP
+	`, chat, s.targetSender, word, delta)
+	if err != nil {
+		return 0, fmt.Errorf("mikael: ajustar contagem: %w", err)
+	}
+	return s.CountWord(ctx, chat, word)
+}
+
+// SetCount define o contador da palavra no chat (valor absoluto).
+func (s *Store) SetCount(ctx context.Context, chat, word string, value int) (int, error) {
+	if value < 0 {
+		value = 0
+	}
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO word_counts (chat, sender, word, count, updated_at)
+		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(chat, sender, word) DO UPDATE SET
+			count = excluded.count,
+			updated_at = CURRENT_TIMESTAMP
+	`, chat, s.targetSender, word, value)
+	if err != nil {
+		return 0, fmt.Errorf("mikael: definir contagem: %w", err)
+	}
+	return s.CountWord(ctx, chat, word)
+}
+
 // countOccurrences conta quantas vezes word aparece como palavra inteira em
 // text, ignorando pontuação adjacente. Case-insensitive.
 func countOccurrences(text, word string) int {
