@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/Turgho/Shinobu-Whatsapp/internal/commands"
@@ -22,6 +23,14 @@ type Handler struct {
 	// ownerJID (opcional) — destino dos avisos graves (sessão caiu,
 	// logou fora, ban temporário).
 	ownerJID *types.JID
+
+	// mu protege connectFailed.
+	mu sync.Mutex
+	// connectFailed marca que houve uma falha de conexão. O bot pode
+	// ficar "rodando" (processo vivo) e mesmo assim **mudo** — foi o
+	// que aconteceu com o 405 "Client outdated": o handshake falha
+	// depois do Connect() retornar nil, e sem aviso ninguém percebia.
+	connectFailed bool
 }
 
 // NewHandler cria um handler de eventos WhatsApp com logger para gosafe.Go.
@@ -67,6 +76,10 @@ func (h *Handler) EventHandler(evt interface{}) {
 
 	case *events.Connected:
 		h.log.Info("Conectado ao WhatsApp")
+		// Se houve falha antes, o dono precisa saber que voltou.
+		if h.markConnected() {
+			h.avisarDono("✅ Reconectei no WhatsApp — voltei a te atender.")
+		}
 
 	case *events.Disconnected:
 		// A biblioteca reconecta sozinha (EnableAutoReconnect é true por
@@ -89,6 +102,12 @@ func (h *Handler) EventHandler(evt interface{}) {
 			zap.String("reason", v.Reason.String()),
 			zap.String("message", v.Message),
 		)
+		// O processo continua vivo, mas o bot não recebe nada: avisa o
+		// dono **uma vez** por episode (evita spam do auto-reconnect).
+		if h.markConnectFailed() {
+			h.avisarDono("⚠️ Falha ao conectar no WhatsApp (" + v.Reason.String() +
+				"). Vou tentar reconectar sozinho — se não voltar, reinicie o bot.")
+		}
 
 	case *events.TemporaryBan:
 		h.log.Error("Ban temporário no WhatsApp",
@@ -111,4 +130,29 @@ func (h *Handler) avisarDono(msg string) {
 	if err := whatsapp.SendTextToJID(ctx, h.client, *h.ownerJID, msg, nil); err != nil {
 		h.log.Warn("Falha ao avisar o dono sobre o estado da conexão", zap.Error(err))
 	}
+}
+
+// markConnectFailed registra uma falha de conexão. Devolve true apenas na
+// primeira falha do episode (as tentativas seguintes do auto-reconnect não
+// geram aviso novo).
+func (h *Handler) markConnectFailed() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.connectFailed {
+		return false
+	}
+	h.connectFailed = true
+	return true
+}
+
+// markConnected marca a conexão como ok. Devolve true se havia uma falha
+// antes (ou seja, é uma recuperação).
+func (h *Handler) markConnected() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if !h.connectFailed {
+		return false
+	}
+	h.connectFailed = false
+	return true
 }
