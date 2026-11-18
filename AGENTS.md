@@ -707,6 +707,16 @@ func (j *XyzJob) Run(ctx context.Context) error { ... }
   banco — a tabela `messages` é limpa periodicamente, então recalcular por
   ela perderia o histórico. `!mikael` continua público (mostra a contagem).
 
+- **whatsmeow / versão do client do WhatsApp**: o WhatsApp rejeita clients
+  antigos com `Client outdated (405) connect failure (client version:
+  2.3000.XXXXXXX)`. A versão do client web vive **dentro da lib**
+  (`store/clientpayload.go` → `waVersion`), não no repo — então a correção é
+  atualizar a lib: `go get go.mau.fi/whatsmeow@latest && go mod tidy`.
+  Sinais: o processo fica **running** na SquareCloud, mas o bot não recebe
+  nada (o `Connect()` retorna nil — o websocket abre — e o **handshake**
+  falha depois). O `events.ConnectFailure` agora **avisa o dono** (uma vez
+  por episode) e o `events.Connected` avisa a recuperação.
+
 ### Ainda pendente
 - **Plano de arquitetura em `docs/architecture/IMPLEMENTATION_PLAN.md`** — Etapas 2 a 8
   aprovadas e a executar: identidade do owner, ciclo de vida/reconexão, config,
