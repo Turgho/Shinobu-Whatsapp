@@ -33,6 +33,12 @@ func registerAliases(r *commands.Router) {
 		"figu":       "sticker",
 		"stick":      "sticker",
 
+		// Audio sticker (figurinha com som)
+		"ss":              "stickersom",
+		"stickercomsom":   "stickersom",
+		"figurinhacomsom": "stickersom",
+		"audiosticker":    "stickersom",
+
 		// Clima
 		"clim":     "clima",
 		"tempo":    "clima",

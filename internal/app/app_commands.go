@@ -49,6 +49,13 @@ func registerPublicCommands(r *commands.Router, cfg *configs.Config, aiCfg *ia.C
 		Type:        commands.CommandTypeUtility,
 	}, public.StickerCommand, public.StickerAlbumCommand)
 
+	r.RegisterCommand(commands.CommandMeta{
+		Name:        "stickersom",
+		Description: "Figurinha com som: manda um vídeo com a legenda !ss",
+		Type:        commands.CommandTypeMedia,
+		Private:     false,
+	}, public.AudioStickerHandler())
+
 	// Service de mídia: executor local (yt-dlp) + cache + fallback túnel.
 	execCfg := &music.YtdlpExecConfig{
 		LocalEnabled: cfg.Music.LocalEnabled,

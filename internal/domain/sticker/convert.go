@@ -108,10 +108,10 @@ func runFFmpeg(ctx context.Context, input, output string, animated bool) error {
 // contendo um JSON com pack-name, publisher e emoji. O tamanho do payload é colocado
 // nos bytes 14-17 do cabeçalho EXIF (little-endian uint32).
 func injectStickerMeta(ctx context.Context, webpPath, author, pack string) error {
-	jsonBytes := []byte(fmt.Sprintf(
+	jsonBytes := fmt.Appendf(nil,
 		`{"sticker-pack-id":"yuuko.shinobu","sticker-pack-name":"%s","sticker-pack-publisher":"%s","emojis":["🦇"]}`,
 		pack, author,
-	))
+	)
 
 	exifAttr := []byte{
 		0x49, 0x49, 0x2A, 0x00, // TIFF little-endian header + magic

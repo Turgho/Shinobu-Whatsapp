@@ -287,6 +287,56 @@ Fallback para ambíguos: `coloca` → play, `manda` → agenda, `conta` sozinho 
   - Senão, timer de 10s dispara dispatch parcial
 - Limite: `albumMaxItems = 30` itens por album
 
+### Sticker / figurinha (inclui audio sticker)
+- `!sticker` (`internal/commands/public/sticker.go`): imagem/vídeo →
+  `sticker.ConvertToWebP` (512×512; animado 6s/10fps) →
+  `client.Upload(ctx, webp, whatsmeow.MediaImage)` → `whatsapp.SendSticker`
+- `!ss` / `!stickersom` (`sticker_audio.go`): vídeo/GIF → **separa a trilha**
+  (`ffmpeg.ExtractOpus`: OGG Opus 64k/48k/mono, cortado em 7s) + gera a
+  figurinha → upload da imagem (`MediaImage`) e do som (`MediaAudio`) →
+  `whatsapp.SendAudioSticker`
+  - Entrada: vídeo (ou GIF) **com legenda `!ss`**, ou `!ss` citando o vídeo
+  - Arquivo **sem trilha de áudio** (`ffmpeg.ErrNoAudioTrack`): envia a
+    figurinha comum + aviso (`msgAudioStickerNoAudio`) — fallback, não erro
+  - O WhatsApp valida o som: OGG/Opus, 1–7s, ≤256KB. A imagem é ≤1MB, 512×512
+- **Formato do audio sticker** (`whatsapp/sticker.go` → `SendAudioSticker`):
+  ```
+  Message.AudioStickerMessage (campo 134) = FutureProofMessage{Message:
+      StickerMessage { URL/mediaKey/... da IMAGEM,
+                       oneof audio { AudioMessage = 26 } com URL/mediaKey/próprio do SOM } }
+  MessageContextInfo (MessageSecret 32 bytes) fica FORA do embrulho
+  ```
+  - Upload: imagem `MediaImage`, som `MediaAudio` — a lib não expõe
+    `UploadSticker` (whatsmeow PR #1366 segue aberto)
+  - `IsAnimated` acompanha o webp; `Width/Height = 512`
+- **Recebimento**: whatsmeow ≥ `2026-11-25` desembrulha `audioStickerMessage`
+  em `events.UnwrapRaw` e seta `IsAudioSticker` — `msg.StickerMessage` chega
+  pronto no handler (sem isso, `media.DownloadFromEvent` não acha a figurinha)
+- `!unsticker` (`commands/public/unsticker.go`):
+  - Estático → `ffmpeg.ConvertWebPToPNG` (ok)
+  - Animado → `sticker.ConvertAnimatedWebPToMP4` (webp→png→mp4)
+- **WebP animado NÃO decodifica no ffmpeg empacotado** (7.0.2 johnvansickle):
+  - Log: `skipping unsupported chunk: ANIM/ANMF` → `image data not found` →
+    `Conversion failed!` (isso derrubava o `!unsticker` animado)
+  - O demuxer animado (`libavformat/webp_anim_dec.c`) só entrou em 2026-05 e
+    **não existe** nas branches de release 7.x/8.x — trocar o ffmpeg por uma
+    release nova não resolve (a URL `ffmpeg-release-amd64-static.tar.xz`
+    ainda serve 7.0.2)
+  - Caminho viável e testado: `webpmux -get frame N` → webp **estático** →
+    composição em Go (`domain/sticker/animated.go`) → PNG sequencial →
+    `ffmpeg.ConvertPNGSequenceToMP4`
+  - `webpmux -info` devolve canvas, nº de frames e
+    `width/height/x_offset/y_offset/duration/dispose/blend` por frame.
+    **Frames podem ser parciais** (offset no canvas) — a composição é
+    obrigatória: `blend=no` substitui a área, `dispose=background` limpa a
+    área do frame anterior. Fundo com alfa baixo vira preto opaco (MP4 não
+    tem alfa)
+  - Limite de segurança: canvas ≤1024, ≤300 frames (evita estourar RAM/disco
+    em webp que não é sticker)
+  - `webpmux -frame` (montagem de animação em teste): 3 args separados —
+    `webpmux -frame <arquivo> "+d+x+y+dispose±b" ... -bgcolor A,R,G,B -o out`
+- Temporários sempre via `os.CreateTemp` (nunca derivado de PID)
+
 ---
 
 ## Padrões de código
@@ -716,6 +766,27 @@ func (j *XyzJob) Run(ctx context.Context) error { ... }
   nada (o `Connect()` retorna nil — o websocket abre — e o **handshake**
   falha depois). O `events.ConnectFailure` agora **avisa o dono** (uma vez
   por episode) e o `events.Connected` avisa a recuperação.
+
+### Feito nesta sessão (2026-11-26, audio sticker + unsticker animado)
+- **whatsmeow** `2026-11-16` → `2026-11-26` (`c2ce5c339ae0`): ganha unwrap de
+  `audioStickerMessage` (`events.IsAudioSticker`) e type detection no send —
+  sem isso, `media.DownloadFromEvent` não achava figurinha com som
+- **`!ss` / `!stickersom`** (novo): vídeo/GIF → `ffmpeg.ExtractOpus` (OGG Opus,
+  7s) + figurinha → `whatsapp.SendAudioSticker` monta `StickerMessage` com o
+  `AudioMessage` no oneof `audio` dentro do envelope `AudioStickerMessage`.
+  Registro em `app_commands.go`, aliases (`ss`, `stickercomsom`,
+  `figurinhacomsom`, `audiosticker`), NLU (`commands.go`) e mensagens
+- **`!unsticker` animado corrigido**: o ffmpeg 7.0.2 não decodifica webp
+  animado (chunks ANIM/ANMF pulados → `Conversion failed!`). Novo caminho:
+  `webpmux -get frame` → composição em Go (`domain/sticker/animated.go`,
+  respeitando offset/blend/dispose) → PNG sequencial →
+  `ffmpeg.ConvertPNGSequenceToMP4`. `ConvertWebPToMP4` (quebrado) removido
+- Pacotes novos: `internal/infra/webpmux` (info + extract), `ffmpeg/audio.go`
+  (`ExtractOpus`, `ErrNoAudioTrack`), `sticker/animated.go`, `sticker_audio.go`
+- Testes: parser do `webpmux -info`, pipeline webp animado→mp4, composição
+  validada por pixel (offset + blend), `ExtractOpus` (com/som, sem som) e
+  `parseDurationSeconds` (progresso do output > Duration do input)
+- `go build`, `go vet` e `go test -race ./...` limpos
 
 ### Ainda pendente
 - **Plano de arquitetura em `docs/architecture/IMPLEMENTATION_PLAN.md`** — Etapas 2 a 8

@@ -10,7 +10,7 @@ import (
 // Usada tanto para gerar o prompt dinamicamente quanto para validar
 // a saída do modelo via DispatchableCommand.
 var nluCommands = []string{
-	"clima", "play", "sticker", "efeito", "aniversário",
+	"clima", "play", "sticker", "stickersom", "efeito", "aniversário",
 	"agenda", "cotacao", "feriado", "noticia", "receita",
 	"piada", "fato", "filme", "contagem", "unsticker", "traduz",
 }
@@ -22,6 +22,7 @@ var nluCommandDesc = map[string]string{
 	"clima":       "previsão do tempo. Args: [cidade] ou [cidade, YYYY-MM-DD]",
 	"play":        "tocar música. Args: [nome/banda]",
 	"sticker":     "criar figurinha. Args: []",
+	"stickersom":  "figurinha com som a partir de um vídeo (envie o vídeo com !ss). Args: []",
 	"efeito":      "efeito de áudio. Args: [tipo, intensidade?]",
 	"aniversário": "aniversários do grupo. Args: [lista]",
 	"agenda":      "lembrete/agendamento. Args: [data+hora, mensagem]",
