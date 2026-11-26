@@ -172,6 +172,7 @@ Makefile (mesma validação de bump antes de tocar em git).
 | `!ping` | Verifica latência e disponibilidade |
 | `!clima <cidade> [data]` (atalho: `!c`, `!tempo`) | Clima atual ou previsão para data futura. Data aceita: "amanhã", "sexta", "28/06", "5 de janeiro" |
 | `!sticker` (atalho: `!s`, `!figurinha`) | Converte imagem ou vídeo em figurinha |
+| `!ss <vídeo>` (atalho: `!stickersom`) | Figurinha com som: manda um vídeo (ou GIF) com a legenda `!ss` e ele separa a trilha de áudio |
 | `!play <nome ou URL>` (atalho: `!p`) | Baixa e envia música como documento com nome e capa do álbum |
 | `!efeito [nome] [intensidade]` (atalho: `!e`) | Aplica efeito em áudio citado. Sem args lista os disponíveis |
 | `!shinobu <texto>` | Conversa com a IA — também ativada mencionando "shinobu" |
@@ -188,7 +189,7 @@ Makefile (mesma validação de bump antes de tocar em git).
 | `!fato` (atalho: `!curiosidade`) | Compartilha um fato curioso |
 | `!filme [gênero]` (atalho: `!movie`) | Recomenda um filme |
 | `!contagem <evento> <data>` (atalho: `!dias`) | Conta os dias para uma data |
-| `!unsticker` (atalho: `!us`) | Converte figurinha de volta em imagem |
+| `!unsticker` (atalho: `!us`) | Converte figurinha de volta em imagem (animada vira vídeo) |
 | `!traduz [idioma]` (atalho: `!translate`) | Traduz texto para português ou outro idioma |
 
 > A IA também entende comandos sem prefixo quando mencionada: *"Shinobu, toca uma música do Metallica"*, *"Shinobu, qual o clima em Campinas?"*, *"Shinobu, me lembra daqui 10 minutos de ligar pro médico"*.

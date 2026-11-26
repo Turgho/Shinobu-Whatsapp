@@ -10,7 +10,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.0
-	go.mau.fi/whatsmeow v0.0.0-20261116172437-19d61352436f
+	go.mau.fi/whatsmeow v0.0.0-20261126154439-c2ce5c339ae0
 	go.uber.org/zap v1.27.1
 	golang.org/x/image v0.43.0
 	google.golang.org/protobuf v1.36.12

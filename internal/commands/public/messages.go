@@ -33,6 +33,12 @@ const (
 	msgConvertStickerFail = "Não consegui criar a figurinha. Tem certeza que é uma imagem ou vídeo?"
 	msgSendStickerFail    = "Não consegui enviar a figurinha."
 
+	// Audio sticker (!ss)
+	msgAudioStickerWorking   = "⏳ Separando o som do vídeo..."
+	msgAudioStickerNoMedia   = "Manda um vídeo (ou GIF) com a legenda `!ss`, ou responde a um vídeo com o comando."
+	msgAudioStickerNoAudio   = "Esse arquivo não tinha som, então ficou só a figurinha comum."
+	msgAudioStickerAudioFail = "Não consegui separar o som do vídeo."
+
 	// Shinobu
 	msgShinobuFail = "Algo deu errado. Fala de novo?"
 
