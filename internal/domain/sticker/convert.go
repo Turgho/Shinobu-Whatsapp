@@ -14,7 +14,7 @@ import (
 // usando ffmpeg e retorna os bytes do arquivo resultante.
 //
 // Para imagens estáticas: redimensiona e corta centralizado para 512×512.
-// Para vídeos/gifs animados: idem, limitado a 6 segundos e 15fps
+// Para vídeos/gifs animados: idem, limitado a 10 segundos e 15fps
 // (limites do WhatsApp para stickers animados).
 func ConvertToWebP(ctx context.Context, data []byte, ext string, animated bool) ([]byte, error) {
 	tmpIn, err := os.CreateTemp("", "sticker-in-*"+ext)
@@ -62,7 +62,7 @@ func runFFmpeg(ctx context.Context, input, output string, animated bool) error {
 	if animated {
 		args = []string{
 			"-ss", "0",
-			"-t", "6",
+			"-t", "10",
 			"-i", input,
 			"-vf", scaleFilter + ",fps=10",
 			"-vcodec", "libwebp",

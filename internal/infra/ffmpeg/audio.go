@@ -15,8 +15,8 @@ import (
 var ErrNoAudioTrack = errors.New("ffmpeg: mídia sem trilha de áudio")
 
 // maxAudioSeconds é o limite do WhatsApp para o áudio de um audio sticker
-// (validado entre 1 e 7 segundos).
-const maxAudioSeconds = 7
+// (validado entre 1 e 10 segundos).
+const maxAudioSeconds = 10
 
 // reDuration captura "Duration: 00:00:03.20, ..." do stderr do ffmpeg.
 var reDuration = regexp.MustCompile(`Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)`)
@@ -76,7 +76,7 @@ func isNoAudioOutput(output string) bool {
 }
 
 // parseDurationSeconds devolve a duração real do áudio gerado, limitada ao
-// intervalo [1, 7] do WhatsApp.
+// intervalo [1, 10] do WhatsApp.
 //
 // Prioriza a última linha de progresso ("time=00:00:03.10"), que mede o
 // arquivo de saída; o "Duration:" do input serve de fallback (em alguns
@@ -118,7 +118,7 @@ func durationToSeconds(m []string) (float64, bool) {
 	return float64(h*3600+min*60) + sec, true
 }
 
-// clampAudioSeconds aplica o intervalo [1, 7] com arredondamento para cima.
+// clampAudioSeconds aplica o intervalo [1, 10] com arredondamento para cima.
 func clampAudioSeconds(total float64) int {
 	seconds := int(total)
 	if float64(seconds) < total {
