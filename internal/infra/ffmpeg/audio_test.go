@@ -22,18 +22,18 @@ func TestParseDurationSeconds(t *testing.T) {
 		},
 		{
 			name:   "exatamente o teto",
-			stderr: "Duration: 00:00:07.00, start: 0.000000, bitrate: 99 kb/s",
-			want:   7,
+			stderr: "Duration: 00:00:10.00, start: 0.000000, bitrate: 99 kb/s",
+			want:   10,
 		},
 		{
 			name:   "duração maior que o limite é truncada",
 			stderr: "Duration: 00:01:30.00, start: 0.000000, bitrate: 99 kb/s",
-			want:   7,
+			want:   10,
 		},
 		{
 			name:   "duração desconhecida assume o teto",
 			stderr: "Duration: N/A, bitrate: N/A",
-			want:   7,
+			want:   10,
 		},
 		{
 			name:   "duração mínima nunca zera",
@@ -43,7 +43,7 @@ func TestParseDurationSeconds(t *testing.T) {
 		{
 			name:   "sem informação assume o teto",
 			stderr: "sem nada aqui",
-			want:   7,
+			want:   10,
 		},
 		{
 			name: "progresso do output vence o Duration do input",
@@ -54,8 +54,8 @@ func TestParseDurationSeconds(t *testing.T) {
 		{
 			name: "última linha de progresso é a final",
 			stderr: "time=00:00:01.00 bitrate= 94.5kbits/s\n" +
-				"size=      72kB time=00:00:06.50 bitrate= 94.5kbits/s\n",
-			want: 7, // 6.5s → 7
+				"size=      72kB time=00:00:09.50 bitrate= 94.5kbits/s\n",
+			want: 10, // 9.5s → 10
 		},
 	}
 
